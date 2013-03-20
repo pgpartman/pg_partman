@@ -7,6 +7,7 @@ CREATE FUNCTION drop_time_partition(p_parent_table text, p_keep_table boolean DE
 DECLARE
 
 v_adv_lock                  boolean;
+v_parent_table              text;
 v_child_table               text;
 v_datetime_string           text;
 v_drop_count                int := 0;
@@ -70,17 +71,19 @@ IF v_jobmon_schema IS NOT NULL THEN
     v_job_id := add_job('PARTMAN DROP TIME PARTITION: '|| p_parent_table);
 END IF;
 
+SELECT p_parent_table::regclass INTO v_parent_table;
+
 -- Loop through child tables of the given parent
 FOR v_child_table IN 
-    SELECT inhrelid::regclass FROM pg_catalog.pg_inherits WHERE inhparent::regclass = p_parent_table::regclass ORDER BY inhrelid::regclass ASC
+    SELECT inhrelid::regclass FROM pg_catalog.pg_inherits WHERE inhparent::regclass = v_parent_table::regclass ORDER BY inhrelid::regclass ASC
 LOOP
     -- pull out datetime portion of last partition's tablename to make the next one
     IF v_part_interval != '3 months' THEN
-        v_partition_timestamp := to_timestamp(substring(v_child_table from char_length(p_parent_table||'_p')+1), v_datetime_string);
+        v_partition_timestamp := to_timestamp(substring(v_child_table from char_length(v_parent_table||'_p')+1), v_datetime_string);
     ELSE
         -- to_timestamp doesn't recognize 'Q' date string formater. Handle it
-        v_year := split_part(substring(v_child_table from char_length(p_parent_table||'_p')+1), 'q', 1);
-        v_quarter := split_part(substring(v_child_table from char_length(p_parent_table||'_p')+1), 'q', 2);
+        v_year := split_part(substring(v_child_table from char_length(v_parent_table||'_p')+1), 'q', 1);
+        v_quarter := split_part(substring(v_child_table from char_length(v_parent_table||'_p')+1), 'q', 2);
         CASE
             WHEN v_quarter = '1' THEN
                 v_partition_timestamp := to_timestamp(v_year || '-01-01', 'YYYY-MM-DD');
@@ -96,9 +99,9 @@ LOOP
     -- Add one interval since partition names contain the start of the constraint period
     IF v_retention < (CURRENT_TIMESTAMP - (v_partition_timestamp + v_part_interval)) THEN
         IF v_jobmon_schema IS NOT NULL THEN
-            v_step_id := add_step(v_job_id, 'Uninherit table '||v_child_table||' from '||p_parent_table);
+            v_step_id := add_step(v_job_id, 'Uninherit table '||v_child_table||' from '||v_parent_table);
         END IF;
-        EXECUTE 'ALTER TABLE '||v_child_table||' NO INHERIT ' || p_parent_table;
+        EXECUTE 'ALTER TABLE '||v_child_table||' NO INHERIT ' || v_parent_table;
         IF v_jobmon_schema IS NOT NULL THEN
             PERFORM update_step(v_step_id, 'OK', 'Done');
         END IF;
