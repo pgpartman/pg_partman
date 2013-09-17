@@ -15,6 +15,7 @@ v_parent_grant                  record;
 v_parent_owner                  text;
 v_parent_schema                 text;
 v_parent_tablename              text;
+v_parent_tablespace             text;
 v_partition_name                text;
 v_partition_suffix              text;
 v_partition_timestamp_end       timestamp;
@@ -35,7 +36,7 @@ IF v_jobmon_schema IS NOT NULL THEN
     EXECUTE 'SELECT set_config(''search_path'',''@extschema@,'||v_jobmon_schema||''',''false'')';
 END IF;
 
-SELECT tableowner, schemaname, tablename INTO v_parent_owner, v_parent_schema, v_parent_tablename FROM pg_tables WHERE schemaname ||'.'|| tablename = p_parent_table;
+SELECT tableowner, schemaname, tablename, tablespace INTO v_parent_owner, v_parent_schema, v_parent_tablename, v_parent_tablespace FROM pg_tables WHERE schemaname ||'.'|| tablename = p_parent_table;
 
 FOREACH v_time IN ARRAY p_partition_times LOOP    
 
@@ -122,6 +123,11 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
     END IF;
 
     EXECUTE 'CREATE TABLE '||v_partition_name||' (LIKE '||p_parent_table||' INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES INCLUDING STORAGE INCLUDING COMMENTS)';
+
+    IF v_parent_tablespace > '' THEN
+        EXECUTE 'ALTER TABLE '||v_partition_name||' SET TABLESPACE '||v_parent_tablespace;
+    END IF;    
+
     SELECT tablename INTO v_tablename FROM pg_catalog.pg_tables WHERE schemaname ||'.'|| tablename = v_partition_name;
     EXECUTE 'ALTER TABLE '||v_partition_name||' ADD CONSTRAINT '||v_tablename||'_partition_check
         CHECK ('||p_control||'>='||quote_literal(v_partition_timestamp_start)||' AND '||p_control||'<'||quote_literal(v_partition_timestamp_end)||')';
