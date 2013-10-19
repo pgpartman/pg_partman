@@ -15,6 +15,7 @@ v_parent_grant                  record;
 v_parent_owner                  text;
 v_parent_schema                 text;
 v_parent_tablename              text;
+v_parent_tablespace             text;
 v_partition_name                text;
 v_partition_suffix              text;
 v_parent_tablespace             text;
@@ -123,6 +124,11 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
     END IF;
 
     EXECUTE 'CREATE TABLE '||v_partition_name||' (LIKE '||p_parent_table||' INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES INCLUDING STORAGE INCLUDING COMMENTS)';
+
+    IF v_parent_tablespace > '' THEN
+        EXECUTE 'ALTER TABLE '||v_partition_name||' SET TABLESPACE '||v_parent_tablespace;
+    END IF;    
+
     SELECT tablename INTO v_tablename FROM pg_catalog.pg_tables WHERE schemaname ||'.'|| tablename = v_partition_name;
     IF v_parent_tablespace IS NOT NULL THEN
         EXECUTE 'ALTER TABLE '||v_partition_name||' SET TABLESPACE '||v_parent_tablespace;
