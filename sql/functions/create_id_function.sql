@@ -119,7 +119,7 @@ IF v_type = 'id-static' THEN
                 RETURN NEW;
             END IF;
             v_current_partition_id := NEW.'||v_control||' - (NEW.'||v_control||' % '||v_part_interval||');
-            IF (NEW.'||v_control||' % '||v_part_interval||') > ('||v_part_interval||' / 2) THEN
+            IF (NEW.'||v_control||' % '||v_part_interval||') >= ('||v_part_interval||' / 2) THEN
                 v_id_position := (length(v_last_partition) - position(''p_'' in reverse(v_last_partition))) + 2;
                 v_next_partition_id := (substring(v_last_partition from v_id_position)::bigint) + '||v_part_interval||';
                 WHILE ((v_next_partition_id - v_current_partition_id) / '||v_part_interval||') <= '||v_premake||' LOOP 
@@ -156,7 +156,7 @@ ELSIF v_type = 'id-dynamic' THEN
         IF TG_OP = ''INSERT'' THEN 
             v_current_partition_id := NEW.'||v_control||' - (NEW.'||v_control||' % '||v_part_interval||');
             v_current_partition_name := @extschema@.check_name_length('''||v_parent_tablename||''', '''||v_parent_schema||''', v_current_partition_id::text, TRUE);
-            IF (NEW.'||v_control||' % '||v_part_interval||') > ('||v_part_interval||' / 2) THEN
+            IF (NEW.'||v_control||' % '||v_part_interval||') >= ('||v_part_interval||' / 2) THEN
                 v_id_position := (length(v_last_partition) - position(''p_'' in reverse(v_last_partition))) + 2;
                 v_last_partition_id = substring(v_last_partition from v_id_position)::bigint;
                 v_next_partition_id := v_last_partition_id + '||v_part_interval||';
