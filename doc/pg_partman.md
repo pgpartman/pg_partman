@@ -47,7 +47,7 @@ A superuser must be used to run all these functions in order to set privileges &
 
 CREATE FUNCTION create_parent(p_parent_table text , p_control text, p_type text, p_interval text, p_constraint_cols text[] DEFAULT NULL, p_premake int DEFAULT 4, p_use_run_maintenance boolean DEFAULT NULL, p_start_partition text DEFAULT NULL, p_inherit_fk boolean DEFAULT true, p_jobmon boolean DEFAULT true, p_debug boolean DEFAULT false) 
  * Main function to create a partition set with one parent table and inherited children. Parent table must already exist. Please apply all defaults, indexes, constraints, privileges & ownership to parent table so they will propagate to children.
- * An ACCESS EXCLUSIVE lock is taken on the parent table during the running of this function. No data is moved when running this function, so lock should be brief.
+ * An ACCESS EXCLUSIVE lock is taken on the parent table during the running of this function. No data is moved when running this function, so time locked should be brief.
  * p_parent_table - the existing parent table. MUST be schema qualified, even if in public schema.
  * p_control - the column that the partitioning will be based on. Must be a time or integer based column.
  * p_type - one of 5 values to set the partitioning type that will be used
@@ -72,7 +72,7 @@ time-custom   - Allows use of any time interval instead of the premade ones belo
 id-static     - Same functionality and use of the premake value as time-static but for a numeric range 
                 instead of time.
                 By default, when the id value reaches 50% of the max value for that partition, it will automatically create 
-                the next partition in sequence if it doesn't yet exist. This can be changed to use
+                the next partition(s) in sequence if they don't yet exist. This can be changed to use
                 run_maintenance() instead. See the notes for this function below.
                 Only supports id values greater than or equal to zero.
 id-dynamic    - Same functionality and limitations as time-dynamic but for a numeric range instead of time.
@@ -100,7 +100,7 @@ quarter-hour    - One partition per 15 minute interval on the quarter-hour (1200
 
  * p_constraint_cols - an optional array parameter to set the columns that will have additional constraints set. See the **About** section for more information on how this works and the **apply_constraints()** function for how this is used.
  * p_premake - is how many additional partitions to always stay ahead of the current partition. Default value is 4. This will keep at minimum 5 partitions made, including the current one. For example, if today was Sept 6, 2012, and premake was set to 4 for a daily partition, then partitions would be made for the 6th as well as the 7th, 8th, 9th and 10th. As stated above, this value also determines how many partitions outside of the current one the static partitioning trigger function will handle (behind & ahead) and also influences which old partitions get additional constraints applied. Note some intervals may occasionally cause an extra partition to be premade or one to be missed due to leap years, differing month lengths, daylight savings (on non-UTC systems), etc. This won't hurt anything and will self-correct. If partitioning ever falls behind the premake value, normal running of run_maintenance() and data insertion to id-based tables should automatically catch things up.
- * p_use_run_maintenance - Used to tell partman whether you'd like to override the default way that child partitions are created. Set this value to TRUE to allow you to use the run_maintenance() function to create new child tables for serial partitioning instead of using 50% method mentioned above. Time based partitining MUST use run_maintenance() and this parameter cannot be set to FALSE for it. See **run_mainteanance** in Maintenance Functions section below for more info.
+ * p_use_run_maintenance - Used to tell partman whether you'd like to override the default way that child partitions are created. Set this value to TRUE to allow you to use the run_maintenance() function to create new child tables for serial partitioning instead of using  method mentioned above. Time based partitining MUST use run_maintenance() and this parameter cannot be set to FALSE for it. See **run_mainteanance** in Maintenance Functions section below for more info.
  * p_start_partition - allows the first partition of a set to be specified instead of it being automatically determined. Must be a valid timestamp (for time-based) or positive integer (for id-based) value. Be aware, though, the actual paramater data type is text. For time-based partitioning, all partitions starting with the given timestamp up to CURRENT_TIMESTAMP (plus premake) will be created. For id-based partitioning, only the partition starting at the given value (plus premake) will be made. 
  * p_inherit_fk - allows pg_partman to automatically manage inheriting any foreign keys that exist on the parent table to all its children. Defaults to TRUE.
  * p_jobmon - allow pg_partman to use the pg_jobmon extension to monitor that partitioning is working correctly. Defaults to TRUE.
