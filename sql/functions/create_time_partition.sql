@@ -13,6 +13,7 @@ v_control                       text;
 v_grantees                      text[];
 v_hasoids                       boolean;
 v_inherit_fk                    boolean;
+v_inherit_tg					boolean;
 v_job_id                        bigint;
 v_jobmon                        boolean;
 v_jobmon_schema                 text;
@@ -45,12 +46,14 @@ SELECT type
     , control
     , part_interval
     , inherit_fk
+	, inherit_tg
     , jobmon
 INTO v_type
     , v_control
     , v_part_interval
     , v_inherit_fk
-    , v_jobmon
+    , v_inherit_tg
+	, v_jobmon
 FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (type = 'time-static' OR type = 'time-dynamic' OR type = 'time-custom');
@@ -177,6 +180,10 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         PERFORM @extschema@.apply_foreign_keys(quote_ident(v_parent_schema)||'.'||quote_ident(v_parent_tablename), v_partition_name);
     END IF;
 
+	IF v_inherit_tg THEN
+        PERFORM @extschema@.apply_triggers(quote_ident(v_parent_schema)||'.'||quote_ident(v_parent_tablename), v_partition_name);
+    END IF;
+	
     IF v_jobmon_schema IS NOT NULL THEN
         PERFORM update_step(v_step_id, 'OK', 'Done');
         IF v_step_overflow_id IS NOT NULL THEN

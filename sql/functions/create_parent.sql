@@ -11,6 +11,7 @@ CREATE FUNCTION create_parent(
     , p_use_run_maintenance boolean DEFAULT NULL
     , p_start_partition text DEFAULT NULL
     , p_inherit_fk boolean DEFAULT true
+	, p_inherit_tg boolean DEFAULT false
     , p_jobmon boolean DEFAULT true
     , p_debug boolean DEFAULT false) 
 RETURNS void
@@ -194,6 +195,7 @@ IF p_type = 'time-static' OR p_type = 'time-dynamic' OR p_type = 'time-custom' T
         , datetime_string
         , use_run_maintenance
         , inherit_fk
+		, inherit_tg
         , jobmon) 
     VALUES (
         p_parent_table
@@ -205,7 +207,8 @@ IF p_type = 'time-static' OR p_type = 'time-dynamic' OR p_type = 'time-custom' T
         , v_datetime_string
         , v_run_maint
         , p_inherit_fk
-        , p_jobmon);
+        , p_inherit_tg
+		, p_jobmon);
     v_last_partition_name := @extschema@.create_time_partition(p_parent_table, v_partition_time_array);
     -- Doing separate update because create function requires in config table last_partition to be set
     UPDATE @extschema@.part_config SET last_partition = v_last_partition_name WHERE parent_table = p_parent_table;
@@ -245,7 +248,8 @@ IF p_type = 'id-static' OR p_type = 'id-dynamic' THEN
         , constraint_cols
         , use_run_maintenance
         , inherit_fk
-        , jobmon) 
+        , inherit_tg
+		, jobmon) 
     VALUES (
         p_parent_table
         , p_type
@@ -255,7 +259,8 @@ IF p_type = 'id-static' OR p_type = 'id-dynamic' THEN
         , p_constraint_cols
         , v_run_maint
         , p_inherit_fk
-        , p_jobmon);
+        , p_inherit_tg
+		, p_jobmon);
     v_last_partition_name := @extschema@.create_id_partition(p_parent_table, v_partition_id);
     -- Doing separate update because create function needs parent table in config table for apply_grants()
     UPDATE @extschema@.part_config SET last_partition = v_last_partition_name WHERE parent_table = p_parent_table;
