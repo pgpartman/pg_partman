@@ -216,10 +216,10 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         WHERE table_schema ||'.'|| table_name = p_parent_table
         GROUP BY grantee 
     LOOP
-        EXECUTE 'GRANT '||array_to_string(v_parent_grant.types, ',')||' ON '||v_partition_name||' TO '||v_parent_grant.grantee;
+        EXECUTE 'GRANT '||array_to_string(v_parent_grant.types, ',')||' ON '||v_partition_name||' TO "'||v_parent_grant.grantee||'"';
         SELECT array_agg(r) INTO v_revoke FROM (SELECT unnest(v_all) AS r EXCEPT SELECT unnest(v_parent_grant.types)) x;
         IF v_revoke IS NOT NULL THEN
-            EXECUTE 'REVOKE '||array_to_string(v_revoke, ',')||' ON '||v_partition_name||' FROM '||v_parent_grant.grantee||' CASCADE';
+            EXECUTE 'REVOKE '||array_to_string(v_revoke, ',')||' ON '||v_partition_name||' FROM "'||v_parent_grant.grantee||'" CASCADE';
         END IF;
         v_grantees := array_append(v_grantees, v_parent_grant.grantee::text);
     END LOOP;
@@ -230,11 +230,11 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             EXCEPT
             SELECT unnest(v_grantees)) x;
         IF v_revoke IS NOT NULL THEN
-            EXECUTE 'REVOKE ALL ON '||v_partition_name||' FROM '||array_to_string(v_revoke, ',');
+            EXECUTE 'REVOKE ALL ON '||v_partition_name||' FROM "'||array_to_string(v_revoke, ',')||'"';
         END IF;
     END IF;
 
-    EXECUTE 'ALTER TABLE '||v_partition_name||' OWNER TO '||v_parent_owner;
+    EXECUTE 'ALTER TABLE '||v_partition_name||' OWNER TO "'||v_parent_owner||'"';
 
     IF v_inherit_fk THEN
         PERFORM @extschema@.apply_foreign_keys(quote_ident(v_parent_schema)||'.'||quote_ident(v_parent_tablename), v_partition_name);
