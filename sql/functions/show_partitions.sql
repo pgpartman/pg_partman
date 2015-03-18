@@ -33,6 +33,7 @@ IF v_type IN ('time-static', 'time-dynamic', 'time-custom') THEN
     JOIN pg_catalog.pg_class c ON c.oid = h.inhrelid
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
     WHERE h.inhparent = '||quote_literal(p_parent_table)||'::regclass
+      AND c.relname ~ (h.inhparent::regclass || ''_p''|| replace(regexp_replace(regexp_replace(regexp_replace('''||v_datetime_string||''',''YYYY|IYYY'',''\d{4}'',''g''),''(MI|IW|MM|DD|HH24|SS)'',''\d{2}'',''g''),''Q'',''\d{1}''),''"'','''') || ''$'')
     ORDER BY to_timestamp(substring(c.relname from ((length(c.relname) - position(''p_'' in reverse(c.relname))) + 2) ), '||quote_literal(v_datetime_string)||') ' || p_order;
 
 ELSIF v_type IN ('id-static', 'id-dynamic') THEN
