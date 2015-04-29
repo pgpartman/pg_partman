@@ -296,7 +296,7 @@ The rest are managed by the extension itself and should not be changed unless ab
  - `part_interval`
       - Text type value that determines the interval for each partition. 
       - Must be a value that can either be cast to the interval or bigint data types.
- - `control
+ - `control`
       - Column used as the control for partition constraints. Must be a time or integer based column.
  - `constraint_cols`
       - Array column that lists columns to have additional constraints applied.
