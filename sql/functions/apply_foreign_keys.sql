@@ -64,6 +64,7 @@ FOR v_row IN
     SELECT n.nspname||'.'||cl.relname AS ref_table
         , '"'||string_agg(att.attname, '","')||'"' AS ref_column
         , '"'||string_agg(att2.attname, '","')||'"' AS child_column
+        , keys.conname
         , keys.condeferred
         , keys.condeferrable
         , keys.confupdtype
@@ -72,6 +73,7 @@ FOR v_row IN
     FROM
         ( SELECT unnest(con.conkey) as ref
                 , unnest(con.confkey) as child
+                , con.conname
                 , con.confrelid
                 , con.conrelid
                 , con.condeferred
@@ -90,7 +92,7 @@ FOR v_row IN
     JOIN pg_catalog.pg_namespace n ON cl.relnamespace = n.oid
     JOIN pg_catalog.pg_attribute att ON att.attrelid = keys.confrelid AND att.attnum = keys.child
     JOIN pg_catalog.pg_attribute att2 ON att2.attrelid = keys.conrelid AND att2.attnum = keys.ref
-    GROUP BY n.nspname, cl.relname, keys.condeferred, keys.condeferrable, keys.confupdtype, keys.confdeltype, keys.confmatchtype
+    GROUP BY n.nspname, cl.relname, keys.conname, keys.condeferred, keys.condeferrable, keys.confupdtype, keys.confdeltype, keys.confmatchtype
 LOOP
     SELECT schemaname, tablename INTO v_ref_schema, v_ref_table FROM pg_tables WHERE schemaname||'.'||tablename = v_row.ref_table;
     v_sql := format('ALTER TABLE %I.%I ADD FOREIGN KEY (%s) REFERENCES %I.%I (%s)', 
