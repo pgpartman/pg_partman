@@ -187,8 +187,8 @@ LOOP
             SELECT suffix_timestamp INTO v_current_partition_timestamp FROM @extschema@.show_partition_name(v_row.parent_table, v_max_time_parent::text);
         END IF;
         IF v_current_partition_timestamp IS NULL THEN
-            -- Partition set is completely empty. Nothing to do
-            CONTINUE;
+            -- there is no data in table
+            v_current_partition_timestamp = now();
         END IF;
 
         -- If this is a subpartition, determine if the last child table has been made. If so, mark it as full so future maintenance runs can skip it
