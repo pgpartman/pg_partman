@@ -191,7 +191,7 @@ LOOP
         AND con.conname LIKE 'partmanconstr_%'
         AND con.contype = 'c' 
         AND a.attname = v_col
-        AND ARRAY[a.attnum] <@ con.conkey 
+        AND ARRAY[a.attnum] OPERATOR(pg_catalog.<@) con.conkey 
         AND a.attisdropped = false;
 
     IF v_jobmon_schema IS NOT NULL THEN
