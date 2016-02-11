@@ -25,7 +25,7 @@ v_job_id                        bigint;
 v_jobmon                        boolean;
 v_jobmon_schema                 text;
 v_last_partition                text;
-v_last_partition_id             int; 
+v_last_partition_id             bigint;
 v_last_partition_timestamp      timestamp;
 v_max_id                        bigint;
 v_max_timestamp                 timestamp;
@@ -38,7 +38,6 @@ v_partition_suffix              text;
 v_row_max                       record;
 v_sql                           text;
 v_step_id                       bigint;
-v_suffix_position               int;
 v_type                          text;
 
 BEGIN
