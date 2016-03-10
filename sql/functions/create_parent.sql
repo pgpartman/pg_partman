@@ -387,12 +387,15 @@ IF p_type = 'id' THEN
 
     -- If custom start partition is set, use that.
     -- If custom start is not set and there is already data, start partitioning with the highest current value and ensure it's grabbed from highest top parent table
-    v_sql := format('SELECT COALESCE(%L, max(%I)::bigint, 0) FROM %I.%I LIMIT 1'
-                , p_start_partition::bigint
-                , p_control
-                , v_top_parent_schema
-                , v_top_parent_table);
-    EXECUTE v_sql INTO v_max;
+    IF p_start_partition IS NOT NULL THEN
+        v_max := p_start_partition::bigint;
+    ELSE
+        v_sql := format('SELECT COALESCE(max(%I)::bigint, 0) FROM %I.%I LIMIT 1'
+                    , p_control
+                    , v_top_parent_schema
+                    , v_top_parent_table);
+        EXECUTE v_sql INTO v_max;
+    END IF;
     v_starting_partition_id := v_max - (v_max % v_id_interval);
     FOR i IN 0..p_premake LOOP
         -- Only make previous partitions if ID value is less than the starting value and positive (and custom start partition wasn't set)
