@@ -1,5 +1,5 @@
 CREATE FUNCTION create_trigger(p_parent_table text) RETURNS void
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path = @extschema@, pg_temp
     AS $$
 DECLARE
 

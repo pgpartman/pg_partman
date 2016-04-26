@@ -61,7 +61,7 @@ SELECT pg_catalog.pg_extension_config_dump('custom_time_partitions', '');
  * Check function for config table partition types
  */
 CREATE FUNCTION @extschema@.check_partition_type (p_type text) RETURNS boolean
-    LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER
+    LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER SET search_path = @extschema@, pg_temp
     AS $$
 DECLARE
 v_result    boolean;

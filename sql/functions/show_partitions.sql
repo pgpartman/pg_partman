@@ -2,7 +2,7 @@
  * Function to list all child partitions in a set.
  */
 CREATE FUNCTION show_partitions (p_parent_table text, p_order text DEFAULT 'ASC') RETURNS TABLE (partition_schemaname text, partition_tablename text)
-    LANGUAGE plpgsql STABLE SECURITY DEFINER 
+    LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = @extschema@, pg_temp 
     AS $$
 DECLARE
 
