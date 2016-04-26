@@ -13,6 +13,10 @@ Tests assume that the required extensions have been installed in the following s
 If you've installed any of the above extensions in a different schema and would like to run the test suite, simply change the configuration option found at the top of each testing file to match your setup. If you've also installed pg_jobmon, be aware that the logging of the tests cannot be rolled back and any failures will be picked up by the monitoring in the jobmon extension.
 
     SELECT set_config('search_path','partman, public',false);
+
+
+There are two simple helper scripts:
+The `init-and-start.sh` creates and starts a simple cluster test cluster, `stop-and-destroy.sh` stops and destroys it.
     
 Once that's done, it's best to use the **pg_prove** script that pgTAP comes with to run all the tests. I like using the  -o -f -v options to get more useful feedback.
 
