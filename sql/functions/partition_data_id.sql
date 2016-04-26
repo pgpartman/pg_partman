@@ -2,7 +2,7 @@
  * Populate the child table(s) of an id-based partition set with old data from the original parent
  */
 CREATE FUNCTION partition_data_id(p_parent_table text, p_batch_count int DEFAULT 1, p_batch_interval int DEFAULT NULL, p_lock_wait numeric DEFAULT 0, p_order text DEFAULT 'ASC') RETURNS bigint
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path = @extschema@, pg_temp
     AS $$
 DECLARE
 

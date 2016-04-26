@@ -3,7 +3,7 @@
  * Will actually work on any parent/child table set, not just ones created by pg_partman.
  */
 CREATE FUNCTION undo_partition(p_parent_table text, p_batch_count int DEFAULT 1, p_keep_table boolean DEFAULT true, p_jobmon boolean DEFAULT true, p_lock_wait numeric DEFAULT 0) RETURNS bigint
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path = @extschema@, pg_temp
     AS $$
 DECLARE
 

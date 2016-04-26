@@ -12,7 +12,7 @@ CREATE FUNCTION show_partition_info(p_child_table text
     , OUT child_end_id bigint 
     , OUT suffix text)
 RETURNS record
-    LANGUAGE plpgsql SECURITY DEFINER
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path = @extschema@, pg_temp
     AS $$
 DECLARE
 

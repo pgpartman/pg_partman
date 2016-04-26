@@ -3,8 +3,8 @@
  * Also appends given suffix and schema if given and truncates the name so that the entire suffix will fit.
  * Returns original name with schema given if it doesn't require truncation
  */
-CREATE FUNCTION check_name_length (p_object_name text, p_suffix text DEFAULT NULL, p_table_partition boolean DEFAULT FALSE) RETURNS text
-    LANGUAGE plpgsql SECURITY DEFINER
+CREATE FUNCTION @extschema@.check_name_length (p_object_name text, p_suffix text DEFAULT NULL, p_table_partition boolean DEFAULT FALSE) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path = @extschema@, pg_temp
     AS $$
 DECLARE
     v_new_length    int;

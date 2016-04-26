@@ -21,7 +21,7 @@ RETURNS TABLE (sub_partition_type text
         , sub_optimize_constraint int
         , sub_infinite_time_partitions boolean
         , sub_jobmon boolean)
-LANGUAGE sql STABLE SECURITY DEFINER
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = @extschema@, pg_temp
 AS $$
 
     WITH parent_info AS (
