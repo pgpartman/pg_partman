@@ -1,9 +1,11 @@
 --
--- Testet, ob alle Funktionen mit SECURITY DEFINER auch den Suchpfad
--- mit pg_temp am Ende gesetzt haben 
+-- This test checks, if all SECURITY DEFINER functions have a 
+-- search path  with pg_temp at the last position.
 --
--- Aus Sicherheitsgründen MUSS pg_temp bei diesen Funktionen gesetzt werden.
--- Siehe
+-- Without this, SECURITY DEFINER functions can me misused and a 
+-- malicious user can create objects that mask objects used by the function
+--
+-- For more details see:
 -- http://www.postgresql.org/docs/current/static/sql-createfunction.html#SQL-CREATEFUNCTION-SECURITY
 --
 
@@ -11,7 +13,8 @@
 BEGIN;
 
 -- 
--- main function, because conditional plan
+-- create a local temporary function, because conditional plan
+--  maybe this is possible in an other way, but this works ... ;-)
 --
 
 CREATE FUNCTION run_secdef_check() 
@@ -44,17 +47,17 @@ CREATE FUNCTION run_secdef_check()
          FOR r IN 
 
             -- TODO:
-            -- this is hacky and may fail because only simple regex check 
+            -- this is hacky and may fail (because it's only a simple regex check) 
             -- when there are other parameters set.
-            -- Change this to strip down all array elements of proconfig etc!
+            -- Change this: look at all array elements of proconfig!
             -- 
-
             SELECT matches(
                proconfig::text,
-               E'search_path=[^=]+pg_temp"?}',
+               'search_path=[^=]+pg_temp"?}',
                'Function ' || name || ' using SECURITY DEFINER needs pg_temp at last position in search_path'
                ) 
                FROM secfunc
+         
          LOOP
             RETURN NEXT r;
          END LOOP;
