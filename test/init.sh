@@ -1,6 +1,6 @@
---
--- Install and start a simple test cluster  
---
+#
+# Install and start a simple test cluster  
+#
 
 initdb -D /tmp/pgtest
 echo "shared_preload_libraries = 'pg_partman_bgw'" >/tmp/pgtest/postgresql.conf
