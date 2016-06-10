@@ -68,7 +68,7 @@ INTO v_type
     , v_datetime_string
 FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
-AND partition_type = 'time' OR partition_type = 'time-custom';
+AND (partition_type = 'time' OR partition_type = 'time-custom');
 
 IF NOT FOUND THEN
     RAISE EXCEPTION 'ERROR: no config found for %', p_parent_table;
