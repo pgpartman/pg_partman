@@ -78,7 +78,7 @@ As a note for people that were not aware, you can name arguments in function cal
 
 ### Creation Functions
 
-*`create_parent(p_parent_table text, p_control text, p_type text, p_interval text, p_constraint_cols text[] DEFAULT NULL, p_premake int DEFAULT 4, p_use_run_maintenance boolean DEFAULT NULL, p_start_partition text DEFAULT NULL, p_inherit_fk boolean DEFAULT true, p_epoch boolean DEFAULT false, p_jobmon boolean DEFAULT true, p_debug boolean DEFAULT false) RETURNS boolean`*
+*`create_parent(p_parent_table text, p_control text, p_type text, p_interval text, p_constraint_cols text[] DEFAULT NULL, p_premake int DEFAULT 4, p_use_run_maintenance boolean DEFAULT NULL, p_start_partition text DEFAULT NULL, p_inherit_fk boolean DEFAULT true, p_epoch boolean DEFAULT false, p_jobmon boolean DEFAULT true, p_debug boolean DEFAULT false, p_upsert text DEFAULT '') RETURNS boolean`*
 
  * Main function to create a partition set with one parent table and inherited children. Parent table must already exist. Please apply all defaults, indexes, constraints, privileges & ownership to parent table so they will propagate to children.
  * An ACCESS EXCLUSIVE lock is taken on the parent table during the running of this function. No data is moved when running this function, so lock should be brief.
@@ -120,7 +120,11 @@ As a note for people that were not aware, you can name arguments in function cal
  * `p_epoch` - tells `pg_partman` that the control column is an integer type, but actually represents and epoch time value. All triggers, constraints & table names will be time-based. Be sure you create a functional, time-based index on the control column (to_timestamp(controlcolumn)) so this works efficiently.
  * `p_jobmon` - allow `pg_partman` to use the `pg_jobmon` extension to monitor that partitioning is working correctly. Defaults to TRUE.
  * `p_debug` - turns on additional debugging information.
-
+ * `p_upsert` - adds upsert to insert queries in triggers, to allow handeling of conflicts  Defaults to ''
+    + to ignore conflicting rows on a table with primary key id set p_upsert to `'ON CONFLICT (id) DO NOTHING'`
+	+ to update a conflicting row on a table with columns id(pk), val set p_upsert to `'ON CONFLICT (id) DO UPDATE SET val=EXCLUDED.val'`
+	+ Requires postgresql 9.5
+	+ See https://www.postgresql.org/docs/9.5/static/sql-insert.html 
 
 *`create_sub_parent(p_top_parent text, p_control text, p_type text, p_interval text, p_constraint_cols text[] DEFAULT NULL, p_premake int DEFAULT 4, p_start_partition text DEFAULT NULL, p_inherit_fk boolean DEFAULT true, p_epoch boolean DEFAULT false, p_jobmon boolean DEFAULT true, p_debug boolean DEFAULT false) RETURNS boolean;`*
 
@@ -383,8 +387,14 @@ The rest are managed by the extension itself and should not be changed unless ab
     - Boolean value to denote that the final partition for a sub-partition set has been created. Allows run_maintenance() to run more efficiently when there are large numbers of subpartition sets.
  - `undo_in_progress`
     - Set by the undo_partition functions whenever they are run. If true, this causes all partition creation and retention management by the `run_maintenance()` function to stop. Default is false.
-- `trigger_exception_handling`
+ - `trigger_exception_handling`
     - Boolean value that can be set to allow the partitioning trigger function to handle any exceptions encountered while writing to this table. Handling it in this case means putting the data into the parent table to try and ensure no data loss in case of errors. Be aware that catching the exception here will override any other exception handling that may be done when writing to this partitioned set (Ex. handling a unique constraint violation to ignore it). This option is set to false by default to avoid causing unexpected behavior in other exception handling situations.
+ - `upsert`
+    - Text type value that adds upsert to INSERT queries in triggers, to allow handeling of conflicts . Defaults to ''
+      + to ignore conflicting rows on a table with primary key id set p_upsert to `'ON CONFLICT (id) DO NOTHING'`
+	  + to update a conflicting row on a table with columns id(pk), val set p_upsert to `'ON CONFLICT (id) DO UPDATE SET val=EXCLUDED.val'`
+	  + Requires postgresql 9.5
+	  + See https://www.postgresql.org/docs/9.5/static/sql-insert.html 
 
 **`part_config_sub`**
 
