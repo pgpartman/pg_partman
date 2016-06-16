@@ -144,12 +144,15 @@ v_trig_func := format('CREATE OR REPLACE FUNCTION %I.%I() RETURNS trigger LANGUA
         v_next_partition_id         bigint;
         v_next_partition_name       text;
         v_partition_created         boolean;
+        v_return                    %I.%I%%rowtype;
     BEGIN
     IF TG_OP = ''INSERT'' THEN 
         IF NEW.%I >= %s AND NEW.%I < %s THEN '
             , v_parent_schema
             , v_function_name
             , v_last_partition
+            , v_parent_schema
+            , v_parent_tablename
             , v_control
             , v_current_partition_id
             , v_control
@@ -158,7 +161,7 @@ v_trig_func := format('CREATE OR REPLACE FUNCTION %I.%I() RETURNS trigger LANGUA
         SELECT count(*) INTO v_count FROM pg_catalog.pg_tables WHERE schemaname = v_parent_schema::name AND tablename = v_current_partition_name::name;
         IF v_count > 0 THEN
             v_trig_func := v_trig_func || format(' 
-            INSERT INTO %I.%I VALUES (NEW.*); ', v_parent_schema, v_current_partition_name);
+            INSERT INTO %I.%I VALUES (NEW.*) RETURNING * INTO v_return; ', v_parent_schema, v_current_partition_name);
         ELSE
             v_trig_func := v_trig_func || '
             -- Child table for current values does not exist in this partition set, so write to parent
@@ -180,7 +183,7 @@ v_trig_func := format('CREATE OR REPLACE FUNCTION %I.%I() RETURNS trigger LANGUA
             IF v_prev_partition_id >= 0 THEN
                 v_trig_func := v_trig_func ||format('
         ELSIF NEW.%I >= %s AND NEW.%I < %s THEN 
-            INSERT INTO %I.%I VALUES (NEW.*); '
+            INSERT INTO %I.%I VALUES (NEW.*) RETURNING * INTO v_return; '
                 , v_control
                 , v_prev_partition_id
                 , v_control
@@ -195,7 +198,7 @@ v_trig_func := format('CREATE OR REPLACE FUNCTION %I.%I() RETURNS trigger LANGUA
         IF v_count > 0 THEN
             v_trig_func := v_trig_func ||format('
         ELSIF NEW.%I >= %s AND NEW.%I < %s THEN 
-            INSERT INTO %I.%I VALUES (NEW.*);'
+            INSERT INTO %I.%I VALUES (NEW.*) RETURNING * INTO v_return;'
                 , v_control
                 , v_next_partition_id
                 , v_control
@@ -211,7 +214,7 @@ v_trig_func := format('CREATE OR REPLACE FUNCTION %I.%I() RETURNS trigger LANGUA
             v_current_partition_name := @extschema@.check_name_length(%L, v_current_partition_id::text, TRUE);
             SELECT count(*) INTO v_count FROM pg_catalog.pg_tables WHERE schemaname = %L::name AND tablename = v_current_partition_name::name;
             IF v_count > 0 THEN 
-                EXECUTE format(''INSERT INTO %%I.%%I VALUES($1.*)'', %L, v_current_partition_name) USING NEW;
+                EXECUTE format(''INSERT INTO %%I.%%I VALUES($1.*) RETURNING *'', %L, v_current_partition_name) INTO v_return USING NEW;
             ELSE
                 RETURN NEW;
             END IF;

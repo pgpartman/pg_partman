@@ -94,11 +94,14 @@ IF v_type = 'time' THEN
             v_count                 int;
             v_partition_name        text;
             v_partition_timestamp   timestamptz;
+            v_return                %I.%I%%rowtype;
         BEGIN 
         IF TG_OP = ''INSERT'' THEN 
             '
     , v_parent_schema
-    , v_function_name);
+    , v_function_name
+    , v_parent_schema
+    , v_parent_tablename);
 
     IF v_epoch = false THEN
         CASE
@@ -185,7 +188,7 @@ IF v_type = 'time' THEN
         SELECT count(*) INTO v_count FROM pg_catalog.pg_tables WHERE schemaname = v_parent_schema::name AND tablename = v_current_partition_name::name;
         IF v_count > 0 THEN
             v_trig_func := v_trig_func || format('
-                INSERT INTO %I.%I VALUES (NEW.*); ', v_parent_schema, v_current_partition_name);
+                INSERT INTO %I.%I VALUES (NEW.*) RETURNING * INTO v_return; ', v_parent_schema, v_current_partition_name);
         ELSE
             v_trig_func := v_trig_func || '
                 -- Child table for current values does not exist in this partition set, so write to parent
@@ -205,7 +208,7 @@ IF v_type = 'time' THEN
             IF v_epoch = false THEN
                 v_trig_func := v_trig_func ||format('
             ELSIF NEW.%I >= %L AND NEW.%I < %L THEN 
-                INSERT INTO %I.%I VALUES (NEW.*);'
+                INSERT INTO %I.%I VALUES (NEW.*) RETURNING * INTO v_return;'
                     , v_control
                     , v_prev_partition_timestamp
                     , v_control
@@ -215,7 +218,7 @@ IF v_type = 'time' THEN
             ELSE
                 v_trig_func := v_trig_func ||format('
             ELSIF to_timestamp(NEW.%I) >= %L AND to_timestamp(NEW.%I) < %L THEN 
-                INSERT INTO %I.%I VALUES (NEW.*);'
+                INSERT INTO %I.%I VALUES (NEW.*) RETURNING * INTO v_return;'
                     , v_control
                     , v_prev_partition_timestamp
                     , v_control
@@ -230,7 +233,7 @@ IF v_type = 'time' THEN
             IF v_epoch = false THEN
                 v_trig_func := v_trig_func ||format(' 
             ELSIF NEW.%I >= %L AND NEW.%I < %L THEN 
-                INSERT INTO %I.%I VALUES (NEW.*);'
+                INSERT INTO %I.%I VALUES (NEW.*) RETURNING * INTO v_return;'
                     , v_control
                     , v_next_partition_timestamp
                     , v_control
@@ -240,7 +243,7 @@ IF v_type = 'time' THEN
             ELSE
                 v_trig_func := v_trig_func ||format(' 
             ELSIF to_timestamp(NEW.%I) >= %L AND to_timestamp(NEW.%I) < %L THEN 
-                INSERT INTO %I.%I VALUES (NEW.*);'
+                INSERT INTO %I.%I VALUES (NEW.*) RETURNING * INTO v_return;'
                     , v_control
                     , v_next_partition_timestamp
                     , v_control
@@ -258,7 +261,7 @@ IF v_type = 'time' THEN
                 v_partition_name := @extschema@.check_name_length(%L, to_char(v_partition_timestamp, %L), TRUE);
                 SELECT count(*) INTO v_count FROM pg_catalog.pg_tables WHERE schemaname = %L::name AND tablename = v_partition_name::name;
                 IF v_count > 0 THEN 
-                    EXECUTE format(''INSERT INTO %%I.%%I VALUES($1.*)'', %L, v_partition_name) USING NEW;
+                    EXECUTE format(''INSERT INTO %%I.%%I VALUES($1.*) RETURNING *'', %L, v_partition_name) INTO v_return USING NEW;
                 ELSE
                     RETURN NEW;
                 END IF;
@@ -270,7 +273,7 @@ IF v_type = 'time' THEN
 
     v_trig_func := v_trig_func ||'
         END IF; 
-        RETURN NULL;'; 
+        RETURN v_return;'; 
     IF v_trigger_exception_handling THEN 
         v_trig_func := v_trig_func ||'
         EXCEPTION WHEN OTHERS THEN
@@ -329,12 +332,12 @@ ELSIF v_type = 'time-custom' THEN
         WHERE schemaname = split_part(v_child_table, ''.'', 1)::name
         AND tablename = split_part(v_child_table, ''.'', 2)::name;
         IF v_child_schemaname IS NOT NULL AND v_child_tablename IS NOT NULL THEN
-            EXECUTE format(''INSERT INTO %I.%I VALUES ($1.*)'', v_child_schemaname, v_child_tablename) USING NEW;
+            EXECUTE format(''INSERT INTO %I.%I VALUES ($1.*) RETURNING *'', v_child_schemaname, v_child_tablename) INTO v_return USING NEW;
         ELSE
             RETURN NEW;
         END IF;
 
-        RETURN NULL;';
+        RETURN v_return;';
     IF v_trigger_exception_handling THEN 
         v_trig_func := v_trig_func ||'
         EXCEPTION WHEN OTHERS THEN
