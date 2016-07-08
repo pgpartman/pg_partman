@@ -1,0 +1,1 @@
+ALTER TABLE @extschema@.part_config ADD COLUMN upsert text NOT NULL DEFAULT '';

@@ -20,6 +20,7 @@ CREATE TABLE part_config (
     , sub_partition_set_full boolean NOT NULL DEFAULT false
     , undo_in_progress boolean NOT NULL DEFAULT false
     , trigger_exception_handling BOOLEAN DEFAULT false
+	, upsert text NOT NULL DEFAULT ''
     , CONSTRAINT part_config_parent_table_pkey PRIMARY KEY (parent_table)
     , CONSTRAINT positive_premake_check CHECK (premake > 0)
 );

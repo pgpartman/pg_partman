@@ -181,6 +181,213 @@ AS $function$
     END $function$
 ```
 
+### Simple Serial ID: 1 Partition Per 10 ID Values Starting With Empty Table and using upsert to drop conflicting rows
+```
+    keith=# \d partman_test.id_taptest_table
+                   Table "partman_test.id_taptest_table"
+     Column |           Type           |           Modifiers            
+    --------+--------------------------+--------------------------------
+     col1   | integer                  | not null
+     col2   | text                     | not null default 'stuff'::text
+     col3   | timestamp with time zone | default now()
+    Indexes:
+        "id_taptest_table_pkey" PRIMARY KEY, btree (col1)
+
+
+    keith=# SELECT create_parent('partman_test.id_taptest_table', 'col1', 'id', '10', null, 4 ,null , null, true ,false , true, flase, 'ON CONFLICT (col1) DO NOTHING');
+     create_parent 
+    ---------------
+     t
+    (1 row)
+
+
+    keith=# \d+ partman_test.id_taptest_table
+                                       Table "partman_test.id_taptest_table"
+     Column |           Type           |           Modifiers            | Storage  | Stats target | Description 
+    --------+--------------------------+--------------------------------+----------+--------------+-------------
+     col1   | integer                  | not null                       | plain    |              | 
+     col2   | text                     | not null default 'stuff'::text | extended |              | 
+     col3   | timestamp with time zone | default now()                  | plain    |              | 
+    Indexes:
+        "id_taptest_table_pkey" PRIMARY KEY, btree (col1)
+    Triggers:
+        id_taptest_table_part_trig BEFORE INSERT ON partman_test.id_taptest_table FOR EACH ROW EXECUTE PROCEDURE partman_test.id_taptest_table_part_trig_func()
+    Child tables: partman_test.id_taptest_table_p0,
+                  partman_test.id_taptest_table_p10,
+                  partman_test.id_taptest_table_p20,
+                  partman_test.id_taptest_table_p30,
+                  partman_test.id_taptest_table_p40
+```
+This trigger function most efficiently covers for 4x10 intervals above the current max (0). Once max id reaches higher values, it will also efficiently cover up to 4x10 intervals behind the current max.
+Outside of that, a dynamic statement tries to find the appropriate child table to put the data into. And like I said for time above, the dynamic part is less efficient.
+This trigger also takes care of making new partitions automatically when current max reaches 50% of the current child table's maximum.
+```
+CREATE OR REPLACE FUNCTION partman_test.id_taptest_table_part_trig_func()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$ 
+    DECLARE
+        v_count                     int;
+        v_current_partition_id      bigint;
+        v_current_partition_name    text;
+        v_id_position               int;
+        v_last_partition            text := 'partman_test.id_taptest_table_p40';
+        v_next_partition_id         bigint;
+        v_next_partition_name       text;
+        v_partition_created         boolean;
+    BEGIN
+    IF TG_OP = 'INSERT' THEN 
+        IF NEW.col1 >= 0 AND NEW.col1 < 10 THEN  
+            INSERT INTO partman_test.id_taptest_table_p0 VALUES (NEW.*) ON CONFLICT (col1) DO NOTHING; 
+        ELSIF NEW.col1 >= 10 AND NEW.col1 < 20 THEN 
+            INSERT INTO partman_test.id_taptest_table_p10 VALUES (NEW.*) ON CONFLICT (col1) DO NOTHING;
+        ELSIF NEW.col1 >= 20 AND NEW.col1 < 30 THEN 
+            INSERT INTO partman_test.id_taptest_table_p20 VALUES (NEW.*) ON CONFLICT (col1) DO NOTHING;
+        ELSIF NEW.col1 >= 30 AND NEW.col1 < 40 THEN 
+            INSERT INTO partman_test.id_taptest_table_p30 VALUES (NEW.*) ON CONFLICT (col1) DO NOTHING;
+        ELSIF NEW.col1 >= 40 AND NEW.col1 < 50 THEN 
+            INSERT INTO partman_test.id_taptest_table_p40 VALUES (NEW.*) ON CONFLICT (col1) DO NOTHING;
+        ELSE
+            v_current_partition_id := NEW.col1 - (NEW.col1 % 10);
+            v_current_partition_name := partman.check_name_length('id_taptest_table', 'partman_test', v_current_partition_id::text, TRUE);
+            SELECT count(*) INTO v_count FROM pg_tables WHERE schemaname ||'.'|| tablename = v_current_partition_name;
+            IF v_count > 0 THEN 
+                EXECUTE 'INSERT INTO '||v_current_partition_name||' VALUES($1.*) ON CONFLICT (col1) DO NOTHING' USING NEW;
+            ELSE
+                RETURN NEW;
+            END IF;
+        END IF;
+        v_current_partition_id := NEW.col1 - (NEW.col1 % 10);
+        IF (NEW.col1 % 10) > (10 / 2) THEN
+            v_id_position := (length(v_last_partition) - position('p_' in reverse(v_last_partition))) + 2;
+            v_next_partition_id := (substring(v_last_partition from v_id_position)::bigint) + 10;
+            WHILE ((v_next_partition_id - v_current_partition_id) / 10) <= 4 LOOP 
+                v_partition_created := partman.create_partition_id('partman_test.id_taptest_table', ARRAY[v_next_partition_id]);
+                IF v_partition_created THEN
+                    PERFORM partman.create_function_id('partman_test.id_taptest_table');
+                    PERFORM partman.apply_constraints('partman_test.id_taptest_table');
+                END IF;
+                v_next_partition_id := v_next_partition_id + 10;
+            END LOOP;
+        END IF;
+    END IF; 
+    RETURN NULL; 
+    END $function$
+```
+Runnign the following query will insert a row in the table
+```
+INSERT INTO partman_test.id_taptest_table(col1,col2) VALUES(1,'insert1');
+```
+
+Running the following query will not fail but the row in the table will not change and col2 will still be 'instert1'
+```
+INSERT INTO partman_test.id_taptest_table(col1,col2) VALUES(1,'insert2');
+```
+
+
+### Simple Serial ID: 1 Partition Per 10 ID Values Starting With Empty Table and using upsert to update conflicting rows
+```
+    keith=# \d partman_test.id_taptest_table
+                   Table "partman_test.id_taptest_table"
+     Column |           Type           |           Modifiers            
+    --------+--------------------------+--------------------------------
+     col1   | integer                  | not null
+     col2   | text                     | not null default 'stuff'::text
+     col3   | timestamp with time zone | default now()
+    Indexes:
+        "id_taptest_table_pkey" PRIMARY KEY, btree (col1)
+
+
+    keith=# SELECT create_parent('partman_test.id_taptest_table', 'col1', 'id', '10', null, 4 ,null , null, true ,false , true, flase, 'ON CONFLICT (col1) SET col2=EXCLUDED.col2, col3=EXCLUDED.col3');
+     create_parent 
+    ---------------
+     t
+    (1 row)
+
+
+    keith=# \d+ partman_test.id_taptest_table
+                                       Table "partman_test.id_taptest_table"
+     Column |           Type           |           Modifiers            | Storage  | Stats target | Description 
+    --------+--------------------------+--------------------------------+----------+--------------+-------------
+     col1   | integer                  | not null                       | plain    |              | 
+     col2   | text                     | not null default 'stuff'::text | extended |              | 
+     col3   | timestamp with time zone | default now()                  | plain    |              | 
+    Indexes:
+        "id_taptest_table_pkey" PRIMARY KEY, btree (col1)
+    Triggers:
+        id_taptest_table_part_trig BEFORE INSERT ON partman_test.id_taptest_table FOR EACH ROW EXECUTE PROCEDURE partman_test.id_taptest_table_part_trig_func()
+    Child tables: partman_test.id_taptest_table_p0,
+                  partman_test.id_taptest_table_p10,
+                  partman_test.id_taptest_table_p20,
+                  partman_test.id_taptest_table_p30,
+                  partman_test.id_taptest_table_p40
+```
+This trigger function most efficiently covers for 4x10 intervals above the current max (0). Once max id reaches higher values, it will also efficiently cover up to 4x10 intervals behind the current max.
+Outside of that, a dynamic statement tries to find the appropriate child table to put the data into. And like I said for time above, the dynamic part is less efficient.
+This trigger also takes care of making new partitions automatically when current max reaches 50% of the current child table's maximum.
+```
+CREATE OR REPLACE FUNCTION partman_test.id_taptest_table_part_trig_func()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$ 
+    DECLARE
+        v_count                     int;
+        v_current_partition_id      bigint;
+        v_current_partition_name    text;
+        v_id_position               int;
+        v_last_partition            text := 'partman_test.id_taptest_table_p40';
+        v_next_partition_id         bigint;
+        v_next_partition_name       text;
+        v_partition_created         boolean;
+    BEGIN
+    IF TG_OP = 'INSERT' THEN 
+        IF NEW.col1 >= 0 AND NEW.col1 < 10 THEN  
+            INSERT INTO partman_test.id_taptest_table_p0 VALUES (NEW.*) ON CONFLICT (col1) SET col2=EXCLUDED.col2, col3=EXCLUDED.col3; 
+        ELSIF NEW.col1 >= 10 AND NEW.col1 < 20 THEN 
+            INSERT INTO partman_test.id_taptest_table_p10 VALUES (NEW.*) ON CONFLICT (col1) SET col2=EXCLUDED.col2, col3=EXCLUDED.col3;
+        ELSIF NEW.col1 >= 20 AND NEW.col1 < 30 THEN 
+            INSERT INTO partman_test.id_taptest_table_p20 VALUES (NEW.*) ON CONFLICT (col1) SET col2=EXCLUDED.col2, col3=EXCLUDED.col3;
+        ELSIF NEW.col1 >= 30 AND NEW.col1 < 40 THEN 
+            INSERT INTO partman_test.id_taptest_table_p30 VALUES (NEW.*) ON CONFLICT (col1) SET col2=EXCLUDED.col2, col3=EXCLUDED.col3;
+        ELSIF NEW.col1 >= 40 AND NEW.col1 < 50 THEN 
+            INSERT INTO partman_test.id_taptest_table_p40 VALUES (NEW.*) ON CONFLICT (col1) SET col2=EXCLUDED.col2, col3=EXCLUDED.col3;
+        ELSE
+            v_current_partition_id := NEW.col1 - (NEW.col1 % 10);
+            v_current_partition_name := partman.check_name_length('id_taptest_table', 'partman_test', v_current_partition_id::text, TRUE);
+            SELECT count(*) INTO v_count FROM pg_tables WHERE schemaname ||'.'|| tablename = v_current_partition_name;
+            IF v_count > 0 THEN 
+                EXECUTE 'INSERT INTO '||v_current_partition_name||' VALUES($1.*) ON CONFLICT (col1) SET col2=EXCLUDED.col2, col3=EXCLUDED.col3;
+            ELSE
+                RETURN NEW;
+            END IF;
+        END IF;
+        v_current_partition_id := NEW.col1 - (NEW.col1 % 10);
+        IF (NEW.col1 % 10) > (10 / 2) THEN
+            v_id_position := (length(v_last_partition) - position('p_' in reverse(v_last_partition))) + 2;
+            v_next_partition_id := (substring(v_last_partition from v_id_position)::bigint) + 10;
+            WHILE ((v_next_partition_id - v_current_partition_id) / 10) <= 4 LOOP 
+                v_partition_created := partman.create_partition_id('partman_test.id_taptest_table', ARRAY[v_next_partition_id]);
+                IF v_partition_created THEN
+                    PERFORM partman.create_function_id('partman_test.id_taptest_table');
+                    PERFORM partman.apply_constraints('partman_test.id_taptest_table');
+                END IF;
+                v_next_partition_id := v_next_partition_id + 10;
+            END LOOP;
+        END IF;
+    END IF; 
+    RETURN NULL; 
+    END $function$
+```
+Runnign the following query will insert a row in the table
+```
+INSERT INTO partman_test.id_taptest_table(col1,col2) VALUES(1,'insert1');
+```
+
+Running the following query will not fail and the row in the table will change and col2 will now be 'insert2'
+```
+INSERT INTO partman_test.id_taptest_table(col1,col2) VALUES(1,'insert2');
+```
+
 ### Sub-partition Time->Time->Time: Yearly -> Monthly -> Daily
 ```
     keith=# \d partman_test.time_taptest_table

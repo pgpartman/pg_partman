@@ -36,6 +36,7 @@ v_trig_func                     text;
 v_optimize_trigger              int;
 v_trigger_exception_handling    boolean;
 v_type                          text;
+v_upsert                        text;
 
 BEGIN
 
@@ -47,6 +48,7 @@ SELECT partition_type
     , datetime_string
     , jobmon
     , trigger_exception_handling
+    , upsert
 INTO v_type
     , v_partition_interval
     , v_epoch
@@ -55,6 +57,7 @@ INTO v_type
     , v_datetime_string
     , v_jobmon
     , v_trigger_exception_handling
+    , v_upsert
 FROM @extschema@.part_config 
 WHERE parent_table = p_parent_table
 AND (partition_type = 'time' OR partition_type = 'time-custom');
@@ -185,7 +188,7 @@ IF v_type = 'time' THEN
         SELECT count(*) INTO v_count FROM pg_catalog.pg_tables WHERE schemaname = v_parent_schema::name AND tablename = v_current_partition_name::name;
         IF v_count > 0 THEN
             v_trig_func := v_trig_func || format('
-                INSERT INTO %I.%I VALUES (NEW.*); ', v_parent_schema, v_current_partition_name);
+                INSERT INTO %I.%I VALUES (NEW.*) %s; ', v_parent_schema, v_current_partition_name, v_upsert);
         ELSE
             v_trig_func := v_trig_func || '
                 -- Child table for current values does not exist in this partition set, so write to parent
@@ -205,23 +208,25 @@ IF v_type = 'time' THEN
             IF v_epoch = false THEN
                 v_trig_func := v_trig_func ||format('
             ELSIF NEW.%I >= %L AND NEW.%I < %L THEN 
-                INSERT INTO %I.%I VALUES (NEW.*);'
+                INSERT INTO %I.%I VALUES (NEW.*) %s;'
                     , v_control
                     , v_prev_partition_timestamp
                     , v_control
                     , v_prev_partition_timestamp + v_partition_interval::interval
                     , v_parent_schema
-                    , v_prev_partition_name);
+                    , v_prev_partition_name
+                    , v_upsert);
             ELSE
                 v_trig_func := v_trig_func ||format('
             ELSIF to_timestamp(NEW.%I) >= %L AND to_timestamp(NEW.%I) < %L THEN 
-                INSERT INTO %I.%I VALUES (NEW.*);'
+                INSERT INTO %I.%I VALUES (NEW.*) %s;'
                     , v_control
                     , v_prev_partition_timestamp
                     , v_control
                     , v_prev_partition_timestamp + v_partition_interval::interval
                     , v_parent_schema
-                    , v_prev_partition_name);
+                    , v_prev_partition_name
+                    , v_upsert);
 
             END IF;
         END IF;
@@ -230,23 +235,25 @@ IF v_type = 'time' THEN
             IF v_epoch = false THEN
                 v_trig_func := v_trig_func ||format(' 
             ELSIF NEW.%I >= %L AND NEW.%I < %L THEN 
-                INSERT INTO %I.%I VALUES (NEW.*);'
+                INSERT INTO %I.%I VALUES (NEW.*) %s;'
                     , v_control
                     , v_next_partition_timestamp
                     , v_control
                     , v_final_partition_timestamp
                     , v_parent_schema
-                    , v_next_partition_name);
+                    , v_next_partition_name
+                    , v_upsert);
             ELSE
                 v_trig_func := v_trig_func ||format(' 
             ELSIF to_timestamp(NEW.%I) >= %L AND to_timestamp(NEW.%I) < %L THEN 
-                INSERT INTO %I.%I VALUES (NEW.*);'
+                INSERT INTO %I.%I VALUES (NEW.*) %s;'
                     , v_control
                     , v_next_partition_timestamp
                     , v_control
                     , v_final_partition_timestamp
                     , v_parent_schema
-                    , v_next_partition_name);
+                    , v_next_partition_name
+                    , v_upsert);
 
             END IF;
         END IF;
@@ -258,7 +265,7 @@ IF v_type = 'time' THEN
                 v_partition_name := @extschema@.check_name_length(%L, to_char(v_partition_timestamp, %L), TRUE);
                 SELECT count(*) INTO v_count FROM pg_catalog.pg_tables WHERE schemaname = %L::name AND tablename = v_partition_name::name;
                 IF v_count > 0 THEN 
-                    EXECUTE format(''INSERT INTO %%I.%%I VALUES($1.*)'', %L, v_partition_name) USING NEW;
+                    EXECUTE format(''INSERT INTO %%I.%%I VALUES($1.*) %s'', %L, v_partition_name) USING NEW;
                 ELSE
                     RETURN NEW;
                 END IF;
@@ -266,6 +273,7 @@ IF v_type = 'time' THEN
             , v_parent_tablename
             , v_datetime_string
             , v_parent_schema
+            , v_upsert
             , v_parent_schema);
 
     v_trig_func := v_trig_func ||'
@@ -329,7 +337,7 @@ ELSIF v_type = 'time-custom' THEN
         WHERE schemaname = split_part(v_child_table, ''.'', 1)::name
         AND tablename = split_part(v_child_table, ''.'', 2)::name;
         IF v_child_schemaname IS NOT NULL AND v_child_tablename IS NOT NULL THEN
-            EXECUTE format(''INSERT INTO %I.%I VALUES ($1.*)'', v_child_schemaname, v_child_tablename) USING NEW;
+            EXECUTE format(''INSERT INTO %I.%I VALUES ($1.*) %s'', v_child_schemaname, v_child_tablename, v_upsert) USING NEW;
         ELSE
             RETURN NEW;
         END IF;
