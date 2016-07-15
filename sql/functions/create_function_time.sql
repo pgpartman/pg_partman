@@ -10,6 +10,7 @@ ex_context                      text;
 ex_detail                       text;
 ex_hint                         text;
 ex_message                      text;
+v_composable                    boolean;
 v_control                       text;
 v_count                         int;
 v_current_partition_name        text;
@@ -47,6 +48,7 @@ SELECT partition_type
     , datetime_string
     , jobmon
     , trigger_exception_handling
+    , composable
 INTO v_type
     , v_partition_interval
     , v_epoch
@@ -55,7 +57,8 @@ INTO v_type
     , v_datetime_string
     , v_jobmon
     , v_trigger_exception_handling
-FROM @extschema@.part_config 
+    , v_composable
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (partition_type = 'time' OR partition_type = 'time-custom');
 
@@ -269,9 +272,17 @@ IF v_type = 'time' THEN
             , v_parent_schema);
 
     v_trig_func := v_trig_func ||'
-        END IF; 
-        RETURN NULL;'; 
-    IF v_trigger_exception_handling THEN 
+        END IF;';
+
+    IF v_composable IS TRUE THEN
+        v_trig_func := v_trig_func || '
+        RETURN NEW;';
+    ELSE
+        v_trig_func := v_trig_func || '
+        RETURN NULL;';
+    END IF;
+
+    IF v_trigger_exception_handling THEN
         v_trig_func := v_trig_func ||'
         EXCEPTION WHEN OTHERS THEN
             RAISE WARNING ''pg_partman insert into child table failed, row inserted into parent (%.%). ERROR: %'', TG_TABLE_SCHEMA, TG_TABLE_NAME, COALESCE(SQLERRM, ''unknown'');
@@ -332,10 +343,17 @@ ELSIF v_type = 'time-custom' THEN
             EXECUTE format(''INSERT INTO %I.%I VALUES ($1.*)'', v_child_schemaname, v_child_tablename) USING NEW;
         ELSE
             RETURN NEW;
-        END IF;
+        END IF;';
 
+    IF v_composable IS TRUE THEN
+        v_trig_func := v_trig_func || '
+        RETURN NEW;';
+    ELSE
+        v_trig_func := v_trig_func || '
         RETURN NULL;';
-    IF v_trigger_exception_handling THEN 
+    END IF;
+
+    IF v_trigger_exception_handling THEN
         v_trig_func := v_trig_func ||'
         EXCEPTION WHEN OTHERS THEN
             RAISE WARNING ''pg_partman insert into child table failed, row inserted into parent (%.%). ERROR: %'', TG_TABLE_SCHEMA, TG_TABLE_NAME, COALESCE(SQLERRM, ''unknown'');
