@@ -10,7 +10,7 @@ ex_context                      text;
 ex_detail                       text;
 ex_hint                         text;
 ex_message                      text;
-v_composable                    boolean;
+v_trigger_return_null           boolean;
 v_control                       text;
 v_count                         int;
 v_current_partition_name        text;
@@ -48,7 +48,7 @@ SELECT partition_type
     , datetime_string
     , jobmon
     , trigger_exception_handling
-    , composable
+    , trigger_return_null
 INTO v_type
     , v_partition_interval
     , v_epoch
@@ -57,7 +57,7 @@ INTO v_type
     , v_datetime_string
     , v_jobmon
     , v_trigger_exception_handling
-    , v_composable
+    , v_trigger_return_null
 FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (partition_type = 'time' OR partition_type = 'time-custom');
@@ -274,12 +274,12 @@ IF v_type = 'time' THEN
     v_trig_func := v_trig_func ||'
         END IF;';
 
-    IF v_composable IS TRUE THEN
-        v_trig_func := v_trig_func || '
-        RETURN NEW;';
-    ELSE
+    IF v_trigger_return_null IS TRUE THEN
         v_trig_func := v_trig_func || '
         RETURN NULL;';
+    ELSE
+        v_trig_func := v_trig_func || '
+        RETURN NEW;';
     END IF;
 
     IF v_trigger_exception_handling THEN
@@ -345,12 +345,12 @@ ELSIF v_type = 'time-custom' THEN
             RETURN NEW;
         END IF;';
 
-    IF v_composable IS TRUE THEN
-        v_trig_func := v_trig_func || '
-        RETURN NEW;';
-    ELSE
+    IF v_trigger_return_null IS TRUE THEN
         v_trig_func := v_trig_func || '
         RETURN NULL;';
+    ELSE
+        v_trig_func := v_trig_func || '
+        RETURN NEW;';
     END IF;
 
     IF v_trigger_exception_handling THEN

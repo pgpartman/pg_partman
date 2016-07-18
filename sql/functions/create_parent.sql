@@ -13,7 +13,7 @@ CREATE FUNCTION create_parent(
     , p_inherit_fk boolean DEFAULT true
     , p_epoch boolean DEFAULT false
     , p_jobmon boolean DEFAULT true
-    , p_composable boolean DEFAULT false
+    , p_trigger_return_null boolean DEFAULT true
     , p_debug boolean DEFAULT false)
 RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
@@ -300,7 +300,7 @@ IF p_type = 'time' OR p_type = 'time-custom' THEN
         , use_run_maintenance
         , inherit_fk
         , jobmon
-        , composable)
+        , trigger_return_null)
     VALUES (
         p_parent_table
         , p_type
@@ -313,7 +313,7 @@ IF p_type = 'time' OR p_type = 'time-custom' THEN
         , v_run_maint
         , p_inherit_fk
         , p_jobmon
-        , p_composable);
+        , p_trigger_return_null);
     v_last_partition_created := @extschema@.create_partition_time(p_parent_table, v_partition_time_array, false);
 
     IF v_last_partition_created = false THEN 
@@ -423,7 +423,7 @@ IF p_type = 'id' THEN
         , use_run_maintenance
         , inherit_fk
         , jobmon
-        , composable)
+        , trigger_return_null)
     VALUES (
         p_parent_table
         , p_type
@@ -434,7 +434,7 @@ IF p_type = 'id' THEN
         , v_run_maint
         , p_inherit_fk
         , p_jobmon
-        , p_composable);
+        , p_trigger_return_null);
     v_last_partition_created := @extschema@.create_partition_id(p_parent_table, v_partition_id_array, false);
     IF v_last_partition_created = false THEN
         -- This can happen with subpartitioning when future or past partitions prevent child creation because they're out of range of the parent

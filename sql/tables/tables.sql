@@ -17,7 +17,7 @@ CREATE TABLE part_config (
     , datetime_string text
     , use_run_maintenance BOOLEAN NOT NULL DEFAULT true
     , jobmon boolean NOT NULL DEFAULT true
-    , composable boolean NOT NULL DEFAULT false
+    , trigger_return_null boolean NOT NULL DEFAULT true
     , sub_partition_set_full boolean NOT NULL DEFAULT false
     , undo_in_progress boolean NOT NULL DEFAULT false
     , trigger_exception_handling BOOLEAN DEFAULT false
