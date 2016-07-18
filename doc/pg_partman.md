@@ -78,7 +78,7 @@ As a note for people that were not aware, you can name arguments in function cal
 
 ### Creation Functions
 
-*`create_parent(p_parent_table text, p_control text, p_type text, p_interval text, p_constraint_cols text[] DEFAULT NULL, p_premake int DEFAULT 4, p_use_run_maintenance boolean DEFAULT NULL, p_start_partition text DEFAULT NULL, p_inherit_fk boolean DEFAULT true, p_epoch boolean DEFAULT false, p_jobmon boolean DEFAULT true, p_debug boolean DEFAULT false) RETURNS boolean`*
+*`create_parent(p_parent_table text, p_control text, p_type text, p_interval text, p_constraint_cols text[] DEFAULT NULL, p_premake int DEFAULT 4, p_use_run_maintenance boolean DEFAULT NULL, p_start_partition text DEFAULT NULL, p_inherit_fk boolean DEFAULT true, p_epoch boolean DEFAULT false, p_jobmon boolean DEFAULT true, p_trigger_return_null boolean DEFAULT true, p_debug boolean DEFAULT false) RETURNS boolean`*
 
  * Main function to create a partition set with one parent table and inherited children. Parent table must already exist. Please apply all defaults, indexes, constraints, privileges & ownership to parent table so they will propagate to children.
  * An ACCESS EXCLUSIVE lock is taken on the parent table during the running of this function. No data is moved when running this function, so lock should be brief.
@@ -119,6 +119,7 @@ As a note for people that were not aware, you can name arguments in function cal
  * `p_inherit_fk` - allows `pg_partman` to automatically manage inheriting any foreign keys that exist on the parent table to all its children. Defaults to TRUE.
  * `p_epoch` - tells `pg_partman` that the control column is an integer type, but actually represents and epoch time value. All triggers, constraints & table names will be time-based. Be sure you create a functional, time-based index on the control column (to_timestamp(controlcolumn)) so this works efficiently.
  * `p_jobmon` - allow `pg_partman` to use the `pg_jobmon` extension to monitor that partitioning is working correctly. Defaults to TRUE.
+ * `p_trigger_return_null` - tells `pg_partman` to return NULL after inserting, which signals postgres to stop processing for that row and avoids a double inset. This is the normally expected behavior. When set to FALSE, the `NEW` row will be returned for use by other `BEFORE INSERT` triggers, one of which must be responsible for returning NULL. Defaults to TRUE.
  * `p_debug` - turns on additional debugging information.
 
 
