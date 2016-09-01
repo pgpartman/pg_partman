@@ -15,7 +15,8 @@ CREATE FUNCTION create_parent(
     , p_upsert text DEFAULT ''
     , p_trigger_return_null boolean DEFAULT true
     , p_jobmon boolean DEFAULT true
-    , p_debug boolean DEFAULT false) 
+    , p_debug boolean DEFAULT false
+    , p_analyze boolean DEFAULT true) 
 RETURNS boolean 
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
@@ -502,7 +503,7 @@ IF p_type = 'time' OR p_type = 'time-custom' THEN
         PERFORM update_step(v_step_id, 'OK', 'Time function created');
     END IF;
 ELSIF p_type = 'id' THEN
-    PERFORM @extschema@.create_function_id(p_parent_table, v_job_id);  
+    PERFORM @extschema@.create_function_id(p_parent_table, v_job_id, p_analyze);  
     IF v_jobmon_schema IS NOT NULL THEN
         PERFORM update_step(v_step_id, 'OK', 'ID function created');
     END IF;
