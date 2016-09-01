@@ -286,7 +286,7 @@ LOOP
             v_last_partition_created := @extschema@.create_partition_id(v_row.parent_table, ARRAY[v_next_partition_id], p_analyze);
             IF v_last_partition_created THEN
                 v_create_count := v_create_count + 1;
-                PERFORM @extschema@.create_function_id(v_row.parent_table, v_job_id);
+                PERFORM @extschema@.create_function_id(v_row.parent_table, v_job_id, p_analyze);
             END IF;
             v_premade_count := ((v_next_partition_id - v_current_partition_id) / v_row.partition_interval::bigint);
         END LOOP;
@@ -326,7 +326,7 @@ LOOP
         END IF;
     END IF;
     IF v_drop_count > 0 THEN
-        PERFORM @extschema@.create_function_id(v_row.parent_table, v_job_id);
+        PERFORM @extschema@.create_function_id(v_row.parent_table, v_job_id, p_analyze);
     END IF;
 END LOOP; 
 
