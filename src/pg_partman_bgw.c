@@ -265,7 +265,14 @@ void pg_partman_bgw_main(Datum main_arg) {
                 worker.bgw_main = NULL;
                 sprintf(worker.bgw_library_name, "pg_partman_bgw");
                 sprintf(worker.bgw_function_name, "pg_partman_bgw_run_maint");
-                sprintf(worker.bgw_name, "pg_partman dynamic background worker (dbname=%s)", dbname);
+                rc = snprintf(worker.bgw_name, sizeof(worker.bgw_name),
+                              "pg_partman dynamic background worker (dbname=%s)", dbname);
+                if (rc >= sizeof(worker.bgw_name)) {
+                    /* dbname was truncated, add an ellipsis to denote it */
+                    const char truncated_mark[] = "...)";
+                    memcpy(worker.bgw_name + sizeof(worker.bgw_name) - sizeof(truncated_mark),
+                           truncated_mark, sizeof(truncated_mark));
+                }
                 worker.bgw_main_arg = Int32GetDatum(dbcounter);
                 worker.bgw_notify_pid = MyProcPid;
 
