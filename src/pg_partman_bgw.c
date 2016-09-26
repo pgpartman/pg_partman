@@ -280,7 +280,6 @@ void pg_partman_bgw_main(Datum main_arg) {
 
                 if (!RegisterDynamicBackgroundWorker(&worker, &handle))
                     elog(FATAL, "Unable to register dynamic background worker for pg_partman");
-                    continue;
 
                 status = WaitForBackgroundWorkerStartup(handle, &pid);
 
