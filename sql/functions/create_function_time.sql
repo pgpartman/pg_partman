@@ -152,15 +152,16 @@ IF v_type = 'time' THEN
             , v_current_partition_timestamp
             , v_next_partition_timestamp);
 
-        SELECT count(*) INTO v_count FROM pg_catalog.pg_tables WHERE schemaname = v_parent_schema::name AND tablename = v_current_partition_name::name;
-        IF v_count > 0 THEN
-            v_trig_func := v_trig_func || format('
-                INSERT INTO %I.%I VALUES (NEW.*) %s; ', v_parent_schema, v_current_partition_name, v_upsert);
-        ELSE
-            v_trig_func := v_trig_func || '
-                -- Child table for current values does not exist in this partition set, so write to parent
-                RETURN NEW;';
-        END IF;
+    SELECT count(*) INTO v_count FROM pg_catalog.pg_tables WHERE schemaname = v_parent_schema::name AND tablename = v_current_partition_name::name;
+    IF v_count > 0 THEN
+        v_trig_func := v_trig_func || format('
+            INSERT INTO %I.%I VALUES (NEW.*) %s; ', v_parent_schema, v_current_partition_name, v_upsert);
+    ELSE
+        v_trig_func := v_trig_func || '
+            -- Child table for current values does not exist in this partition set, so write to parent
+            RETURN NEW;';
+    END IF;
+
     FOR i IN 1..v_optimize_trigger LOOP
         v_prev_partition_timestamp := v_current_partition_timestamp - (v_partition_interval::interval * i);
         v_next_partition_timestamp := v_current_partition_timestamp + (v_partition_interval::interval * i);
