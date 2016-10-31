@@ -148,7 +148,7 @@ IF v_type = 'time' THEN
 
     v_trig_func := v_trig_func ||format('
             IF %s >= %L AND %1$s < %3$L THEN '
-            , v_expression
+            , v_partition_expression
             , v_current_partition_timestamp
             , v_next_partition_timestamp);
 
