@@ -16,7 +16,6 @@ v_current_partition_name        text;
 v_current_partition_timestamp   timestamptz;
 v_datetime_string               text;
 v_epoch                         boolean;
-v_expression                    text;
 v_final_partition_timestamp     timestamptz;
 v_function_name                 text;
 v_job_id                        bigint;
@@ -29,6 +28,7 @@ v_next_partition_name           text;
 v_next_partition_timestamp      timestamptz;
 v_parent_schema                 text;
 v_parent_tablename              text;
+v_partition_expression          text;
 v_partition_interval            interval;
 v_prev_partition_name           text;
 v_prev_partition_timestamp      timestamptz;
@@ -95,7 +95,7 @@ AND tablename = split_part(p_parent_table, '.', 2)::name;
 
 v_function_name := @extschema@.check_name_length(v_parent_tablename, '_part_trig_func', FALSE);
 
-v_expression := case
+v_partition_expression := case
     when v_epoch = true then format('to_timestamp(NEW.%I)', v_control)
     else format('NEW.%I', v_control)
 end;
@@ -115,31 +115,31 @@ IF v_type = 'time' THEN
     CASE
         WHEN v_partition_interval = '15 mins' THEN
             v_trig_func := v_trig_func||format('v_partition_timestamp := date_trunc(''hour'', %s) +
-                ''15min''::interval * floor(date_part(''minute'', %1$s) / 15.0);' , v_expression);
+                ''15min''::interval * floor(date_part(''minute'', %1$s) / 15.0);' , v_partition_expression);
             v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '15min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 15.0);
         WHEN v_partition_interval = '30 mins' THEN
             v_trig_func := v_trig_func||format('v_partition_timestamp := date_trunc(''hour'', %s) +
-                ''30min''::interval * floor(date_part(''minute'', %1$s) / 30.0);' , v_expression);
+                ''30min''::interval * floor(date_part(''minute'', %1$s) / 30.0);' , v_partition_expression);
             v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '30min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 30.0);
         WHEN v_partition_interval = '1 hour' THEN
-            v_trig_func := v_trig_func||format('v_partition_timestamp := date_trunc(''hour'', %s);', v_expression);
+            v_trig_func := v_trig_func||format('v_partition_timestamp := date_trunc(''hour'', %s);', v_partition_expression);
             v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP);
          WHEN v_partition_interval = '1 day' THEN
-            v_trig_func := v_trig_func||format('v_partition_timestamp := date_trunc(''day'', %s);', v_expression);
+            v_trig_func := v_trig_func||format('v_partition_timestamp := date_trunc(''day'', %s);', v_partition_expression);
             v_current_partition_timestamp := date_trunc('day', CURRENT_TIMESTAMP);
         WHEN v_partition_interval = '1 week' THEN
-            v_trig_func := v_trig_func||format('v_partition_timestamp := date_trunc(''week'', %s);', v_expression);
+            v_trig_func := v_trig_func||format('v_partition_timestamp := date_trunc(''week'', %s);', v_partition_expression);
             v_current_partition_timestamp := date_trunc('week', CURRENT_TIMESTAMP);
         WHEN v_partition_interval = '1 month' THEN
-            v_trig_func := v_trig_func||format('v_partition_timestamp := date_trunc(''month'', %s);', v_expression);
+            v_trig_func := v_trig_func||format('v_partition_timestamp := date_trunc(''month'', %s);', v_partition_expression);
             v_current_partition_timestamp := date_trunc('month', CURRENT_TIMESTAMP);
         WHEN v_partition_interval = '3 months' THEN
-            v_trig_func := v_trig_func||format('v_partition_timestamp := date_trunc(''quarter'', %s);', v_expression);
+            v_trig_func := v_trig_func||format('v_partition_timestamp := date_trunc(''quarter'', %s);', v_partition_expression);
             v_current_partition_timestamp := date_trunc('quarter', CURRENT_TIMESTAMP);
         WHEN v_partition_interval = '1 year' THEN
-            v_trig_func := v_trig_func||format('v_partition_timestamp := date_trunc(''year'', %s);', v_expression);
+            v_trig_func := v_trig_func||format('v_partition_timestamp := date_trunc(''year'', %s);', v_partition_expression);
             v_current_partition_timestamp := date_trunc('year', CURRENT_TIMESTAMP);
     END CASE;
 
