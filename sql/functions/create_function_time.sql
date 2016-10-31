@@ -255,29 +255,15 @@ ELSIF v_type = 'time-custom' THEN
         , v_parent_schema
         , v_function_name);
 
-    IF v_epoch = false THEN
-        v_trig_func := v_trig_func || format(' 
+    v_trig_func := v_trig_func || format(' 
 
         SELECT c.child_table, p.upsert INTO v_child_table, v_upsert
         FROM @extschema@.custom_time_partitions c
         JOIN @extschema@.part_config p ON c.parent_table = p.parent_table
-        WHERE c.partition_range @> NEW.%I 
+        WHERE c.partition_range @> %s 
         AND c.parent_table = %L;'
-        , v_control
+        , v_partition_expression
         , v_parent_schema||'.'||v_parent_tablename);
-
-    ELSE -- epoch true
-        v_trig_func := v_trig_func || format(' 
-
-        SELECT c.child_table, p.upsert INTO v_child_table, v_upsert
-        FROM @extschema@.custom_time_partitions c
-        JOIN @extschema@.part_config p ON c.parent_table = p.parent_table
-        WHERE c.partition_range @> to_timestamp(NEW.%I)
-        AND c.parent_table = %L;'
-        , v_control
-        , v_parent_schema||'.'||v_parent_tablename);
-
-    END IF;
 
     v_trig_func := v_trig_func || '
 
