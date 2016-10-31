@@ -146,21 +146,12 @@ IF v_type = 'time' THEN
     v_current_partition_name := @extschema@.check_name_length(v_parent_tablename, to_char(v_current_partition_timestamp, v_datetime_string), TRUE); 
     v_next_partition_timestamp := v_current_partition_timestamp + v_partition_interval::interval;
 
-    IF v_epoch = false THEN
-        v_trig_func := v_trig_func ||format('
-            IF NEW.%I >= %L AND NEW.%I < %L THEN '
-                , v_control
-                , v_current_partition_timestamp
-                , v_control
-                , v_next_partition_timestamp);
-    ELSE
-        v_trig_func := v_trig_func ||format('
-            IF to_timestamp(NEW.%I) >= %L AND to_timestamp(NEW.%I) < %L THEN '
-                , v_control
-                , v_current_partition_timestamp
-                , v_control
-                , v_next_partition_timestamp);
-    END IF;
+    v_trig_func := v_trig_func ||format('
+            IF %s >= %L AND %1$s < %3$L THEN '
+            , v_expression
+            , v_current_partition_timestamp
+            , v_next_partition_timestamp);
+
         SELECT count(*) INTO v_count FROM pg_catalog.pg_tables WHERE schemaname = v_parent_schema::name AND tablename = v_current_partition_name::name;
         IF v_count > 0 THEN
             v_trig_func := v_trig_func || format('
