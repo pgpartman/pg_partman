@@ -37,6 +37,7 @@ v_next_partition_timestamp      timestamptz;
 v_old_search_path               text;
 v_parent_schema                 text;
 v_parent_tablename              text;
+v_partition_expression          text;
 v_premade_count                 int;
 v_premake_id_max                bigint;
 v_premake_id_min                bigint;
@@ -125,6 +126,11 @@ LOOP
     WHERE schemaname = split_part(v_row.parent_table, '.', 1)::name
     AND tablename = split_part(v_row.parent_table, '.', 2)::name;
 
+    v_partition_expression := case
+        when v_row.epoch = true then format('to_timestamp(%I)', v_row.control)
+        else format('%I', v_row.control)
+    end;
+
     SELECT partition_tablename INTO v_last_partition FROM @extschema@.show_partitions(v_row.parent_table, 'DESC') LIMIT 1;
     IF p_debug THEN
         RAISE NOTICE 'run_maint: parent_table: %, v_last_partition: %', v_row.parent_table, v_last_partition;
@@ -140,19 +146,11 @@ LOOP
         FOR v_row_max_time IN
             SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(v_row.parent_table, 'DESC')
         LOOP
-            IF v_row.epoch = false THEN
-                EXECUTE format('SELECT max(%I)::text FROM %I.%I'
-                                    , v_row.control
-                                    , v_row_max_time.partition_schemaname
-                                    , v_row_max_time.partition_tablename
-                                ) INTO v_current_partition_timestamp;
-            ELSE
-                EXECUTE format('SELECT max(to_timestamp(%I))::text FROM %I.%I'
-                                    , v_row.control
-                                    , v_row_max_time.partition_schemaname
-                                    , v_row_max_time.partition_tablename
-                                ) INTO v_current_partition_timestamp;
-            END IF;
+            EXECUTE format('SELECT max(%s)::text FROM %I.%I'
+                                , v_partition_expression
+                                , v_row_max_time.partition_schemaname
+                                , v_row_max_time.partition_tablename
+                            ) INTO v_current_partition_timestamp;
             IF v_current_partition_timestamp IS NOT NULL THEN
                 SELECT suffix_timestamp INTO v_current_partition_timestamp FROM @extschema@.show_partition_name(v_row.parent_table, v_current_partition_timestamp::text);
                 EXIT;
