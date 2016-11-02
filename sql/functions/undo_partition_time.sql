@@ -24,7 +24,6 @@ v_lock_obtained         boolean := FALSE;
 v_job_id                bigint;
 v_jobmon                boolean;
 v_jobmon_schema         text;
-v_move_sql              text;
 v_new_search_path       text := '@extschema@,pg_temp';
 v_old_search_path       text;
 v_parent_schema         text;
@@ -253,28 +252,15 @@ LOOP
         END IF;
 
         -- Get everything from the current child minimum up to the multiples of the given interval
-        IF v_epoch = false THEN
-            v_move_sql := format('WITH move_data AS (
-                                    DELETE FROM %I.%I WHERE %I <= %L RETURNING *)
-                                  INSERT INTO %I.%I SELECT * FROM move_data'
-                                    , v_parent_schema
-                                    , v_child_table
-                                    , v_control
-                                    , v_child_min + (p_batch_interval * v_inner_loop_count)
-                                    , v_parent_schema
-                                    , v_parent_tablename);
-        ELSE
-            v_move_sql := format('WITH move_data AS (
-                                    DELETE FROM %I.%I WHERE to_timestamp(%I) <= %L RETURNING *)
-                                  INSERT INTO %I.%I SELECT * FROM move_data'
-                                    , v_parent_schema
-                                    , v_child_table
-                                    , v_control
-                                    , v_child_min + (p_batch_interval * v_inner_loop_count)
-                                    , v_parent_schema
-                                    , v_parent_tablename);
-        END IF;
-        EXECUTE v_move_sql;
+        EXECUTE format('WITH move_data AS (
+                                DELETE FROM %I.%I WHERE %s <= %L RETURNING *)
+                              INSERT INTO %I.%I SELECT * FROM move_data'
+            , v_parent_schema
+            , v_child_table
+            , v_partition_expression
+            , v_child_min + (p_batch_interval * v_inner_loop_count)
+            , v_parent_schema
+            , v_parent_tablename);
         GET DIAGNOSTICS v_rowcount = ROW_COUNT;
         v_total := v_total + v_rowcount;
         v_child_loop_total := v_child_loop_total + v_rowcount;
