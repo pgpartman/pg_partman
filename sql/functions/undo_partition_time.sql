@@ -29,6 +29,7 @@ v_new_search_path       text := '@extschema@,pg_temp';
 v_old_search_path       text;
 v_parent_schema         text;
 v_parent_tablename      text;
+v_partition_expression  text;
 v_partition_interval    interval;
 v_row                   record;
 v_rowcount              bigint;
@@ -106,6 +107,11 @@ FROM pg_catalog.pg_tables
 WHERE schemaname = split_part(p_parent_table, '.', 1)::name
 AND tablename = split_part(p_parent_table, '.', 2)::name;
 
+v_partition_expression := case
+    when v_epoch = true then format('to_timestamp(%I)', v_control)
+    else format('%I', v_control)
+end;
+
 -- Stops new time partitons from being made as well as stopping child tables from being dropped if they were configured with a retention period.
 UPDATE @extschema@.part_config SET undo_in_progress = true WHERE parent_table = p_parent_table;
 -- Stop data going into child tables.
@@ -169,11 +175,7 @@ LOOP
         v_step_id := add_step(v_job_id, format('Removing child partition: %s.%s', v_parent_schema, v_child_table));
     END IF;
 
-    IF v_epoch = false THEN
-        EXECUTE format('SELECT min(%I) FROM %I.%I', v_control, v_parent_schema, v_child_table) INTO v_child_min;
-    ELSE 
-        EXECUTE format('SELECT min(to_timestamp(%I)) FROM %I.%I', v_control, v_parent_schema, v_child_table) INTO v_child_min;
-    END IF;
+    EXECUTE format('SELECT min(%s) FROM %I.%I', v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min;
     IF v_child_min IS NULL THEN
         -- No rows left in this child table. Remove from partition set.
 
