@@ -101,6 +101,9 @@ v_partition_expression := case
     when v_epoch = true then format('to_timestamp(%I)', v_control)
     else format('%I', v_control)
 end;
+IF p_debug THEN
+    RAISE NOTICE 'create_partition_time: v_partition_expression: %', v_partition_expression;
+END IF;
 
 FOREACH v_time IN ARRAY p_partition_times LOOP    
     v_partition_timestamp_start := v_time;

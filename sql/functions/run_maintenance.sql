@@ -130,6 +130,9 @@ LOOP
         when v_row.epoch = true then format('to_timestamp(%I)', v_row.control)
         else format('%I', v_row.control)
     end;
+    IF p_debug THEN
+        RAISE NOTICE 'run_maint: v_partition_expression: %', v_partition_expression;
+    END IF;
 
     SELECT partition_tablename INTO v_last_partition FROM @extschema@.show_partitions(v_row.parent_table, 'DESC') LIMIT 1;
     IF p_debug THEN
