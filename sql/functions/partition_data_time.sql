@@ -26,6 +26,7 @@ v_new_search_path           text := '@extschema@,pg_temp';
 v_old_search_path           text;
 v_parent_schema             text;
 v_parent_tablename          text;
+v_partition_expression      text;
 v_partition_interval        interval;
 v_partition_suffix          text;
 v_partition_timestamp       timestamptz[];
@@ -72,24 +73,19 @@ AND tablename = split_part(p_parent_table, '.', 2)::name;
 
 SELECT partition_tablename INTO v_last_partition FROM @extschema@.show_partitions(p_parent_table, 'DESC') LIMIT 1;
 
+v_partition_expression := case
+    when v_epoch = true then format('to_timestamp(%I)', v_control)
+    else format('%I', v_control)
+end;
+
 FOR i IN 1..p_batch_count LOOP
 
-    IF v_epoch = false THEN
-        IF p_order = 'ASC' THEN
-            EXECUTE format('SELECT min(%I) FROM ONLY %I.%I', v_control, v_parent_schema, v_parent_tablename) INTO v_start_control;
-        ELSIF p_order = 'DESC' THEN
-            EXECUTE format('SELECT max(%I) FROM ONLY %I.%I', v_control, v_parent_schema, v_parent_tablename) INTO v_start_control;
-        ELSE
-            RAISE EXCEPTION 'Invalid value for p_order. Must be ASC or DESC';
-        END IF;
+    IF p_order = 'ASC' THEN
+        EXECUTE format('SELECT min(%s) FROM ONLY %I.%I', v_partition_expression, v_parent_schema, v_parent_tablename) INTO v_start_control;
+    ELSIF p_order = 'DESC' THEN
+        EXECUTE format('SELECT max(%s) FROM ONLY %I.%I', v_partition_expression, v_parent_schema, v_parent_tablename) INTO v_start_control;
     ELSE
-        IF p_order = 'ASC' THEN
-            EXECUTE format('SELECT min(to_timestamp(%I)) FROM ONLY %I.%I', v_control, v_parent_schema, v_parent_tablename) INTO v_start_control;
-        ELSIF p_order = 'DESC' THEN
-            EXECUTE format('SELECT max(to_timestamp(%I)) FROM ONLY %I.%I', v_control, v_parent_schema, v_parent_tablename) INTO v_start_control;
-        ELSE
-            RAISE EXCEPTION 'Invalid value for p_order. Must be ASC or DESC';
-        END IF;
+        RAISE EXCEPTION 'Invalid value for p_order. Must be ASC or DESC';
     END IF;
 
     IF v_start_control IS NULL THEN
