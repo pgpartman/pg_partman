@@ -172,7 +172,7 @@ LOOP
     IF v_epoch = false THEN
         EXECUTE format('SELECT min(%I) FROM %I.%I', v_control, v_parent_schema, v_child_table) INTO v_child_min;
     ELSE 
-        EXECUTE format('SELECT to_timestamp(min(%I)) FROM %I.%I', v_control, v_parent_schema, v_child_table) INTO v_child_min;
+        EXECUTE format('SELECT min(to_timestamp(%I)) FROM %I.%I', v_control, v_parent_schema, v_child_table) INTO v_child_min;
     END IF;
     IF v_child_min IS NULL THEN
         -- No rows left in this child table. Remove from partition set.
@@ -287,7 +287,7 @@ LOOP
         IF v_epoch = false THEN
             EXECUTE format('SELECT min(%I) FROM %I.%I', v_control, v_parent_schema, v_child_table) INTO v_child_min;
         ELSE 
-            EXECUTE format('SELECT to_timestamp(min(%I)) FROM %I.%I', v_control, v_parent_schema, v_child_table) INTO v_child_min;
+            EXECUTE format('SELECT min(to_timestamp(%I)) FROM %I.%I', v_control, v_parent_schema, v_child_table) INTO v_child_min;
         END IF;
         CONTINUE outer_child_loop WHEN v_child_min IS NULL;
 

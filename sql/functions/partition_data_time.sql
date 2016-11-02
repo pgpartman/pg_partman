@@ -84,9 +84,9 @@ FOR i IN 1..p_batch_count LOOP
         END IF;
     ELSE
         IF p_order = 'ASC' THEN
-            EXECUTE format('SELECT to_timestamp(min(%I)) FROM ONLY %I.%I', v_control, v_parent_schema, v_parent_tablename) INTO v_start_control;
+            EXECUTE format('SELECT min(to_timestamp(%I)) FROM ONLY %I.%I', v_control, v_parent_schema, v_parent_tablename) INTO v_start_control;
         ELSIF p_order = 'DESC' THEN
-            EXECUTE format('SELECT to_timestamp(max(%I)) FROM ONLY %I.%I', v_control, v_parent_schema, v_parent_tablename) INTO v_start_control;
+            EXECUTE format('SELECT max(to_timestamp(%I)) FROM ONLY %I.%I', v_control, v_parent_schema, v_parent_tablename) INTO v_start_control;
         ELSE
             RAISE EXCEPTION 'Invalid value for p_order. Must be ASC or DESC';
         END IF;

@@ -147,7 +147,7 @@ LOOP
                                     , v_row_max_time.partition_tablename
                                 ) INTO v_current_partition_timestamp;
             ELSE
-                EXECUTE format('SELECT to_timestamp(max(%I))::text FROM %I.%I'
+                EXECUTE format('SELECT max(to_timestamp(%I))::text FROM %I.%I'
                                     , v_row.control
                                     , v_row_max_time.partition_schemaname
                                     , v_row_max_time.partition_tablename
@@ -163,7 +163,7 @@ LOOP
         IF v_row.epoch = false THEN
             EXECUTE format('SELECT max(%I) FROM ONLY %I.%I', v_row.control, v_parent_schema, v_parent_tablename) INTO v_max_time_parent;
         ELSE
-            EXECUTE format('SELECT to_timestamp(max(%I)) FROM ONLY %I.%I', v_row.control, v_parent_schema, v_parent_tablename) INTO v_max_time_parent;
+            EXECUTE format('SELECT max(to_timestamp(%I)) FROM ONLY %I.%I', v_row.control, v_parent_schema, v_parent_tablename) INTO v_max_time_parent;
         END IF;
         IF p_debug THEN
             RAISE NOTICE 'run_maint: v_current_partition_timestamp: %, v_max_time_parent: %', v_current_partition_timestamp, v_max_time_parent;
