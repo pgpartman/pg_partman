@@ -191,32 +191,16 @@ FOR i IN 1..p_batch_count LOOP
     v_partition_suffix := to_char(v_min_partition_timestamp, v_datetime_string);
     v_current_partition_name := @extschema@.check_name_length(v_parent_tablename, v_partition_suffix, TRUE);
 
-    IF v_epoch = false THEN
-        v_sql := format('WITH partition_data AS (
-                            DELETE FROM ONLY %I.%I WHERE %I >= %L AND %I < %L RETURNING *)
-                         INSERT INTO %I.%I SELECT * FROM partition_data'
-                            , v_parent_schema
-                            , v_parent_tablename
-                            , v_control
-                            , v_min_partition_timestamp
-                            , v_control
-                            , v_max_partition_timestamp
-                            , v_parent_schema
-                            , v_current_partition_name);
-    ELSE
-        v_sql := format('WITH partition_data AS (
-                            DELETE FROM ONLY %I.%I WHERE to_timestamp(%I) >= %L AND to_timestamp(%I) < %L RETURNING *)
-                         INSERT INTO %I.%I SELECT * FROM partition_data'
-                            , v_parent_schema
-                            , v_parent_tablename
-                            , v_control
-                            , v_min_partition_timestamp
-                            , v_control
-                            , v_max_partition_timestamp
-                            , v_parent_schema
-                            , v_current_partition_name);
-    END IF;
-    EXECUTE v_sql;
+    EXECUTE format('WITH partition_data AS (
+                        DELETE FROM ONLY %I.%I WHERE %s >= %L AND %3$s < %5$L RETURNING *)
+                     INSERT INTO %I.%I SELECT * FROM partition_data'
+                        , v_parent_schema
+                        , v_parent_tablename
+                        , v_partition_expression
+                        , v_min_partition_timestamp
+                        , v_max_partition_timestamp
+                        , v_parent_schema
+                        , v_current_partition_name);
     GET DIAGNOSTICS v_rowcount = ROW_COUNT;
     v_total_rows := v_total_rows + v_rowcount;
     IF v_rowcount = 0 THEN
