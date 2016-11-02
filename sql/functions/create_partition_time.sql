@@ -98,8 +98,8 @@ IF v_jobmon_schema IS NOT NULL THEN
 END IF;
 
 v_partition_expression := case
-    when v_epoch = true then format('to_timestamp(NEW.%I)', v_control)
-    else format('NEW.%I', v_control)
+    when v_epoch = true then format('to_timestamp(%I)', v_control)
+    else format('%I', v_control)
 end;
 
 FOREACH v_time IN ARRAY p_partition_times LOOP    
