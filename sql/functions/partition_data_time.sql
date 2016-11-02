@@ -32,7 +32,6 @@ v_partition_suffix          text;
 v_partition_timestamp       timestamptz[];
 v_quarter                   text;
 v_rowcount                  bigint;
-v_sql                       text;
 v_start_control             timestamptz;
 v_time_position             int;
 v_total_rows                bigint := 0;
