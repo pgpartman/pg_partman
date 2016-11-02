@@ -272,11 +272,7 @@ LOOP
         v_batch_loop_count := v_batch_loop_count + 1;
 
         -- Check again if table is empty and go to outer loop again to drop it if so
-        IF v_epoch = false THEN
-            EXECUTE format('SELECT min(%I) FROM %I.%I', v_control, v_parent_schema, v_child_table) INTO v_child_min;
-        ELSE 
-            EXECUTE format('SELECT min(to_timestamp(%I)) FROM %I.%I', v_control, v_parent_schema, v_child_table) INTO v_child_min;
-        END IF;
+        EXECUTE format('SELECT min(%s) FROM %I.%I', v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min;
         CONTINUE outer_child_loop WHEN v_child_min IS NULL;
 
         EXIT outer_child_loop WHEN v_batch_loop_count >= p_batch_count; -- Exit outer FOR loop if p_batch_count is reached
