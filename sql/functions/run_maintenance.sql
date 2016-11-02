@@ -158,11 +158,7 @@ LOOP
         END LOOP;
         -- Check for values in the parent table. If they are there and greater than all child values, use that instead
         -- This allows maintenance to continue working properly if there is a large gap in data insertion. Data will remain in parent, but new tables will be created
-        IF v_row.epoch = false THEN
-            EXECUTE format('SELECT max(%I) FROM ONLY %I.%I', v_row.control, v_parent_schema, v_parent_tablename) INTO v_max_time_parent;
-        ELSE
-            EXECUTE format('SELECT max(to_timestamp(%I)) FROM ONLY %I.%I', v_row.control, v_parent_schema, v_parent_tablename) INTO v_max_time_parent;
-        END IF;
+        EXECUTE format('SELECT max(%s) FROM ONLY %I.%I', v_partition_expression, v_parent_schema, v_parent_tablename) INTO v_max_time_parent;
         IF p_debug THEN
             RAISE NOTICE 'run_maint: v_current_partition_timestamp: %, v_max_time_parent: %', v_current_partition_timestamp, v_max_time_parent;
         END IF;
