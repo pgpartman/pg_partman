@@ -167,24 +167,12 @@ FOR i IN 1..p_batch_count LOOP
         WHILE v_lock_iter <= 5 LOOP
             v_lock_iter := v_lock_iter + 1;
             BEGIN
-                IF v_epoch = false THEN
-                    v_sql := format('SELECT * FROM ONLY %I.%I WHERE %I >= %L AND %I < %L FOR UPDATE NOWAIT'
-                                        , v_parent_schema
-                                        , v_parent_tablename
-                                        , v_control
-                                        , v_min_partition_timestamp
-                                        , v_control
-                                        , v_max_partition_timestamp);
-                ELSE
-                    v_sql := format('SELECT * FROM ONLY %I.%I WHERE to_timestamp(%I) >= %L AND to_timestamp(%I) < %L FOR UPDATE NOWAIT'
-                                        , v_parent_schema
-                                        , v_parent_tablename
-                                        , v_control
-                                        , v_min_partition_timestamp
-                                        , v_control
-                                        , v_max_partition_timestamp);
-                END IF;
-                EXECUTE v_sql;
+                EXECUTE format('SELECT * FROM ONLY %I.%I WHERE %s >= %L AND %3$s < %5$L FOR UPDATE NOWAIT'
+                    , v_parent_schema
+                    , v_parent_tablename
+                    , v_partition_expression
+                    , v_min_partition_timestamp
+                    , v_max_partition_timestamp);
                 v_lock_obtained := TRUE;
             EXCEPTION
                 WHEN lock_not_available THEN
