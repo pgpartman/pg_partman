@@ -5,7 +5,7 @@
 /*
  * Create the trigger function for the parent table of a time-based partition set
  */
-CREATE FUNCTION create_function_time(p_parent_table text, p_job_id bigint DEFAULT NULL) RETURNS void
+CREATE OR REPLACE FUNCTION create_function_time(p_parent_table text, p_job_id bigint DEFAULT NULL) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -338,7 +338,7 @@ $$;
 /*
  * Function to create a child table in a time-based partition set
  */
-CREATE FUNCTION create_partition_time(p_parent_table text, p_partition_times timestamptz[], p_analyze boolean DEFAULT true, p_debug boolean DEFAULT false) 
+CREATE OR REPLACE FUNCTION create_partition_time(p_parent_table text, p_partition_times timestamptz[], p_analyze boolean DEFAULT true, p_debug boolean DEFAULT false) 
 RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
@@ -674,7 +674,7 @@ $$;
 /*
  * Populate the child table(s) of a time-based partition set with old data from the original parent
  */
-CREATE FUNCTION partition_data_time(
+CREATE OR REPLACE FUNCTION partition_data_time(
         p_parent_table text
         , p_batch_count int DEFAULT 1
         , p_batch_interval interval DEFAULT NULL
@@ -898,7 +898,7 @@ $$;
  * For large partition sets, running analyze can cause maintenance to take longer than expected. Can set p_analyze to false to avoid a forced analyze run.
  * Be aware that constraint exclusion may not work properly until an analyze on the partition set is run. 
  */
-CREATE FUNCTION run_maintenance(p_parent_table text DEFAULT NULL, p_analyze boolean DEFAULT true, p_jobmon boolean DEFAULT true, p_debug boolean DEFAULT false) RETURNS void 
+CREATE OR REPLACE FUNCTION run_maintenance(p_parent_table text DEFAULT NULL, p_analyze boolean DEFAULT true, p_jobmon boolean DEFAULT true, p_debug boolean DEFAULT false) RETURNS void 
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -1254,7 +1254,7 @@ $$;
 /*
  * Function to undo time-based partitioning created by this extension
  */
-CREATE FUNCTION undo_partition_time(p_parent_table text, p_batch_count int DEFAULT 1, p_batch_interval interval DEFAULT NULL, p_keep_table boolean DEFAULT true, p_lock_wait numeric DEFAULT 0) RETURNS bigint 
+CREATE OR REPLACE FUNCTION undo_partition_time(p_parent_table text, p_batch_count int DEFAULT 1, p_batch_interval interval DEFAULT NULL, p_keep_table boolean DEFAULT true, p_lock_wait numeric DEFAULT 0) RETURNS bigint 
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
