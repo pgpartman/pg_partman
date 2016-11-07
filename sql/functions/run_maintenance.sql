@@ -43,6 +43,7 @@ v_premake_id_max                bigint;
 v_premake_id_min                bigint;
 v_premake_timestamp_min         timestamptz;
 v_premake_timestamp_max         timestamptz;
+v_ranged_control                boolean;
 v_row                           record;
 v_row_max_id                    record;
 v_row_max_time                  record;
@@ -126,8 +127,21 @@ LOOP
     WHERE schemaname = split_part(v_row.parent_table, '.', 1)::name
     AND tablename = split_part(v_row.parent_table, '.', 2)::name;
 
+    SELECT CASE data_type
+        WHEN 'tstzrange' THEN true
+        WHEN 'tsrange' THEN true
+        ELSE false
+        END
+    INTO v_ranged_control
+    FROM information_schema.columns
+    WHERE table_schema = v_parent_schema
+    AND table_name = v_parent_tablename
+    AND column_name = v_row.control
+    ;
+
     v_partition_expression := case
         when v_row.epoch = true then format('to_timestamp(%I)', v_row.control)
+        when v_ranged_control = true then format('lower(%I)', v_row.control)
         else format('%I', v_row.control)
     end;
     IF p_debug THEN

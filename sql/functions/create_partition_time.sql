@@ -38,6 +38,7 @@ v_partition_interval            interval;
 v_partition_timestamp_end       timestamptz;
 v_partition_timestamp_start     timestamptz;
 v_quarter                       text;
+v_ranged_control                boolean;
 v_revoke                        text;
 v_row                           record;
 v_sql                           text;
@@ -97,8 +98,21 @@ IF v_jobmon_schema IS NOT NULL THEN
     v_job_id := add_job(format('PARTMAN CREATE TABLE: %s', p_parent_table));
 END IF;
 
+SELECT CASE data_type
+    WHEN 'tstzrange' THEN true
+    WHEN 'tsrange' THEN true
+    ELSE false
+    END
+INTO v_ranged_control
+FROM information_schema.columns
+WHERE table_schema = v_parent_schema
+AND table_name = v_parent_tablename
+AND column_name = v_control
+;
+
 v_partition_expression := case
     when v_epoch = true then format('to_timestamp(%I)', v_control)
+    when v_ranged_control = true then format('lower(%I)', v_control)
     else format('%I', v_control)
 end;
 IF p_debug THEN

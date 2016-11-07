@@ -32,6 +32,7 @@ v_partition_expression          text;
 v_partition_interval            interval;
 v_prev_partition_name           text;
 v_prev_partition_timestamp      timestamptz;
+v_ranged_control                boolean;
 v_step_id                       bigint;
 v_trig_func                     text;
 v_optimize_trigger              int;
@@ -95,8 +96,21 @@ AND tablename = split_part(p_parent_table, '.', 2)::name;
 
 v_function_name := @extschema@.check_name_length(v_parent_tablename, '_part_trig_func', FALSE);
 
+SELECT CASE data_type
+    WHEN 'tstzrange' THEN true
+    WHEN 'tsrange' THEN true
+    ELSE false
+    END
+INTO v_ranged_control
+FROM information_schema.columns
+WHERE table_schema = v_parent_schema
+AND table_name = v_parent_tablename
+AND column_name = v_control
+;
+
 v_partition_expression := case
     when v_epoch = true then format('to_timestamp(NEW.%I)', v_control)
+    when v_ranged_control = true then format('lower(NEW.%I)', v_control)
     else format('NEW.%I', v_control)
 end;
 
