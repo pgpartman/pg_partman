@@ -256,7 +256,6 @@ ELSIF v_type = 'time-custom' THEN
         , v_function_name);
 
     v_trig_func := v_trig_func || format(' 
-
         SELECT c.child_table, p.upsert INTO v_child_table, v_upsert
         FROM @extschema@.custom_time_partitions c
         JOIN @extschema@.part_config p ON c.parent_table = p.parent_table
@@ -266,7 +265,6 @@ ELSIF v_type = 'time-custom' THEN
         , v_parent_schema||'.'||v_parent_tablename);
 
     v_trig_func := v_trig_func || '
-
         SELECT schemaname, tablename INTO v_child_schemaname, v_child_tablename 
         FROM pg_catalog.pg_tables 
         WHERE schemaname = split_part(v_child_table, ''.'', 1)::name

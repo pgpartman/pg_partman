@@ -1,6 +1,6 @@
--- Refactor of time functions to improve maintainability of the code.
-   -- A new variable v_partition_expression is set with the appropriate substitution based upon p_epoch configuration
-   -- If-else blocks used to branch execution for epoch support were eliminated by using v_partition_expression in string substitutions
+-- Refactor of time functions in relation to epoch partitioning to improve maintainability of the code. Much thanks to Michael Rasmussen (Trekoid)! (Github Pull Request #143)
+-- Some code cleanup for python scripts. Much thanks to Rodolphe Quiédeville (rodo)! (Github Pull Request #148)
+
 
 /*
  * Create the trigger function for the parent table of a time-based partition set
