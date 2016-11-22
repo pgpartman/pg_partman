@@ -73,11 +73,10 @@ AND tablename = split_part(p_parent_table, '.', 2)::name;
 
 SELECT partition_tablename INTO v_last_partition FROM @extschema@.show_partitions(p_parent_table, 'DESC') LIMIT 1;
 
-SELECT CASE data_type
-    WHEN 'tstzrange' THEN true
-    WHEN 'tsrange' THEN true
+SELECT CASE
+    WHEN data_type in ('tsrange', 'tstzrange') THEN true
     ELSE false
-    END
+END
 INTO v_ranged_control
 FROM information_schema.columns
 WHERE table_schema = v_parent_schema

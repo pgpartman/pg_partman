@@ -107,11 +107,10 @@ FROM pg_catalog.pg_tables
 WHERE schemaname = split_part(p_parent_table, '.', 1)::name
 AND tablename = split_part(p_parent_table, '.', 2)::name;
 
-SELECT CASE data_type
-    WHEN 'tstzrange' THEN true
-    WHEN 'tsrange' THEN true
+SELECT CASE
+    WHEN data_type in ('tsrange', 'tstzrange') THEN true
     ELSE false
-    END
+END
 INTO v_ranged_control
 FROM information_schema.columns
 WHERE table_schema = v_parent_schema

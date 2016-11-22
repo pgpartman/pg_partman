@@ -98,11 +98,10 @@ IF v_jobmon_schema IS NOT NULL THEN
     v_job_id := add_job(format('PARTMAN CREATE TABLE: %s', p_parent_table));
 END IF;
 
-SELECT CASE data_type
-    WHEN 'tstzrange' THEN true
-    WHEN 'tsrange' THEN true
+SELECT CASE
+    WHEN data_type in ('tsrange', 'tstzrange') THEN true
     ELSE false
-    END
+END
 INTO v_ranged_control
 FROM information_schema.columns
 WHERE table_schema = v_parent_schema
