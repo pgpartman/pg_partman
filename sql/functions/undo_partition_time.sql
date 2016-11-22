@@ -30,6 +30,7 @@ v_parent_schema         text;
 v_parent_tablename      text;
 v_partition_expression  text;
 v_partition_interval    interval;
+v_ranged_control        boolean;
 v_row                   record;
 v_rowcount              bigint;
 v_step_id               bigint;
@@ -106,8 +107,20 @@ FROM pg_catalog.pg_tables
 WHERE schemaname = split_part(p_parent_table, '.', 1)::name
 AND tablename = split_part(p_parent_table, '.', 2)::name;
 
+SELECT CASE
+    WHEN data_type in ('tsrange', 'tstzrange') THEN true
+    ELSE false
+END
+INTO v_ranged_control
+FROM information_schema.columns
+WHERE table_schema = v_parent_schema
+AND table_name = v_parent_tablename
+AND column_name = v_control
+;
+
 v_partition_expression := case
     when v_epoch = true then format('to_timestamp(%I)', v_control)
+    when v_ranged_control = true then format('lower(%I)', v_control)
     else format('%I', v_control)
 end;
 

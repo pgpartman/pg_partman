@@ -31,6 +31,7 @@ v_partition_interval        interval;
 v_partition_suffix          text;
 v_partition_timestamp       timestamptz[];
 v_quarter                   text;
+v_ranged_control            boolean;
 v_rowcount                  bigint;
 v_start_control             timestamptz;
 v_time_position             int;
@@ -72,8 +73,20 @@ AND tablename = split_part(p_parent_table, '.', 2)::name;
 
 SELECT partition_tablename INTO v_last_partition FROM @extschema@.show_partitions(p_parent_table, 'DESC') LIMIT 1;
 
+SELECT CASE
+    WHEN data_type in ('tsrange', 'tstzrange') THEN true
+    ELSE false
+END
+INTO v_ranged_control
+FROM information_schema.columns
+WHERE table_schema = v_parent_schema
+AND table_name = v_parent_tablename
+AND column_name = v_control
+;
+
 v_partition_expression := case
     when v_epoch = true then format('to_timestamp(%I)', v_control)
+    when v_ranged_control = true then format('lower(%I)', v_control)
     else format('%I', v_control)
 end;
 
