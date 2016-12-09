@@ -26,7 +26,6 @@ v_new_search_path           text := '@extschema@,pg_temp';
 v_old_search_path           text;
 v_parent_schema             text;
 v_parent_tablename          text;
-v_partition_expression      text;
 v_partition_interval        interval;
 v_partition_suffix          text;
 v_partition_timestamp       timestamptz[];
@@ -72,17 +71,13 @@ AND tablename = split_part(p_parent_table, '.', 2)::name;
 
 SELECT partition_tablename INTO v_last_partition FROM @extschema@.show_partitions(p_parent_table, 'DESC') LIMIT 1;
 
-v_partition_expression := case
-    when v_epoch = true then format('to_timestamp(%I)', v_control)
-    else format('%I', v_control)
-end;
 
 FOR i IN 1..p_batch_count LOOP
 
     IF p_order = 'ASC' THEN
-        EXECUTE format('SELECT min(%s) FROM ONLY %I.%I', v_partition_expression, v_parent_schema, v_parent_tablename) INTO v_start_control;
+        EXECUTE format('SELECT %s FROM ONLY %I.%I', format(CASE WHEN v_epoch THEN 'to_timestamp(min(%I))' ELSE 'min(%I)' END, v_control), v_parent_schema, v_parent_tablename) INTO v_start_control;
     ELSIF p_order = 'DESC' THEN
-        EXECUTE format('SELECT max(%s) FROM ONLY %I.%I', v_partition_expression, v_parent_schema, v_parent_tablename) INTO v_start_control;
+        EXECUTE format('SELECT %s FROM ONLY %I.%I', format(CASE WHEN v_epoch THEN 'to_timestamp(max(%I))' ELSE 'max(%I)' END, v_control), v_parent_schema, v_parent_tablename) INTO v_start_control;
     ELSE
         RAISE EXCEPTION 'Invalid value for p_order. Must be ASC or DESC';
     END IF;
@@ -166,12 +161,12 @@ FOR i IN 1..p_batch_count LOOP
         WHILE v_lock_iter <= 5 LOOP
             v_lock_iter := v_lock_iter + 1;
             BEGIN
-                EXECUTE format('SELECT * FROM ONLY %I.%I WHERE %s >= %L AND %3$s < %5$L FOR UPDATE NOWAIT'
+                EXECUTE format('SELECT * FROM ONLY %I.%I WHERE %I >= %s AND %3$s < %5$s FOR UPDATE NOWAIT'
                     , v_parent_schema
                     , v_parent_tablename
-                    , v_partition_expression
-                    , v_min_partition_timestamp
-                    , v_max_partition_timestamp);
+                    , v_control
+                    , format(CASE WHEN v_epoch THEN 'EXTRACT(EPOCH FROM %L)' ELSE '%L' END, v_min_partition_timestamp)
+                    , format(CASE WHEN v_epoch THEN 'EXTRACT(EPOCH FROM %L)' ELSE '%L' END, v_max_partition_timestamp));
                 v_lock_obtained := TRUE;
             EXCEPTION
                 WHEN lock_not_available THEN
@@ -191,13 +186,13 @@ FOR i IN 1..p_batch_count LOOP
     v_current_partition_name := @extschema@.check_name_length(v_parent_tablename, v_partition_suffix, TRUE);
 
     EXECUTE format('WITH partition_data AS (
-                        DELETE FROM ONLY %I.%I WHERE %s >= %L AND %3$s < %5$L RETURNING *)
+                        DELETE FROM ONLY %I.%I WHERE %I >= %s AND %3$s < %5$s RETURNING *)
                      INSERT INTO %I.%I SELECT * FROM partition_data'
                         , v_parent_schema
                         , v_parent_tablename
-                        , v_partition_expression
-                        , v_min_partition_timestamp
-                        , v_max_partition_timestamp
+                        , v_control
+                        , format(CASE WHEN v_epoch THEN 'EXTRACT(EPOCH FROM %L)' ELSE '%L' END, v_min_partition_timestamp)
+                        , format(CASE WHEN v_epoch THEN 'EXTRACT(EPOCH FROM %L)' ELSE '%L' END, v_max_partition_timestamp)
                         , v_parent_schema
                         , v_current_partition_name);
     GET DIAGNOSTICS v_rowcount = ROW_COUNT;

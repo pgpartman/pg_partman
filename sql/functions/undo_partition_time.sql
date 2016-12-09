@@ -28,7 +28,6 @@ v_new_search_path       text := '@extschema@,pg_temp';
 v_old_search_path       text;
 v_parent_schema         text;
 v_parent_tablename      text;
-v_partition_expression  text;
 v_partition_interval    interval;
 v_row                   record;
 v_rowcount              bigint;
@@ -106,10 +105,6 @@ FROM pg_catalog.pg_tables
 WHERE schemaname = split_part(p_parent_table, '.', 1)::name
 AND tablename = split_part(p_parent_table, '.', 2)::name;
 
-v_partition_expression := case
-    when v_epoch = true then format('to_timestamp(%I)', v_control)
-    else format('%I', v_control)
-end;
 
 -- Stops new time partitons from being made as well as stopping child tables from being dropped if they were configured with a retention period.
 UPDATE @extschema@.part_config SET undo_in_progress = true WHERE parent_table = p_parent_table;
@@ -174,7 +169,7 @@ LOOP
         v_step_id := add_step(v_job_id, format('Removing child partition: %s.%s', v_parent_schema, v_child_table));
     END IF;
 
-    EXECUTE format('SELECT min(%s) FROM %I.%I', v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min;
+    EXECUTE format('SELECT %s FROM %I.%I', format(CASE WHEN v_epoch THEN 'to_timestamp(min(%I))' ELSE 'min(%I)' END, v_control), v_parent_schema, v_child_table) INTO v_child_min;
     IF v_child_min IS NULL THEN
         -- No rows left in this child table. Remove from partition set.
 
@@ -253,12 +248,12 @@ LOOP
 
         -- Get everything from the current child minimum up to the multiples of the given interval
         EXECUTE format('WITH move_data AS (
-                                DELETE FROM %I.%I WHERE %s <= %L RETURNING *)
+                                DELETE FROM %I.%I WHERE %I <= %s RETURNING *)
                               INSERT INTO %I.%I SELECT * FROM move_data'
             , v_parent_schema
             , v_child_table
-            , v_partition_expression
-            , v_child_min + (p_batch_interval * v_inner_loop_count)
+            , v_control
+            , format(CASE WHEN v_epoch THEN 'EXTRACT(EPOCH FROM %L)' ELSE '%L' END, v_child_min + (p_batch_interval * v_inner_loop_count))
             , v_parent_schema
             , v_parent_tablename);
         GET DIAGNOSTICS v_rowcount = ROW_COUNT;
@@ -272,7 +267,7 @@ LOOP
         v_batch_loop_count := v_batch_loop_count + 1;
 
         -- Check again if table is empty and go to outer loop again to drop it if so
-        EXECUTE format('SELECT min(%s) FROM %I.%I', v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min;
+        EXECUTE format('SELECT %s FROM %I.%I', format(CASE WHEN v_epoch THEN 'to_timestamp(min(%I))' ELSE 'min(%I)' END, v_control), v_parent_schema, v_child_table) INTO v_child_min;
         CONTINUE outer_child_loop WHEN v_child_min IS NULL;
 
         EXIT outer_child_loop WHEN v_batch_loop_count >= p_batch_count; -- Exit outer FOR loop if p_batch_count is reached
