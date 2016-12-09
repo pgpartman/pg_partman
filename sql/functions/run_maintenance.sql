@@ -127,8 +127,8 @@ LOOP
     AND tablename = split_part(v_row.parent_table, '.', 2)::name;
 
     v_partition_expression := case
-        when v_row.epoch = true then format('to_timestamp(%I)', v_row.control)
-        else format('%I', v_row.control)
+        when v_row.epoch = true then format('to_timestamp(max(%I))', v_row.control)
+        else format('max(%I)', v_row.control)
     end;
     IF p_debug THEN
         RAISE NOTICE 'run_maint: v_partition_expression: %', v_partition_expression;
@@ -149,7 +149,7 @@ LOOP
         FOR v_row_max_time IN
             SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(v_row.parent_table, 'DESC')
         LOOP
-            EXECUTE format('SELECT max(%s)::text FROM %I.%I'
+            EXECUTE format('SELECT %s::text FROM %I.%I'
                                 , v_partition_expression
                                 , v_row_max_time.partition_schemaname
                                 , v_row_max_time.partition_tablename
@@ -161,7 +161,7 @@ LOOP
         END LOOP;
         -- Check for values in the parent table. If they are there and greater than all child values, use that instead
         -- This allows maintenance to continue working properly if there is a large gap in data insertion. Data will remain in parent, but new tables will be created
-        EXECUTE format('SELECT max(%s) FROM ONLY %I.%I', v_partition_expression, v_parent_schema, v_parent_tablename) INTO v_max_time_parent;
+        EXECUTE format('SELECT %s FROM ONLY %I.%I', v_partition_expression, v_parent_schema, v_parent_tablename) INTO v_max_time_parent;
         IF p_debug THEN
             RAISE NOTICE 'run_maint: v_current_partition_timestamp: %, v_max_time_parent: %', v_current_partition_timestamp, v_max_time_parent;
         END IF;
