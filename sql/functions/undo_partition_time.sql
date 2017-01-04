@@ -16,7 +16,7 @@ v_child_loop_total      bigint := 0;
 v_child_min             timestamptz;
 v_child_table           text;
 v_control               text;
-v_epoch                 boolean;
+v_epoch                 text;
 v_function_name         text;
 v_inner_loop_count      int;
 v_lock_iter             int := 1;
@@ -169,7 +169,7 @@ LOOP
         v_step_id := add_step(v_job_id, format('Removing child partition: %s.%s', v_parent_schema, v_child_table));
     END IF;
 
-    EXECUTE format('SELECT %s FROM %I.%I', format(CASE WHEN v_epoch THEN 'to_timestamp(min(%I))' ELSE 'min(%I)' END, v_control), v_parent_schema, v_child_table) INTO v_child_min;
+    EXECUTE format('SELECT %s FROM %I.%I', format(CASE WHEN v_epoch = 'seconds' THEN 'to_timestamp(min(%I))' WHEN v_epoch = 'milliseconds' THEN 'to_timestamp(min(%I)/1000::float)' ELSE 'min(%I)' END, v_control), v_parent_schema, v_child_table) INTO v_child_min;
     IF v_child_min IS NULL THEN
         -- No rows left in this child table. Remove from partition set.
 
@@ -253,7 +253,7 @@ LOOP
             , v_parent_schema
             , v_child_table
             , v_control
-            , format(CASE WHEN v_epoch THEN 'EXTRACT(EPOCH FROM %L)' ELSE '%L' END, v_child_min + (p_batch_interval * v_inner_loop_count))
+            , format(CASE WHEN v_epoch = 'seconds' THEN 'EXTRACT(EPOCH FROM %L)' WHEN v_epoch = 'milliseconds' THEN 'EXTRACT(EPOCH FROM %L)*1000' ELSE '%L' END, v_child_min + (p_batch_interval * v_inner_loop_count))
             , v_parent_schema
             , v_parent_tablename);
         GET DIAGNOSTICS v_rowcount = ROW_COUNT;
@@ -267,7 +267,7 @@ LOOP
         v_batch_loop_count := v_batch_loop_count + 1;
 
         -- Check again if table is empty and go to outer loop again to drop it if so
-        EXECUTE format('SELECT %s FROM %I.%I', format(CASE WHEN v_epoch THEN 'to_timestamp(min(%I))' ELSE 'min(%I)' END, v_control), v_parent_schema, v_child_table) INTO v_child_min;
+        EXECUTE format('SELECT %s FROM %I.%I', format(CASE WHEN v_epoch = 'seconds' THEN 'to_timestamp(min(%I))' WHEN v_epoch = 'milliseconds' THEN 'to_timestamp(min(%I)/1000::float)' ELSE 'min(%I)' END, v_control), v_parent_schema, v_child_table) INTO v_child_min;
         CONTINUE outer_child_loop WHEN v_child_min IS NULL;
 
         EXIT outer_child_loop WHEN v_batch_loop_count >= p_batch_count; -- Exit outer FOR loop if p_batch_count is reached
