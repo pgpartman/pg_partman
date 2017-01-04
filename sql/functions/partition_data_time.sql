@@ -16,7 +16,7 @@ DECLARE
 v_control                   text;
 v_datetime_string           text;
 v_current_partition_name    text;
-v_epoch                     boolean;
+v_epoch                     text;
 v_last_partition            text;
 v_lock_iter                 int := 1;
 v_lock_obtained             boolean := FALSE;
@@ -71,13 +71,12 @@ AND tablename = split_part(p_parent_table, '.', 2)::name;
 
 SELECT partition_tablename INTO v_last_partition FROM @extschema@.show_partitions(p_parent_table, 'DESC') LIMIT 1;
 
-
 FOR i IN 1..p_batch_count LOOP
 
     IF p_order = 'ASC' THEN
-        EXECUTE format('SELECT %s FROM ONLY %I.%I', format(CASE WHEN v_epoch THEN 'to_timestamp(min(%I))' ELSE 'min(%I)' END, v_control), v_parent_schema, v_parent_tablename) INTO v_start_control;
+        EXECUTE format('SELECT %s FROM ONLY %I.%I', format(CASE WHEN v_epoch = 'seconds' THEN 'to_timestamp(min(%I))' WHEN v_epoch = 'milliseconds' THEN 'to_timestamp(min(%I)/1000::float)' ELSE 'min(%I)' END, v_control), v_parent_schema, v_parent_tablename) INTO v_start_control;
     ELSIF p_order = 'DESC' THEN
-        EXECUTE format('SELECT %s FROM ONLY %I.%I', format(CASE WHEN v_epoch THEN 'to_timestamp(max(%I))' ELSE 'max(%I)' END, v_control), v_parent_schema, v_parent_tablename) INTO v_start_control;
+        EXECUTE format('SELECT %s FROM ONLY %I.%I', format(CASE WHEN v_epoch = 'seconds' THEN 'to_timestamp(max(%I))' WHEN v_epoch = 'milliseconds' THEN 'to_timestamp(max(%I)/1000::float)' ELSE 'max(%I)' END, v_control), v_parent_schema, v_parent_tablename) INTO v_start_control;
     ELSE
         RAISE EXCEPTION 'Invalid value for p_order. Must be ASC or DESC';
     END IF;
@@ -165,8 +164,8 @@ FOR i IN 1..p_batch_count LOOP
                     , v_parent_schema
                     , v_parent_tablename
                     , v_control
-                    , format(CASE WHEN v_epoch THEN 'EXTRACT(EPOCH FROM %L)' ELSE '%L' END, v_min_partition_timestamp)
-                    , format(CASE WHEN v_epoch THEN 'EXTRACT(EPOCH FROM %L)' ELSE '%L' END, v_max_partition_timestamp));
+                    , format(CASE WHEN v_epoch = 'seconds' THEN 'EXTRACT(EPOCH FROM %L)' WHEN v_epoch = 'milliseconds' THEN 'EXTRACT(EPOCH FROM %L)*1000' ELSE '%L' END, v_min_partition_timestamp)
+                    , format(CASE WHEN v_epoch = 'seconds' THEN 'EXTRACT(EPOCH FROM %L)' WHEN v_epoch = 'milliseconds' THEN 'EXTRACT(EPOCH FROM %L)*1000' ELSE '%L' END, v_max_partition_timestamp));
                 v_lock_obtained := TRUE;
             EXCEPTION
                 WHEN lock_not_available THEN
@@ -191,8 +190,8 @@ FOR i IN 1..p_batch_count LOOP
                         , v_parent_schema
                         , v_parent_tablename
                         , v_control
-                        , format(CASE WHEN v_epoch THEN 'EXTRACT(EPOCH FROM %L)' ELSE '%L' END, v_min_partition_timestamp)
-                        , format(CASE WHEN v_epoch THEN 'EXTRACT(EPOCH FROM %L)' ELSE '%L' END, v_max_partition_timestamp)
+                        , format(CASE WHEN v_epoch = 'seconds' THEN 'EXTRACT(EPOCH FROM %L)' WHEN v_epoch = 'milliseconds' THEN 'EXTRACT(EPOCH FROM %L)*1000' ELSE '%L' END, v_min_partition_timestamp)
+                        , format(CASE WHEN v_epoch = 'seconds' THEN 'EXTRACT(EPOCH FROM %L)' WHEN v_epoch = 'milliseconds' THEN 'EXTRACT(EPOCH FROM %L)*1000' ELSE '%L' END, v_max_partition_timestamp)
                         , v_parent_schema
                         , v_current_partition_name);
     GET DIAGNOSTICS v_rowcount = ROW_COUNT;
