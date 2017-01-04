@@ -128,7 +128,7 @@ LOOP
 
     v_partition_expression := case
         WHEN v_row.epoch = 'seconds' THEN format('to_timestamp(max(%I))', v_row.control)
-        WHEN v_row.epoch = 'milliseconds' THEN format('to_timestamp(max(%I/1000::float))', v_row.control)
+        WHEN v_row.epoch = 'milliseconds' THEN format('to_timestamp(max(%I)/1000::float)', v_row.control)
         ELSE format('max(%I)', v_row.control)
     end;
 
