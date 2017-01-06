@@ -164,8 +164,8 @@ FOR i IN 1..p_batch_count LOOP
                     , v_parent_schema
                     , v_parent_tablename
                     , v_control
-                    , format(CASE WHEN v_epoch = 'seconds' THEN 'EXTRACT(EPOCH FROM %L)' WHEN v_epoch = 'milliseconds' THEN 'EXTRACT(EPOCH FROM %L)*1000' ELSE '%L' END, v_min_partition_timestamp)
-                    , format(CASE WHEN v_epoch = 'seconds' THEN 'EXTRACT(EPOCH FROM %L)' WHEN v_epoch = 'milliseconds' THEN 'EXTRACT(EPOCH FROM %L)*1000' ELSE '%L' END, v_max_partition_timestamp));
+                    , format(CASE WHEN v_epoch = 'seconds' THEN 'EXTRACT(EPOCH FROM %L::timestamptz)' WHEN v_epoch = 'milliseconds' THEN 'EXTRACT(EPOCH FROM %L::timestamptz)*1000' ELSE '%L' END, v_min_partition_timestamp)
+                    , format(CASE WHEN v_epoch = 'seconds' THEN 'EXTRACT(EPOCH FROM %L::timestamptz)' WHEN v_epoch = 'milliseconds' THEN 'EXTRACT(EPOCH FROM %L::timestamptz)*1000' ELSE '%L' END, v_max_partition_timestamp));
                 v_lock_obtained := TRUE;
             EXCEPTION
                 WHEN lock_not_available THEN
@@ -190,8 +190,8 @@ FOR i IN 1..p_batch_count LOOP
                         , v_parent_schema
                         , v_parent_tablename
                         , v_control
-                        , format(CASE WHEN v_epoch = 'seconds' THEN 'EXTRACT(EPOCH FROM %L)' WHEN v_epoch = 'milliseconds' THEN 'EXTRACT(EPOCH FROM %L)*1000' ELSE '%L' END, v_min_partition_timestamp)
-                        , format(CASE WHEN v_epoch = 'seconds' THEN 'EXTRACT(EPOCH FROM %L)' WHEN v_epoch = 'milliseconds' THEN 'EXTRACT(EPOCH FROM %L)*1000' ELSE '%L' END, v_max_partition_timestamp)
+                        , format(CASE WHEN v_epoch = 'seconds' THEN 'EXTRACT(EPOCH FROM %L::timestamptz)' WHEN v_epoch = 'milliseconds' THEN 'EXTRACT(EPOCH FROM %L::timestamptz)*1000' ELSE '%L' END, v_min_partition_timestamp)
+                        , format(CASE WHEN v_epoch = 'seconds' THEN 'EXTRACT(EPOCH FROM %L::timestamptz)' WHEN v_epoch = 'milliseconds' THEN 'EXTRACT(EPOCH FROM %L::timestamptz)*1000' ELSE '%L' END, v_max_partition_timestamp)
                         , v_parent_schema
                         , v_current_partition_name);
     GET DIAGNOSTICS v_rowcount = ROW_COUNT;

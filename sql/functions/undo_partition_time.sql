@@ -253,7 +253,7 @@ LOOP
             , v_parent_schema
             , v_child_table
             , v_control
-            , format(CASE WHEN v_epoch = 'seconds' THEN 'EXTRACT(EPOCH FROM %L)' WHEN v_epoch = 'milliseconds' THEN 'EXTRACT(EPOCH FROM %L)*1000' ELSE '%L' END, v_child_min + (p_batch_interval * v_inner_loop_count))
+            , format(CASE WHEN v_epoch = 'seconds' THEN 'EXTRACT(EPOCH FROM %L::timestamptz)' WHEN v_epoch = 'milliseconds' THEN 'EXTRACT(EPOCH FROM %L::timestamptz)*1000' ELSE '%L' END, v_child_min + (p_batch_interval * v_inner_loop_count))
             , v_parent_schema
             , v_parent_tablename);
         GET DIAGNOSTICS v_rowcount = ROW_COUNT;
