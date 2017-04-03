@@ -1,7 +1,7 @@
 /*
  * Function to monitor for data getting inserted into parent tables managed by extension
  */
-CREATE FUNCTION check_parent(p_exact_count boolean DEFAULT true) RETURNS SETOF @extschema@.check_parent_table
+CREATE FUNCTION @extschema@.check_parent(p_exact_count boolean DEFAULT true) RETURNS SETOF @extschema@.check_parent_table
     LANGUAGE plpgsql STABLE SECURITY DEFINER 
     AS $$
 DECLARE

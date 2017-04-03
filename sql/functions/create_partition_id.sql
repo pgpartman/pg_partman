@@ -1,7 +1,7 @@
 /*
  * Function to create id partitions
  */
-CREATE FUNCTION create_partition_id(p_parent_table text, p_partition_ids bigint[], p_analyze boolean DEFAULT true, p_debug boolean DEFAULT false) RETURNS boolean
+CREATE FUNCTION @extschema@.create_partition_id(p_parent_table text, p_partition_ids bigint[], p_analyze boolean DEFAULT true, p_debug boolean DEFAULT false) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE

@@ -4,7 +4,7 @@
  * This is called by run_maintainance() and at least provides a consistent way to check that I know will run. 
  * If anyone can get a working constraint/trigger, please help!
 */
-CREATE FUNCTION @extschema@.check_subpart_sameconfig(p_parent_table text) 
+CREATE FUNCTION @extschema@.@extschema@.check_subpart_sameconfig(p_parent_table text) 
     RETURNS TABLE (sub_partition_type text
         , sub_control text
         , sub_partition_interval text

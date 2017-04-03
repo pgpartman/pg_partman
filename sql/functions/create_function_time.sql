@@ -1,7 +1,7 @@
 /*
  * Create the trigger function for the parent table of a time-based partition set
  */
-CREATE FUNCTION create_function_time(p_parent_table text, p_job_id bigint DEFAULT NULL) RETURNS void
+CREATE FUNCTION @extschema@.create_function_time(p_parent_table text, p_job_id bigint DEFAULT NULL) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE

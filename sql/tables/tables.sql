@@ -1,4 +1,4 @@
-CREATE TABLE part_config (
+CREATE TABLE @extschema@.part_config (
     parent_table text NOT NULL
     , control text NOT NULL
     , partition_type text NOT NULL
@@ -24,11 +24,11 @@ CREATE TABLE part_config (
     , CONSTRAINT positive_premake_check CHECK (premake > 0)
 );
 CREATE INDEX part_config_type_idx ON @extschema@.part_config (partition_type);
-SELECT pg_catalog.pg_extension_config_dump('part_config', '');
+SELECT pg_catalog.pg_extension_config_dump('@extschema@.part_config', '');
 
 
 -- FK set deferrable because create_parent() inserts to this table before part_config
-CREATE TABLE part_config_sub (
+CREATE TABLE @extschema@.part_config_sub (
     sub_parent text PRIMARY KEY REFERENCES @extschema@.part_config (parent_table) ON DELETE CASCADE ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED
     , sub_partition_type text NOT NULL
     , sub_control text NOT NULL
@@ -48,15 +48,15 @@ CREATE TABLE part_config_sub (
     , sub_jobmon boolean NOT NULL DEFAULT true
     , sub_trigger_exception_handling BOOLEAN DEFAULT false
 );
-SELECT pg_catalog.pg_extension_config_dump('part_config_sub', '');
+SELECT pg_catalog.pg_extension_config_dump('@extschema@.part_config_sub', '');
 
-CREATE TABLE custom_time_partitions (
+CREATE TABLE @extschema@.custom_time_partitions (
     parent_table text NOT NULL
     , child_table text NOT NULL
     , partition_range tstzrange NOT NULL
     , PRIMARY KEY (parent_table, child_table));
-CREATE INDEX custom_time_partitions_partition_range_idx ON custom_time_partitions USING gist (partition_range);
-SELECT pg_catalog.pg_extension_config_dump('custom_time_partitions', '');
+CREATE INDEX custom_time_partitions_partition_range_idx ON @extschema@.custom_time_partitions USING gist (partition_range);
+SELECT pg_catalog.pg_extension_config_dump('@extschema@.custom_time_partitions', '');
 
 
 -- Put constraint functions & definitions here because having them separate makes the ordering of their creation harder to control. Some require the above tables to exist first.

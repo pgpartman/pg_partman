@@ -1,7 +1,7 @@
 /*
  * Function to create a child table in a time-based partition set
  */
-CREATE FUNCTION create_partition_time(p_parent_table text, p_partition_times timestamp[], p_analyze boolean DEFAULT true, p_debug boolean DEFAULT false) 
+CREATE FUNCTION @extschema@.create_partition_time(p_parent_table text, p_partition_times timestamp[], p_analyze boolean DEFAULT true, p_debug boolean DEFAULT false) 
 RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$

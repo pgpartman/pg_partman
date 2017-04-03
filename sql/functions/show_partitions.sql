@@ -1,7 +1,7 @@
 /*
  * Function to list all child partitions in a set in logical order.
  */
-CREATE FUNCTION show_partitions (p_parent_table text, p_order text DEFAULT 'ASC') RETURNS TABLE (partition_schemaname text, partition_tablename text)
+CREATE FUNCTION @extschema@.show_partitions (p_parent_table text, p_order text DEFAULT 'ASC') RETURNS TABLE (partition_schemaname text, partition_tablename text)
     LANGUAGE plpgsql STABLE SECURITY DEFINER 
     AS $$
 DECLARE

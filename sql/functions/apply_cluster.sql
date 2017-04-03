@@ -2,7 +2,7 @@
 * Function to apply cluster from parent to child table
 * Adapted from code fork by https://github.com/dturon/pg_partman
 */
-CREATE FUNCTION apply_cluster(p_parent_schema text, p_parent_tablename text, p_child_schema text, p_child_tablename text) RETURNS void
+CREATE FUNCTION @extschema@.apply_cluster(p_parent_schema text, p_parent_tablename text, p_child_schema text, p_child_tablename text) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER 
 AS $$
 DECLARE

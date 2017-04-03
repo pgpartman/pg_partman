@@ -3,7 +3,7 @@
  * Passing the parent table argument improves performance by avoiding a catalog lookup.
  * Passing an interval lets you set one different than the default configured one if desired.
  */
-CREATE FUNCTION show_partition_info(p_child_table text
+CREATE FUNCTION @extschema@.show_partition_info(p_child_table text
     , p_partition_interval text DEFAULT NULL
     , p_parent_table text DEFAULT NULL
     , OUT child_start_time timestamp

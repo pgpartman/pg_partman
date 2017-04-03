@@ -1,7 +1,7 @@
 /*
  * Function to undo time-based partitioning created by this extension
  */
-CREATE FUNCTION undo_partition_time(p_parent_table text, p_batch_count int DEFAULT 1, p_batch_interval interval DEFAULT NULL, p_keep_table boolean DEFAULT true, p_lock_wait numeric DEFAULT 0) RETURNS bigint 
+CREATE FUNCTION @extschema@.undo_partition_time(p_parent_table text, p_batch_count int DEFAULT 1, p_batch_interval interval DEFAULT NULL, p_keep_table boolean DEFAULT true, p_lock_wait numeric DEFAULT 0) RETURNS bigint 
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE

@@ -1,7 +1,7 @@
 /*
  * Apply foreign keys that exist on the given parent to the given child table
  */
-CREATE FUNCTION apply_foreign_keys(p_parent_table text, p_child_table text, p_job_id bigint DEFAULT NULL, p_debug boolean DEFAULT false) RETURNS void
+CREATE FUNCTION @extschema@.apply_foreign_keys(p_parent_table text, p_child_table text, p_job_id bigint DEFAULT NULL, p_debug boolean DEFAULT false) RETURNS void
     LANGUAGE plpgsql
     AS $$
 DECLARE

@@ -1,7 +1,7 @@
 /*
  * Function to re-apply ownership & privileges on all child tables in a partition set using parent table as reference
  */
-CREATE FUNCTION reapply_privileges(p_parent_table text) RETURNS void
+CREATE FUNCTION @extschema@.reapply_privileges(p_parent_table text) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE

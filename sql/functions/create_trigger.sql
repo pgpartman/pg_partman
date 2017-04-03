@@ -1,7 +1,7 @@
 /*
  * Function to create partitioning trigger on parent table
  */
-CREATE FUNCTION create_trigger(p_parent_table text) RETURNS void
+CREATE FUNCTION @extschema@.create_trigger(p_parent_table text) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE

@@ -6,7 +6,7 @@
  * To avoid logical complications and contention issues, ALL subpartitions must be maintained using run_maintenance().
  * This means the automatic, trigger based partition creation for serial partitioning will not work if it is a subpartition.
  */
-CREATE FUNCTION create_sub_parent(
+CREATE FUNCTION @extschema@.create_sub_parent(
     p_top_parent text
     , p_control text
     , p_type text

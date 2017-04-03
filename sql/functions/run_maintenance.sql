@@ -6,7 +6,7 @@
  * For large partition sets, running analyze can cause maintenance to take longer than expected. Can set p_analyze to false to avoid a forced analyze run.
  * Be aware that constraint exclusion may not work properly until an analyze on the partition set is run. 
  */
-CREATE FUNCTION run_maintenance(p_parent_table text DEFAULT NULL, p_analyze boolean DEFAULT true, p_jobmon boolean DEFAULT true, p_debug boolean DEFAULT false) RETURNS void 
+CREATE FUNCTION @extschema@.run_maintenance(p_parent_table text DEFAULT NULL, p_analyze boolean DEFAULT true, p_jobmon boolean DEFAULT true, p_debug boolean DEFAULT false) RETURNS void 
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE

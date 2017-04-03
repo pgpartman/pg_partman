@@ -2,7 +2,7 @@
  * Check if parent table is a subpartition of an already existing partition set managed by pg_partman
  *  If so, return the limits of what child tables can be created under the given parent table based on its own suffix
  */
-CREATE FUNCTION check_subpartition_limits(p_parent_table text, p_type text, OUT sub_min text, OUT sub_max text) RETURNS record
+CREATE FUNCTION @extschema@.check_subpartition_limits(p_parent_table text, p_type text, OUT sub_min text, OUT sub_max text) RETURNS record
     LANGUAGE plpgsql
     AS $$
 DECLARE

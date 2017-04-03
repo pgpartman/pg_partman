@@ -2,7 +2,7 @@
  * Check PostgreSQL version number. Parameter must be full 3 point version.
  * Returns true if current version is greater than or equal to the parameter given.
  */
-CREATE FUNCTION check_version(p_check_version text) RETURNS boolean
+CREATE FUNCTION @extschema@.check_version(p_check_version text) RETURNS boolean
     LANGUAGE plpgsql STABLE
     AS $$
 DECLARE
