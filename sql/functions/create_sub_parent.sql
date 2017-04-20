@@ -83,7 +83,7 @@ IF p_type = 'native' AND (lower(p_native_check) <> 'yes' OR p_native_check IS NU
 END IF;
 
 IF p_upsert <> '' THEN
-    IF @extschema@.check_version('9.5.0') = 'false' THEN
+    IF current_setting('server_version_num')::int < 90500 THEN
         RAISE EXCEPTION 'INSERT ... ON CONFLICT (UPSERT) feature is only supported in PostgreSQL 9.5 and later';
     END IF;
     IF p_type = 'native' THEN
