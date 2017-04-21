@@ -9,7 +9,7 @@ CREATE FUNCTION @extschema@.check_subpart_sameconfig(p_parent_table text)
         , sub_retention_schema text
         , sub_retention_keep_table boolean
         , sub_retention_keep_index boolean
-        , sub_automatic_maintenance text
+        , sub_automatic_maintenance @extschema@.automatic_maintenance
         , sub_epoch text 
         , sub_optimize_trigger int
         , sub_optimize_constraint int
