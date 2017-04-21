@@ -1,16 +1,17 @@
 CREATE FUNCTION create_parent(
     p_parent_table text
     , p_control text
-    , p_type text
+    , p_type @extschema@.partition_control
     , p_interval text
     , p_constraint_cols text[] DEFAULT NULL 
     , p_premake int DEFAULT 4
-    , p_automatic_maintenance text DEFAULT 'on' 
+    , p_automatic_maintenance @extschema@.automatic_maintenance DEFAULT 'on'
     , p_start_partition text DEFAULT NULL
     , p_inherit_fk boolean DEFAULT true
-    , p_epoch text DEFAULT 'none' 
+    , p_epoch @extschema@.epoch_magnitude DEFAULT 'none'
     , p_upsert text DEFAULT ''
     , p_trigger_return_null boolean DEFAULT true
+    , p_range_boundary @extschema@.range_boundary DEFAULT 'lower'
     , p_jobmon boolean DEFAULT true
     , p_debug boolean DEFAULT false) 
 RETURNS boolean 
@@ -107,11 +108,6 @@ FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, p_contr
 
 IF (p_epoch <> 'none' AND v_control_type <> 'id') THEN
     RAISE EXCEPTION 'p_epoch can only be used with an integer based control column and does not work for native partitioning';
-END IF;
-
-
-IF NOT @extschema@.check_partition_type(p_type) THEN
-    RAISE EXCEPTION '% is not a valid partitioning type for pg_partman', p_type;
 END IF;
 
 IF p_type = 'native' THEN

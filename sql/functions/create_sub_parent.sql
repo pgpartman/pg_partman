@@ -62,10 +62,6 @@ AND c.relname = split_part(p_top_parent, '.', 2)::name;
         RAISE EXCEPTION 'Unable to find given parent table in system catalogs. Please create parent table first: %', p_top_parent;
     END IF;
 
-IF NOT @extschema@.check_partition_type(p_type) THEN
-    RAISE EXCEPTION '% is not a valid partitioning type', p_type;
-END IF;
-
 IF v_parent_relkind = 'p' AND p_type <> 'native' THEN
     RAISE EXCEPTION 'Cannot create a non-native sub-partition of a native parent table. All levels of a sub-partition set must be either all native or all non-native';
 END IF;
