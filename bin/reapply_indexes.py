@@ -25,7 +25,7 @@ args = parser.parse_args()
 def check_version(conn, partman_schema):
     cur = conn.cursor()
     if args.drop_concurrent:
-        sql = "SELECT " + partman_schema + ".check_version('9.2.0')"
+        sql = "SELECT current_setting('server_version_num')::int >= 90200"
         cur.execute(sql)
         if cur.fetchone()[0] == False:
             print("ERROR: --drop_concurrent option requires PostgreSQL minimum version 9.2.0")
