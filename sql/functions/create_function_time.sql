@@ -30,6 +30,7 @@ v_partition_expression          text;
 v_partition_interval            interval;
 v_prev_partition_name           text;
 v_prev_partition_timestamp      timestamptz;
+v_ranged_boundary               text;
 v_relkind                       char;
 v_step_id                       bigint;
 v_trig_func                     text;
@@ -47,6 +48,7 @@ BEGIN
 SELECT partition_type
     , partition_interval::interval
     , epoch
+    , ranged_boundary
     , control
     , optimize_trigger
     , datetime_string
@@ -57,6 +59,7 @@ SELECT partition_type
 INTO v_type
     , v_partition_interval
     , v_epoch
+    , v_ranged_boundary
     , v_control
     , v_optimize_trigger
     , v_datetime_string
@@ -114,6 +117,8 @@ END IF;
 v_partition_expression := CASE
     WHEN v_epoch = 'seconds' THEN format('to_timestamp(NEW.%I)', v_control)
     WHEN v_epoch = 'milliseconds' THEN format('to_timestamp((NEW.%I/1000)::float)', v_control)
+    WHEN v_ranged_boundary = 'lower' THEN format('lower(NEW.%I)', v_control)
+    WHEN v_ranged_boundary = 'upper' THEN format('upper(NEW.%I)', v_control)
     ELSE format('NEW.%I', v_control)
 END;
 

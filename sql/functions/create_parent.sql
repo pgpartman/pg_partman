@@ -8,12 +8,14 @@ CREATE FUNCTION create_parent(
     , p_automatic_maintenance text DEFAULT 'on' 
     , p_start_partition text DEFAULT NULL
     , p_inherit_fk boolean DEFAULT true
-    , p_epoch text DEFAULT 'none' 
+    , p_epoch text DEFAULT 'none'
     , p_upsert text DEFAULT ''
     , p_trigger_return_null boolean DEFAULT true
     , p_jobmon boolean DEFAULT true
-    , p_debug boolean DEFAULT false) 
-RETURNS boolean 
+    , p_debug boolean DEFAULT false
+    , p_ranged_boundary text DEFAULT 'none'
+)
+RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -27,6 +29,7 @@ v_base_timestamp                timestamptz;
 v_count                         int := 1;
 v_control_type                  text;
 v_control_exact_type            text;
+v_control_is_ranged             boolean;
 v_datetime_string               text;
 v_higher_control_type           text;
 v_higher_parent_control         text;
@@ -74,7 +77,7 @@ IF position('.' in p_parent_table) = 0  THEN
 END IF;
 
 IF p_upsert <> '' THEN
-    IF @extschema@.check_version('9.5.0') = 'false' THEN
+    IF current_setting('server_version_num')::int < 90500 THEN
         RAISE EXCEPTION 'INSERT ... ON CONFLICT (UPSERT) feature is only supported in PostgreSQL 9.5 and later';
     END IF;
     IF p_type = 'native' THEN
@@ -102,13 +105,26 @@ AND a.attname = p_control::name;
         RAISE EXCEPTION 'Control column given (%) for parent table (%) does not exist or must be set to NOT NULL', p_control, p_parent_table;
     END IF;
 
-SELECT general_type, exact_type INTO v_control_type, v_control_exact_type
+SELECT general_type, exact_type, is_ranged_type INTO v_control_type, v_control_exact_type, v_control_is_ranged
 FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, p_control);
 
 IF (p_epoch <> 'none' AND v_control_type <> 'id') THEN
     RAISE EXCEPTION 'p_epoch can only be used with an integer based control column and does not work for native partitioning';
 END IF;
 
+IF NOT @extschema@.check_ranged_boundary_type(p_ranged_boundary) THEN
+    RAISE EXCEPTION '% is not a valid ranged boundary type for pg_partman', p_type;
+END IF;
+IF v_control_is_ranged = true AND p_ranged_boundary NOT IN ('lower', 'upper') THEN
+    RAISE EXCEPTION 'For control columns that are a ranged data type, p_ranged_boundary cannot be ''none''';
+END IF;
+IF v_control_is_ranged = false AND p_ranged_boundary IN ('lower', 'upper') THEN
+    RAISE EXCEPTION 'p_ranged_boundary must be ''none'', if control column is not a ranged data type';
+END IF;
+-- TODO: Determine whether declarative partitioning in 10.0 supports ranged data types
+IF v_control_is_ranged = true AND p_type <> 'partman' THEN
+    RAISE EXCEPTION 'Ranged control columns can only be used with ''partman'' partitioning';
+END IF;
 
 IF NOT @extschema@.check_partition_type(p_type) THEN
     RAISE EXCEPTION '% is not a valid partitioning type for pg_partman', p_type;
@@ -116,7 +132,7 @@ END IF;
 
 IF p_type = 'native' THEN
 
-    IF NOT @extschema@.check_version('10.0') THEN
+    IF current_setting('server_version_num')::int < 100000 THEN
         RAISE EXCEPTION 'Native partitioning only available in PostgreSQL versions 10.0+';
     END IF;
     -- Check if given parent table has been already set up as a partitioned table and is ranged
@@ -156,7 +172,7 @@ IF p_type = 'native' THEN
 
 ELSE
 
-    IF @extschema@.check_version('10.0') THEN
+    IF current_setting('server_version_num')::int >= 100000 THEN
         SELECT p.partstrat INTO v_partstrat
         FROM pg_catalog.pg_partitioned_table p
         JOIN pg_catalog.pg_class c ON p.partrelid = c.oid
@@ -214,6 +230,7 @@ FOR v_row IN
         , sub_retention_keep_index
         , sub_automatic_maintenance
         , sub_epoch
+        , sub_ranged_boundary
         , sub_optimize_trigger
         , sub_optimize_constraint
         , sub_infinite_time_partitions
@@ -238,6 +255,7 @@ LOOP
         , sub_retention_keep_index
         , sub_automatic_maintenance
         , sub_epoch
+        , sub_ranged_boundary
         , sub_optimize_trigger
         , sub_optimize_constraint
         , sub_infinite_time_partitions
@@ -259,6 +277,7 @@ LOOP
         , v_row.sub_retention_keep_index
         , v_row.sub_automatic_maintenance
         , v_row.sub_epoch
+        , v_row.sub_ranged_boundary
         , v_row.sub_optimize_trigger
         , v_row.sub_optimize_constraint
         , v_row.sub_infinite_time_partitions
@@ -367,6 +386,7 @@ IF v_control_type = 'time' OR (v_control_type = 'id' AND p_epoch <> 'none') THEN
         , partition_type
         , partition_interval
         , epoch
+        , ranged_boundary
         , control
         , premake
         , constraint_cols
@@ -381,6 +401,7 @@ IF v_control_type = 'time' OR (v_control_type = 'id' AND p_epoch <> 'none') THEN
         , p_type
         , v_time_interval
         , p_epoch
+        , p_ranged_boundary
         , p_control
         , p_premake
         , p_constraint_cols
@@ -523,7 +544,7 @@ IF v_control_type = 'id' AND p_epoch = 'none' THEN
         , inherit_fk
         , jobmon
         , upsert
-        , trigger_return_null) 
+        , trigger_return_null)
     VALUES (
         p_parent_table
         , p_type

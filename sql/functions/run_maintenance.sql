@@ -92,6 +92,7 @@ v_tables_list_sql := 'SELECT parent_table
                 , undo_in_progress
                 , sub_partition_set_full
                 , epoch
+                , ranged_boundary
                 , infinite_time_partitions
                 , retention
             FROM @extschema@.part_config
@@ -133,6 +134,8 @@ LOOP
     v_partition_expression := CASE
         WHEN v_row.epoch = 'seconds' THEN format('to_timestamp(%I)', v_row.control)
         WHEN v_row.epoch = 'milliseconds' THEN format('to_timestamp((%I/1000)::float)', v_row.control)
+        WHEN v_row.ranged_boundary = 'lower' THEN format('lower(%I)', v_row.control)
+        WHEN v_row.ranged_boundary = 'upper' THEN format('upper(%I)', v_row.control)
         ELSE format('%I', v_row.control)
     END;
     IF p_debug THEN

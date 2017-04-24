@@ -1,4 +1,5 @@
-CREATE FUNCTION check_control_type(p_parent_schema text, p_parent_tablename text, p_control text) RETURNS TABLE (general_type text, exact_type text) 
+CREATE FUNCTION check_control_type(p_parent_schema text, p_parent_tablename text, p_control text)
+    RETURNS TABLE (general_type text, exact_type text, is_ranged_type boolean)
     LANGUAGE sql STABLE SECURITY DEFINER
 AS $$
 /* 
@@ -7,12 +8,18 @@ AS $$
  */
 
 SELECT CASE 
-        WHEN typname IN ('timestamptz', 'timestamp', 'date') THEN
+        WHEN typname IN ('timestamptz', 'timestamp', 'date', 'tstzrange', 'tsrange', 'daterange') THEN
             'time'
         WHEN typname IN ('int2', 'int4', 'int8') THEN
             'id'
-       END
-    , typname::text
+       END AS general_type
+    , typname::text AS exact_type
+    , CASE
+        WHEN typname IN ('tstzrange', 'tsrange', 'daterange') THEN
+            true
+        ELSE
+            false
+       END AS is_ranged_type
     FROM pg_catalog.pg_type t 
     JOIN pg_catalog.pg_attribute a ON t.oid = a.atttypid
     JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
@@ -21,4 +28,3 @@ SELECT CASE
     AND c.relname = p_parent_tablename::name
     AND a.attname = p_control::name
 $$;
-

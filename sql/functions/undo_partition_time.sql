@@ -29,6 +29,7 @@ v_parent_tablename      text;
 v_partition_expression  text;
 v_partition_int_text    text;
 v_partition_interval    interval;
+v_ranged_boundary       text;
 v_row                   record;
 v_rowcount              bigint;
 v_step_id               bigint;
@@ -55,11 +56,13 @@ SELECT partition_type
     , control
     , jobmon
     , epoch
+    , ranged_boundary
 INTO v_type
     , v_partition_int_text
     , v_control
     , v_jobmon
     , v_epoch
+    , v_ranged_boundary
 FROM @extschema@.part_config 
 WHERE parent_table = p_parent_table 
 AND partition_type IN ('partman', 'time-custom');
@@ -121,6 +124,8 @@ END IF;
 v_partition_expression := CASE
     WHEN v_epoch = 'seconds' THEN format('to_timestamp(%I)', v_control)
     WHEN v_epoch = 'milliseconds' THEN format('to_timestamp((%I/1000)::float)', v_control)
+    WHEN v_ranged_boundary = 'lower' THEN format('lower(%I)', v_control)
+    WHEN v_ranged_boundary = 'upper' THEN format('upper(%I)', v_control)
     ELSE format('%I', v_control)
 end;
 

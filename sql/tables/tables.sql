@@ -7,7 +7,8 @@ CREATE TABLE part_config (
     , premake int NOT NULL DEFAULT 4
     , optimize_trigger int NOT NULL DEFAULT 4
     , optimize_constraint int NOT NULL DEFAULT 30
-    , epoch text NOT NULL DEFAULT 'none' 
+    , epoch text NOT NULL DEFAULT 'none'
+    , ranged_boundary text NOT NULL DEFAULT 'none'
     , inherit_fk boolean NOT NULL DEFAULT true
     , retention text
     , retention_schema text
@@ -39,7 +40,8 @@ CREATE TABLE part_config_sub (
     , sub_premake int NOT NULL DEFAULT 4
     , sub_optimize_trigger int NOT NULL DEFAULT 4
     , sub_optimize_constraint int NOT NULL DEFAULT 30
-    , sub_epoch text NOT NULL DEFAULT 'none' 
+    , sub_epoch text NOT NULL DEFAULT 'none'
+    , sub_ranged_boundary text NOT NULL DEFAULT 'none'
     , sub_inherit_fk boolean NOT NULL DEFAULT true
     , sub_retention text
     , sub_retention_schema text
@@ -171,3 +173,24 @@ ADD CONSTRAINT part_config_sub_type_check
 CHECK (@extschema@.check_partition_type(sub_partition_type));
 
 
+/*
+ * Check for valid ranged boundary types
+ */
+CREATE OR REPLACE FUNCTION check_ranged_boundary_type (p_type text) RETURNS boolean
+    LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER
+    AS $$
+DECLARE
+v_result    boolean;
+BEGIN
+    SELECT p_type IN ('none', 'lower', 'upper') INTO v_result;
+    RETURN v_result;
+END
+$$;
+
+ALTER TABLE @extschema@.part_config
+ADD CONSTRAINT ranged_boundary_type_check
+CHECK (@extschema@.check_ranged_boundary_type(ranged_boundary));
+
+ALTER TABLE @extschema@.part_config_sub
+ADD CONSTRAINT ranged_boundary_sub_type_check
+CHECK (@extschema@.check_ranged_boundary_type(sub_ranged_boundary));
