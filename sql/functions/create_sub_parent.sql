@@ -12,7 +12,9 @@ CREATE FUNCTION create_sub_parent(
     , p_upsert text DEFAULT ''
     , p_trigger_return_null boolean DEFAULT true
     , p_jobmon boolean DEFAULT true
-    , p_debug boolean DEFAULT false) 
+    , p_debug boolean DEFAULT false
+    , p_ranged_boundary text DEFAULT 'none'
+)
 RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
@@ -66,6 +68,10 @@ IF NOT @extschema@.check_partition_type(p_type) THEN
     RAISE EXCEPTION '% is not a valid partitioning type', p_type;
 END IF;
 
+IF NOT @extschema@.check_ranged_boundary_type(p_ranged_boundary) THEN
+    RAISE EXCEPTION '% is not a valid ranged boundary type for pg_partman', p_type;
+END IF;
+
 IF v_parent_relkind = 'p' AND p_type <> 'native' THEN
     RAISE EXCEPTION 'Cannot create a non-native sub-partition of a native parent table. All levels of a sub-partition set must be either all native or all non-native';
 END IF;
@@ -107,6 +113,7 @@ INSERT INTO @extschema@.part_config_sub (
     , sub_inherit_fk
     , sub_automatic_maintenance
     , sub_epoch
+    , sub_ranged_boundary
     , sub_upsert
     , sub_jobmon
     , sub_trigger_return_null)
@@ -120,6 +127,7 @@ VALUES (
     , p_inherit_fk
     , 'on' 
     , p_epoch
+    , p_ranged_boundary
     , p_upsert
     , p_jobmon
     , p_trigger_return_null);
@@ -234,6 +242,7 @@ LOOP
                 , p_start_partition := %L
                 , p_inherit_fk := %L
                 , p_epoch := %L
+                , p_ranged_boundary := %L
                 , p_upsert := %L
                 , p_trigger_return_null := %L
                 , p_jobmon := %L
@@ -248,6 +257,7 @@ LOOP
             , p_start_partition
             , p_inherit_fk
             , p_epoch
+            , p_ranged_boundary
             , p_upsert
             , p_trigger_return_null
             , p_jobmon

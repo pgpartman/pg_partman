@@ -1,4 +1,4 @@
-CREATE FUNCTION create_partition_time(p_parent_table text, p_partition_times timestamptz[], p_analyze boolean DEFAULT true, p_debug boolean DEFAULT false) 
+CREATE FUNCTION create_partition_time(p_parent_table text, p_partition_times timestamptz[], p_analyze boolean DEFAULT true, p_debug boolean DEFAULT false)
 RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
@@ -36,6 +36,7 @@ v_partition_interval            interval;
 v_partition_timestamp_end       timestamptz;
 v_partition_timestamp_start     timestamptz;
 v_quarter                       text;
+v_ranged_boundary               text;
 v_revoke                        text;
 v_row                           record;
 v_sql                           text;
@@ -61,6 +62,7 @@ SELECT c.partition_type
     , c.control
     , c.partition_interval
     , c.epoch
+    , c.ranged_boundary
     , c.inherit_fk
     , c.jobmon
     , c.datetime_string
@@ -68,6 +70,7 @@ INTO v_partition_type
     , v_control
     , v_partition_interval
     , v_epoch
+    , v_ranged_boundary
     , v_inherit_fk
     , v_jobmon
     , v_datetime_string
@@ -112,6 +115,8 @@ END IF;
 v_partition_expression := CASE
     WHEN v_epoch = 'seconds' THEN format('to_timestamp(%I)', v_control)
     WHEN v_epoch = 'milliseconds' THEN format('to_timestamp((%I/1000)::float)', v_control)
+    WHEN v_ranged_boundary = 'lower' THEN format('lower(%I)', v_control)
+    WHEN v_ranged_boundary = 'upper' THEN format('upper(%I)', v_control)
     ELSE format('%I', v_control)
 END;
 IF p_debug THEN
@@ -315,6 +320,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             , sub_optimize_trigger
             , sub_optimize_constraint
             , sub_epoch
+            , sub_ranged_boundary
             , sub_inherit_fk
             , sub_retention
             , sub_retention_schema
@@ -340,6 +346,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
                 , p_automatic_maintenance := %L
                 , p_inherit_fk := %L
                 , p_epoch := %L
+                , p_ranged_boundary := %L
                 , p_jobmon := %L )'
             , v_parent_schema||'.'||v_partition_name
             , v_row.sub_control
@@ -350,6 +357,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             , v_row.sub_automatic_maintenance
             , v_row.sub_inherit_fk
             , v_row.sub_epoch
+            , v_row.sub_ranged_boundary
             , v_row.sub_jobmon);
         IF p_debug THEN
             RAISE NOTICE 'create_partition_time (create_parent loop): %', v_sql;
@@ -368,7 +376,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
 
     END LOOP; -- end sub partitioning LOOP
 
-    -- Manage additonal constraints if set
+    -- Manage additional constraints if set
     PERFORM @extschema@.apply_constraints(p_parent_table, p_job_id := v_job_id, p_debug := p_debug);
 
     v_partition_created := true;
