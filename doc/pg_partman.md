@@ -353,6 +353,7 @@ As a note for people that were not aware, you can name arguments in function cal
 
  * Undo the parent/child table inheritance of any partition set, not just ones managed by `pg_partman`. This function COPIES the data from existing child partitions to the parent table.
      * WARNING: If used on a sub-partitioned set not managed by `pg_partman`, results could be unpredictable. It is not recommended to do so.
+     * WARNING: The partitions will be undone in the ascending order of pg_inherits.inhrelid. It might not be the "logical" order of your partitions.
  * Does not currently work on native partition sets.
  * If you need to keep the data in your child tables after it is put into the parent, use this function. 
  * Unlike the other undo functions, data cannot be copied in batches smaller than the partition interval. Every run of the function copies an entire partition to the parent.
