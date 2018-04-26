@@ -23,6 +23,7 @@ CREATE TABLE part_config (
     , upsert text NOT NULL DEFAULT ''
     , trigger_return_null boolean NOT NULL DEFAULT true
     , template_table text
+    , publications text[]
     , CONSTRAINT part_config_parent_table_pkey PRIMARY KEY (parent_table)
     , CONSTRAINT positive_premake_check CHECK (premake > 0)
 );
