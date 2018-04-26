@@ -383,6 +383,9 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
     -- Manage additonal constraints if set
     PERFORM @extschema@.apply_constraints(p_parent_table, p_job_id := v_job_id, p_debug := p_debug);
 
+    -- NOTE: Publications currently not supported on partitioned tables, but supported on the table partitions individually
+    PERFORM @extschema@.apply_publications(p_parent_table, v_parent_schema, v_partition_name);
+
     v_partition_created := true;
 
 END LOOP;
