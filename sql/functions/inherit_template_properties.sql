@@ -72,6 +72,7 @@ IF current_setting('server_version_num')::int > 100000 AND current_setting('serv
         SELECT
         array_to_string(regexp_matches(pg_get_indexdef(indexrelid), ' USING .*'),',') AS statement
         , i.indisprimary
+        , i.indisunique 
         , ( SELECT array_agg( a.attname ORDER by x.r )
             FROM pg_catalog.pg_attribute a
             JOIN ( SELECT k, row_number() over () as r
@@ -95,7 +96,7 @@ IF current_setting('server_version_num')::int > 100000 AND current_setting('serv
             EXECUTE v_sql;
         ELSE
             -- statement column should be just the portion of the index definition that defines what it actually is
-            v_sql := format('CREATE INDEX ON %I.%I %s', v_child_schema, v_child_tablename, v_index_list.statement);
+            v_sql := format('CREATE %s INDEX ON %I.%I %s', CASE WHEN v_index_list.indisunique = TRUE THEN 'UNIQUE' ELSE '' END, v_child_schema, v_child_tablename, v_index_list.statement);
             RAISE DEBUG 'Create index: %', v_sql;
             EXECUTE v_sql;
 
