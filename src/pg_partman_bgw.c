@@ -44,6 +44,7 @@ static volatile sig_atomic_t got_sighup = false;
 static volatile sig_atomic_t got_sigterm = false;
 
 /* GUC variables */
+static char *pg_partman_bgw_maintenance_proc = "off";
 static int pg_partman_bgw_interval = 3600; // Default hourly
 static char *pg_partman_bgw_role = "postgres"; // Default to postgres role
 static char *pg_partman_bgw_analyze = "on";
@@ -149,6 +150,17 @@ _PG_init(void)
                                NULL,
                                NULL,
                                NULL);
+
+    DefineCustomStringVariable("pg_partman_bgw.maintenance_proc",
+                            "use run_maintenance() or run_maintenance_proc(). Set to 'on' to send TRUE. Set to 'off' to send FALSE.(default).",
+                            NULL,
+                            &pg_partman_bgw_maintenance_proc,
+                            "on",
+                            PGC_SIGHUP,
+                            0,
+                            NULL,
+                            NULL,
+                            NULL);
 
 /* Kept as comment for reference for future development
     DefineCustomStringVariable("pg_partman_bgw.maintenance_db",
@@ -365,6 +377,9 @@ void pg_partman_bgw_run_maint(Datum arg) {
     List                *elemlist;
     int                 ret;
     StringInfoData      buf;
+    int                 expected_ret;
+    bool                run_proc = false;
+    char                *function_run;
 
     /* Establish signal handlers before unblocking signals. */
     pqsignal(SIGHUP, pg_partman_bgw_sighup);
@@ -476,14 +491,32 @@ void pg_partman_bgw_run_maint(Datum arg) {
     } else {
         jobmon = "false";
     }
-    appendStringInfo(&buf, "SELECT \"%s\".run_maintenance(p_analyze := %s, p_jobmon := %s)", partman_schema, analyze, jobmon);
+    if (strcmp(pg_partman_bgw_maintenance_proc, "on") == 0) {
+        run_proc = true;
+    } else {
+        run_proc = false;
+    }
+
+    #if (PG_VERSION_NUM < 110000)
+    run_proc = false;
+    #endif
+
+    if (run_proc) {
+        appendStringInfo(&buf, "CALL \"%s\".run_maintenance_proc(p_analyze := %s, p_jobmon := %s)", partman_schema, analyze, jobmon);
+        expected_ret = SPI_OK_UTILITY;
+        function_run = "run_maintenance_proc() procedure";
+    } else {
+        appendStringInfo(&buf, "SELECT \"%s\".run_maintenance(p_analyze := %s, p_jobmon := %s)", partman_schema, analyze, jobmon);
+        expected_ret = SPI_OK_SELECT;
+        function_run = "run_maintenance() function";
+    }
 
     pgstat_report_activity(STATE_RUNNING, buf.data);
 
     ret = SPI_execute(buf.data, false, 0);
 
-    if (ret != SPI_OK_SELECT)
-        elog(FATAL, "Cannot call pg_partman run_maintenance() function: error code %d", ret);
+    if (ret != expected_ret)
+        elog(FATAL, "Cannot call pg_partman %s function: error code %d", function_run, ret);
 
     elog(LOG, "%s: %s called by role %s on database %s"
             , MyBgworkerEntry->bgw_name
