@@ -13,6 +13,7 @@ v_analyze                       boolean := FALSE;
 v_control                       text;
 v_control_type                  text;
 v_datetime_string               text;
+v_default_partition             text;
 v_epoch                         text;
 v_exists                        smallint;
 v_grantees                      text[];
@@ -220,7 +221,25 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             PERFORM @extschema@.inherit_template_properties(p_parent_table, v_parent_schema, v_partition_name);
         END IF;
 
+        v_default_partition := @extschema@.check_name_length(v_parent_tablename, '_default', FALSE);
+
         IF v_epoch = 'none' THEN
+            -- Move all values from the default partition into the new partition before running ATTACH PARTITION
+            EXECUTE format($_$WITH default_data AS (
+                    DELETE FROM %I.%I
+                    WHERE %I >= %L AND %I < %L
+                    RETURNING *
+                )
+                INSERT INTO %I.%I
+                SELECT * FROM default_data$_$
+                , v_parent_schema
+                , v_default_partition
+                , v_control
+                , v_partition_timestamp_start
+                , v_control
+                , v_partition_timestamp_end
+                , v_parent_schema
+                , v_partition_name);
             -- Attach with normal, time-based values for native constraint
             EXECUTE format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I FOR VALUES FROM (%L) TO (%L)'
                 , v_parent_schema
@@ -232,6 +251,22 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         ELSE
             -- Must attach with integer based values for native constraint and epoch
             IF v_epoch = 'seconds' THEN
+                -- Move all values from the default partition into the new partition before running ATTACH PARTITION
+                EXECUTE format($_$WITH default_data AS (
+                        DELETE FROM %I.%I
+                        WHERE %I >= %L AND %I < %L
+                        RETURNING *
+                    )
+                    INSERT INTO %I.%I
+                    SELECT * FROM default_data$_$
+                    , v_parent_schema
+                    , v_default_partition
+                    , v_control
+                    , EXTRACT('epoch' FROM v_partition_timestamp_start)
+                    , v_control
+                    , EXTRACT('epoch' FROM v_partition_timestamp_end)
+                    , v_parent_schema
+                    , v_partition_name);
                 EXECUTE format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I FOR VALUES FROM (%L) TO (%L)'
                     , v_parent_schema
                     , v_parent_tablename
@@ -240,6 +275,22 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
                     , EXTRACT('epoch' FROM v_partition_timestamp_start)
                     , EXTRACT('epoch' FROM v_partition_timestamp_end));
             ELSIF v_epoch = 'milliseconds' THEN
+                -- Move all values from the default partition into the new partition before running ATTACH PARTITION
+                EXECUTE format($_$WITH default_data AS (
+                        DELETE FROM %I.%I
+                        WHERE %I >= %L AND %I < %L
+                        RETURNING *
+                    )
+                    INSERT INTO %I.%I
+                    SELECT * FROM default_data$_$
+                    , v_parent_schema
+                    , v_default_partition
+                    , v_control
+                    , EXTRACT('epoch' FROM v_partition_timestamp_start) * 1000
+                    , v_control
+                    , EXTRACT('epoch' FROM v_partition_timestamp_end) * 1000
+                    , v_parent_schema
+                    , v_partition_name);
                 EXECUTE format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I FOR VALUES FROM (%L) TO (%L)'
                     , v_parent_schema
                     , v_parent_tablename
