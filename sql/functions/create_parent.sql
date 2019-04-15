@@ -456,6 +456,8 @@ IF v_control_type = 'time' OR (v_control_type = 'id' AND p_epoch <> 'none') THEN
 
     RAISE DEBUG 'create_parent: v_partition_time_array: %', v_partition_time_array;
 
+    PERFORM @extschema@.create_partition_default(p_parent_table, v_job_id);
+
     v_last_partition_created := @extschema@.create_partition_time(p_parent_table, v_partition_time_array, false);
 
     IF v_last_partition_created = false THEN
@@ -606,6 +608,8 @@ IF v_control_type = 'id' AND p_epoch = 'none' THEN
         , v_template_schema||'.'||v_template_tablename
         , p_publications);
 
+    PERFORM @extschema@.create_partition_default(p_parent_table, v_job_id);
+
     v_last_partition_created := @extschema@.create_partition_id(p_parent_table, v_partition_id_array, false);
 
     IF v_last_partition_created = false THEN
@@ -661,30 +665,6 @@ IF v_control_type = 'id' AND p_epoch = 'none' THEN
     END IF; -- End v_last_partition_created IF
 
 END IF; -- End IF id
-
-IF p_type = 'native' AND current_setting('server_version_num')::int >= 110000 THEN
-    -- Add default partition to native sets in PG11+
-
-    v_default_partition := @extschema@.check_name_length(v_parent_tablename, '_default', FALSE);
-    v_sql := 'CREATE';
-    IF v_unlogged = 'u' THEN
-        v_sql := v_sql ||' UNLOGGED';
-    END IF;
-    -- Same INCLUDING list is used in create_partition_*()
-    v_sql := v_sql || format(' TABLE %I.%I (LIKE %I.%I INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING STORAGE INCLUDING COMMENTS)'
-        , v_parent_schema, v_default_partition, v_parent_schema, v_parent_tablename);
-    EXECUTE v_sql;
-    v_sql := format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I DEFAULT'
-        , v_parent_schema, v_parent_tablename, v_parent_schema, v_default_partition);
-    EXECUTE v_sql;
-
-    IF v_parent_tablespace IS NOT NULL THEN
-        EXECUTE format('ALTER TABLE %I.%I SET TABLESPACE %I', v_parent_schema, v_default_partition, v_parent_tablespace);
-    END IF;
-
-    -- NOTE: Privileges currently not automatically inherited for native
-    PERFORM @extschema@.apply_privileges(v_parent_schema, v_parent_tablename, v_parent_schema, v_default_partition, v_job_id);
-END IF;
 
 IF p_type <> 'native' THEN
     IF v_jobmon_schema IS NOT NULL  THEN
