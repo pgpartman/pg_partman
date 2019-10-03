@@ -184,7 +184,7 @@ FOR i IN 1..p_batch_count LOOP
                 EXIT;
             ELSE
                 BEGIN
-                    IF v_start_control > v_max_partition_timestamp THEN
+                    IF v_start_control >= v_max_partition_timestamp THEN
                         -- Keep going forward in time, checking if child partition time interval encompasses the current v_start_control value
                         v_min_partition_timestamp := v_max_partition_timestamp;
                         v_max_partition_timestamp := v_max_partition_timestamp + v_partition_interval;
