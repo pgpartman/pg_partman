@@ -98,6 +98,8 @@ IF current_setting('server_version_num')::int >= 100000 THEN
         AND i.indisvalid
         ORDER BY 1
     LOOP
+        v_dupe_found := false;
+
         IF current_setting('server_version_num')::int >= 110000 THEN
             FOR v_parent_index_list IN 
                 SELECT
