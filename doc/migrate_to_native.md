@@ -139,8 +139,14 @@ Next is to swap the names of your old trigger-based parent and the new native pa
 ALTER TABLE partman_test.time_taptest_table RENAME TO time_taptest_table_old;
 ALTER TABLE partman_test.time_taptest_table_native RENAME TO time_taptest_table;
 ```
-For pg_partman, a template table is used to handle certain inheritance properties, so this table will need to be created. This table can be located in any schema and named whatever you wish, but by default it is created in the same schema that pg_partman was installed to and just prepends `template_` onto the name of the current table including its schema. Also it's good to set the owner to be the same as the parent table owner.
-Again, as mentioned above, view the `Child Table Property Inheritance` of the documention for what properties are managed via this template table depending on your version of PG.
+PG11+ supports the feature of a default partition to catch any data that doesn't have a matching child. pg_partman does create this default partition for you when it sets up new partition sets, but since we're migrating we'll have to create one manually if desired. If your table names are particularly long, ensure that adding the `_default` suffix doesn't get truncated unexpectedly. The suffix isn't required for functionality, but provides good context for what the table is for, so it's better to shorten the table name itself to fit the suffix.
+```
+CREATE TABLE partman_test.time_taptest_table_default (LIKE partman_test.time_taptest_table INCLUDING ALL);
+ALTER TABLE partman_test.time_taptest_table ATTACH PARTITION partman_test.time_taptest_table_default DEFAULT;
+```
+For pg_partman, a template table is used to handle certain inheritance properties, so this table will need to be created. This table can be located in any schema and named whatever you wish, but by default it is created in the same schema that pg_partman was installed to and just prepends `template_` onto the name of the current table including its schema. Also it's good to set the owner to be the same as the parent table owner. Again, if your table names are particularly long, make sure you account for any name truncation if it occurs.
+
+As mentioned above, view the `Child Table Property Inheritance` section of the documention for what properties are managed via this template table depending on your version of PG.
 ```
 CREATE TABLE partman.partman_test_time_taptest_table (LIKE partman_test.time_taptest_table);
 ALTER TABLE partman.partman_test_time_taptest_table OWNER TO partman_owner;
