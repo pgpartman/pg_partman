@@ -227,7 +227,7 @@ LOOP
         IF p_debug THEN
             RAISE NOTICE 'run_maint: v_current_partition_timestamp: %, v_max_time_parent: %', v_current_partition_timestamp, v_max_time_parent;
         END IF;
-        IF v_max_time_parent > v_current_partition_timestamp THEN
+        IF v_current_partition_timestamp IS NULL OR v_max_time_parent > v_current_partition_timestamp THEN
             SELECT suffix_timestamp INTO v_current_partition_timestamp FROM @extschema@.show_partition_name(v_row.parent_table, v_max_time_parent::text);
         END IF;
 
