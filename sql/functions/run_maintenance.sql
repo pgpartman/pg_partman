@@ -154,11 +154,16 @@ LOOP
         SELECT partition_tablename INTO v_default_tablename 
         FROM @extschema@.show_partitions(v_row.parent_table, p_include_default := true) LIMIT 1;
 
-        SELECT pg_get_expr(relpartbound, v_row.parent_table::regclass) INTO v_is_default 
-        FROM pg_catalog.pg_class c
-        JOIN pg_catalog.pg_namespace n on c.relnamespace = n.oid
-        WHERE n.nspname = v_parent_schema
-        AND c.relname = v_default_tablename;
+        EXECUTE format('
+            SELECT pg_get_expr(relpartbound, ''%1$I.%2$I''::regclass) 
+            FROM pg_catalog.pg_class c
+            JOIN pg_catalog.pg_namespace n on c.relnamespace = n.oid
+            WHERE n.nspname = ''%1$s''
+            AND c.relname = ''%3$s'''
+            , v_parent_schema
+            , v_parent_tablename
+            , v_default_tablename
+        ) INTO v_is_default;
 
         IF v_is_default != 'DEFAULT' THEN
             v_default_tablename := v_parent_tablename;
