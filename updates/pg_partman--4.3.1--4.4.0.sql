@@ -1,14 +1,16 @@
----- New Feature ----
+-- NEW FEATURES
+-- ============
 
--- No longer requires superuser in order to grant privileges directly to child tables (setting inherit_privileges to true or running apply_privileges() directly). Thanks to Stephen Frost for suggesting this fix.
+-- No longer requires superuser in order to grant privileges directly to child tables (setting inherit_privileges to true or running apply_privileges() directly). Thanks to Stephen Frost for suggesting this fix. This now makes pg_partman no longer require superuser for any operation other than initial installation.
 
----- Bug Fixes ----
+-- BUG FIXES
+-- =========
 
--- Added new config option to allow maintenance to refresh logical replication subscriptions. This is to fix a shortcoming where logical replication is used to replicate partition sets between databases, but not having a way to automatically account for new tables being added on the publisher side. Set the subscription name via the part_config.subscription_refresh column by just setting the name of the subscription. For sub-partitioning, part_config_sub.sub_subscription_refresh is also available.
+-- Added new config option to allow maintenance to refresh logical replication subscriptions. This is to fix a shortcoming where logical replication is used to replicate partition sets between databases, but not having a way to automatically account for new tables being added on the publisher side. Set the subscription name via the part_config.subscription_refresh column by just setting the name of the subscription. For sub-partitioning, part_config_sub.sub_subscription_refresh is also available. (Github Issue #307)
 
 -- Fix partition_data_time() function (called by partition_data_proc()) to work with epoch time partitioning properly when moving data out of the default partition with native partitioning. Thanks to @sheeju on Github for reporting the issue and providing fix. (Github PR #309)
 
--- Fixed handling of mixed case/non-standard character object names during maintenance runs with native partitioning on PG11 or greater.
+-- Fixed handling of mixed case/non-standard character object names during maintenance runs with native partitioning on PG11 or greater. Thanks to @sheeju on Github for reporting the issue and providing fix. (Github PR #309)
 
 -- Fixed columns in sub_part_config that were not being kept consistent between configurations for sub-partition tables that were themselves further sub-partitioned. You may possibly have some configurations that are inconsistent due to these columns being missed during previous maintenance runs. The following fix for the consistency check should find this your next maintenance run and throw an error.
 
@@ -16,6 +18,7 @@
 
 -- Fixed broken error message from maintenance runs (record "v_row" has no field "sub_parent") when the above consistency check tried to produce an error message to indicate that the sub-partition configurations had an issue.
 
+-- TODO Update documentation for to note that superuser isn't required anymore. Also add new config option
 
 ALTER TABLE @extschema@.part_config ADD COLUMN subscription_refresh text;
 ALTER TABLE @extschema@.part_config_sub ADD COLUMN sub_subscription_refresh text;
