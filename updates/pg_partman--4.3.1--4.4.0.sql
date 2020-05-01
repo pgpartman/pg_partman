@@ -17,8 +17,6 @@
 -- Fixed broken error message from maintenance runs (record "v_row" has no field "sub_parent") when the above consistency check tried to produce an error message to indicate that the sub-partition configurations had an issue.
 
 
--- TODO test subscription refresh. ping sfrost about possiblity of not needing superuser for this. update the changelog notes accordingly for how this works or if superuser is still required
-
 ALTER TABLE @extschema@.part_config ADD COLUMN subscription_refresh text;
 ALTER TABLE @extschema@.part_config_sub ADD COLUMN sub_subscription_refresh text;
 
