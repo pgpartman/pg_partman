@@ -49,6 +49,8 @@ CREATE INDEX ON partman_test.id_taptest_table (col3);
 SELECT create_parent('partman_test.id_taptest_table', 'col1', 'native', '10', p_jobmon := false, p_template_table := 'partman_test.template_id_taptest_table');
 UPDATE part_config SET inherit_privileges = TRUE;
 
+SELECT reapply_privileges('partman_test.id_taptest_table');
+
 INSERT INTO partman_test.id_taptest_table (col1, col4) VALUES (generate_series(1,9), 'stuff'||generate_series(1,9));
 
 SELECT has_table('partman_test', 'id_taptest_table_p0', 'Check id_taptest_table_p0 exists');

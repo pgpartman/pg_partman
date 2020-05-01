@@ -41,7 +41,8 @@ SELECT bag_eq(
     'template_table',
     'publications',
     'inherit_privileges',
-    'constraint_valid'
+    'constraint_valid',
+    'subscription_refresh'
   ]::TEXT[],
   'When adding a new column to part_config please ensure it is also added to the dump_partitioned_table_definition function'
 );
