@@ -2720,8 +2720,8 @@ E'UPDATE @extschema@.part_config SET
 \tsub_partition_set_full = %L,
 \ttrigger_exception_handling = %L,
 \tinherit_privileges = %L,
-\tconstraint_valid = %L
-\tsubscription_refresh
+\tconstraint_valid = %L,
+\tsubscription_refresh = %L
 WHERE parent_table = %L;',
     v_optimize_trigger,
     v_optimize_constraint,
@@ -2735,8 +2735,8 @@ WHERE parent_table = %L;',
     v_trigger_exception_handling,
     v_inherit_privileges,
     v_constraint_valid,
-    v_parent_table,
-    v_subscription_refresh
+    v_subscription_refresh,
+    v_parent_table
   );
 
   RETURN concat_ws(E'\n',
