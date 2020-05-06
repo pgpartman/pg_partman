@@ -30,7 +30,7 @@ For this extension, most of the attributes of the child partitions are all obtai
 | constraints                                       | All                   |                       |
 | defaults                                          | All                   |                       |
 
-Privileges & ownership are inherited by default for non-native partitioning, but NOT for native partitioning. Also note that this inheritance is only at child table creation and isn't automatically retroactive when changed (see `reapply_privileges()`). Unless you need direct access to the child tables, this should not be needed. You can set the `inherit_privileges` option if this is needed (see config table information below). Note that inheriting privileges to the children requires running a superuser owned function that uses SECURITY DEFINER. 
+Privileges & ownership are inherited by default for non-native partitioning, but NOT for native partitioning. Also note that this inheritance is only at child table creation and isn't automatically retroactive when changed (see `reapply_privileges()`). Unless you need direct access to the child tables, this should not be needed. You can set the `inherit_privileges` option if this is needed (see config table information below).  
 
 If a property is managed via the template table, it likely will not be retroactively applied to all existing child tables if that property is changed. It will apply to any newly created children, but will have to be manually applied to any existing children.
 
@@ -119,7 +119,7 @@ As of version 4.0.0, the background worker still uses the normal run_maintenance
 
 Extension Objects
 -----------------
-As of 4.0.0, SECURITY DEFINER has been removed from a larger majority of functions in pg_partman. As of version 4.1.0, requiring a superuser to use pg_partman is now completely optional for native partitioning. It is still required for extension installation and non-native partitioning. From now on, the roles that run pg_partman functions and maintenance must have ownership of all partition sets they manage and permissions to create objects in any schema that will contain partition sets that it manages. For ease of use and privilege management, it is recommended to create a role dedicated to partition management. Please see the main README.md file for role & privileges setup instructions.
+As of 4.0.0, SECURITY DEFINER has been removed from a larger majority of functions in pg_partman. As of version 4.4.0, requiring a superuser to use pg_partman is now completely optional for native partitioning. From now on, the roles that run pg_partman functions and maintenance must have ownership of all partition sets they manage and permissions to create objects in any schema that will contain partition sets that it manages. For ease of use and privilege management, it is recommended to create a role dedicated to partition management. Please see the main README.md file for role & privileges setup instructions.
 
 As a note for people that were not aware, you can name arguments in function calls to make calling them easier and avoid confusion when there are many possible arguments. If a value has a default listed, it is not required to pass a value to that argument. As an example: `SELECT create_parent('schema.table', 'col1', 'partman', 'daily', p_start_partition := '2015-10-20');`
 
@@ -549,7 +549,7 @@ The rest are managed by the extension itself and should not be changed unless ab
 - `template_table`
     - The schema-qualified name of the table used as a template for applying any inheritance options not handled by the native partitioning options in PG.
 - `inherit_privileges`
-    - Sets whether to inherit the ownership/privileges of the parent table to all child tables. Defaults to true for non-native & PG10. Defaults to false for native PG11+ and should only be necessary if you need direct access to child tables, by-passing the parent table. If true, requires that a superuser either manages partition maintenance or that a superuser at least ownes all pg_partman functions to take advantage of SECURITY DEFINER. If false, it means a superuser is not necessary for any pg_partman operations.
+    - Sets whether to inherit the ownership/privileges of the parent table to all child tables. Defaults to true for non-native & PG10. Defaults to false for native PG11+ and should only be necessary if you need direct access to child tables, by-passing the parent table. 
 - `constraint_valid`
     - Boolean value that allows the additional constraints that pg_partman can manage for you to be created as NOT VALID. See "Constraint Exclusion" section at the beginning for more details on these constraints. This can allow maintenance to run much quicker on large partition sets since the existing data is not validated before additing the constraint. Newly inserted data is validated, so this is a perfectly safe option to set for data integrity. Note that constraint exclusion WILL NOT work until the constraints are validated. Defaults to true so that constraints are created as VALID. Set to false to set new constraints as NOT VALID.
 

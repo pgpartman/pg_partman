@@ -16,14 +16,14 @@ CREATE ROLE "Partman_Basic";
 CREATE ROLE "Partman_Revoke";
 CREATE ROLE "Partman_Owner";
 
-CREATE TABLE "Partman_Test"."Fk_Test_Reference" (col2 text unique not null);
+CREATE TABLE "Partman_Test"."Fk_Test_Reference" ("Col2" text unique not null);
 INSERT INTO "Partman_Test"."Fk_Test_Reference" VALUES ('stuff');
 
 CREATE UNLOGGED TABLE "Partman_Test"."ID_Taptest_Table" (
-    col1 bigint 
-    , col2 text not null default 'stuff'
-    , col3 timestamptz DEFAULT now()
-    , col4 text) PARTITION BY RANGE (col1);
+    "Col1" bigint 
+    , "Col2" text not null default 'stuff'
+    , "Col3" timestamptz DEFAULT now()
+    , "Col4" text) PARTITION BY RANGE ("Col1");
 CREATE TABLE "Partman_Test"."Undo_Taptest" (LIKE "Partman_Test"."ID_Taptest_Table" INCLUDING ALL);
 GRANT SELECT,INSERT,UPDATE ON "Partman_Test"."ID_Taptest_Table" TO "Partman_Basic", PUBLIC;
 GRANT ALL ON "Partman_Test"."ID_Taptest_Table" TO "Partman_Revoke";
@@ -34,27 +34,27 @@ DO $pg11_objects_check$
 BEGIN
 IF current_setting('server_version_num')::int >= 110000 THEN
     -- Create on parent table
-    ALTER TABLE "Partman_Test"."ID_Taptest_Table" ADD PRIMARY KEY (col1);
-    ALTER TABLE "Partman_Test"."ID_Taptest_Table" ADD FOREIGN KEY (col2) REFERENCES "Partman_Test"."Fk_Test_Reference"(col2);
-    CREATE INDEX ON "Partman_Test"."ID_Taptest_Table" (col3);
+    ALTER TABLE "Partman_Test"."ID_Taptest_Table" ADD PRIMARY KEY ("Col1");
+    ALTER TABLE "Partman_Test"."ID_Taptest_Table" ADD FOREIGN KEY ("Col2") REFERENCES "Partman_Test"."Fk_Test_Reference"("Col2");
+    CREATE INDEX ON "Partman_Test"."ID_Taptest_Table" ("Col3");
 ELSE
     -- Create on template table
-    ALTER TABLE "Partman_Test"."Template_ID_Taptest_Table" ADD PRIMARY KEY (col1);
-    ALTER TABLE "Partman_Test"."Template_ID_Taptest_Table" ADD FOREIGN KEY (col2) REFERENCES "Partman_Test"."Fk_Test_Reference"(col2);
+    ALTER TABLE "Partman_Test"."Template_ID_Taptest_Table" ADD PRIMARY KEY ("Col1");
+    ALTER TABLE "Partman_Test"."Template_ID_Taptest_Table" ADD FOREIGN KEY ("Col2") REFERENCES "Partman_Test"."Fk_Test_Reference"("Col2");
 END IF;
 END $pg11_objects_check$;
 
 -- Always create the index on teh template also so that we can test excluding duplicates.
-CREATE INDEX ON "Partman_Test"."Template_ID_Taptest_Table" (col3);
+CREATE INDEX ON "Partman_Test"."Template_ID_Taptest_Table" ("Col3");
 
 -- Regular unique indexes do not work on native in PG11 if the partition key isn't included
-CREATE UNIQUE INDEX ON "Partman_Test"."Template_ID_Taptest_Table" (col4);
+CREATE UNIQUE INDEX ON "Partman_Test"."Template_ID_Taptest_Table" ("Col4");
 
-SELECT create_parent('Partman_Test.ID_Taptest_Table', 'col1', 'native', '10', p_jobmon := false, p_start_partition := '3000000000', p_template_table := 'Partman_Test.Template_ID_Taptest_Table');
+SELECT create_parent('Partman_Test.ID_Taptest_Table', 'Col1', 'native', '10', p_jobmon := false, p_start_partition := '3000000000', p_template_table := 'Partman_Test.Template_ID_Taptest_Table');
 UPDATE part_config SET inherit_privileges = TRUE;
 SELECT reapply_privileges('Partman_Test.ID_Taptest_Table');
 
-INSERT INTO "Partman_Test"."ID_Taptest_Table" (col1, col4) VALUES (generate_series(3000000001,3000000009), 'stuff'||generate_series(3000000001,3000000009));
+INSERT INTO "Partman_Test"."ID_Taptest_Table" ("Col1", "Col4") VALUES (generate_series(3000000001,3000000009), 'stuff'||generate_series(3000000001,3000000009));
 
 SELECT has_table('Partman_Test', 'ID_Taptest_Table_p3000000000', 'Check ID_Taptest_Table_p3000000000 exists');
 SELECT has_table('Partman_Test', 'ID_Taptest_Table_p3000000010', 'Check ID_Taptest_Table_p3000000010 exists');
@@ -62,21 +62,21 @@ SELECT has_table('Partman_Test', 'ID_Taptest_Table_p3000000020', 'Check ID_Tapte
 SELECT has_table('Partman_Test', 'ID_Taptest_Table_p3000000030', 'Check ID_Taptest_Table_p3000000030 exists');
 SELECT has_table('Partman_Test', 'ID_Taptest_Table_p3000000040', 'Check ID_Taptest_Table_p3000000040 exists');
 SELECT hasnt_table('Partman_Test', 'ID_Taptest_Table_p3000000050', 'Check ID_Taptest_Table_p3000000050 doesn''t exists yet');
-SELECT col_is_pk('Partman_Test', 'ID_Taptest_Table_p3000000000', ARRAY['col1'], 'Check for primary key in ID_Taptest_Table_p3000000000');
-SELECT col_is_pk('Partman_Test', 'ID_Taptest_Table_p3000000010', ARRAY['col1'], 'Check for primary key in ID_Taptest_Table_p3000000010');
-SELECT col_is_pk('Partman_Test', 'ID_Taptest_Table_p3000000020', ARRAY['col1'], 'Check for primary key in ID_Taptest_Table_p3000000020');
-SELECT col_is_pk('Partman_Test', 'ID_Taptest_Table_p3000000030', ARRAY['col1'], 'Check for primary key in ID_Taptest_Table_p3000000030');
-SELECT col_is_pk('Partman_Test', 'ID_Taptest_Table_p3000000040', ARRAY['col1'], 'Check for primary key in ID_Taptest_Table_p3000000040');
-SELECT col_is_fk('Partman_Test', 'ID_Taptest_Table_p3000000000', 'col2', 'Check that foreign key was inherited to ID_Taptest_Table_p3000000000');
-SELECT col_is_fk('Partman_Test', 'ID_Taptest_Table_p3000000010', 'col2', 'Check that foreign key was inherited to ID_Taptest_Table_p3000000010');
-SELECT col_is_fk('Partman_Test', 'ID_Taptest_Table_p3000000020', 'col2', 'Check that foreign key was inherited to ID_Taptest_Table_p3000000020');
-SELECT col_is_fk('Partman_Test', 'ID_Taptest_Table_p3000000030', 'col2', 'Check that foreign key was inherited to ID_Taptest_Table_p3000000030');
-SELECT col_is_fk('Partman_Test', 'ID_Taptest_Table_p3000000040', 'col2', 'Check that foreign key was inherited to ID_Taptest_Table_p3000000040');
-SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000000', 'col4', 'Check that unique index was inherited to ID_Taptest_Table_p3000000000');
-SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000010', 'col4', 'Check that unique index was inherited to ID_Taptest_Table_p3000000010');
-SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000020', 'col4', 'Check that unique index was inherited to ID_Taptest_Table_p3000000020');
-SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000030', 'col4', 'Check that unique index was inherited to ID_Taptest_Table_p3000000030');
-SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000040', 'col4', 'Check that unique index was inherited to ID_Taptest_Table_p3000000040');
+SELECT col_is_pk('Partman_Test', 'ID_Taptest_Table_p3000000000', ARRAY['Col1'], 'Check for primary key in ID_Taptest_Table_p3000000000');
+SELECT col_is_pk('Partman_Test', 'ID_Taptest_Table_p3000000010', ARRAY['Col1'], 'Check for primary key in ID_Taptest_Table_p3000000010');
+SELECT col_is_pk('Partman_Test', 'ID_Taptest_Table_p3000000020', ARRAY['Col1'], 'Check for primary key in ID_Taptest_Table_p3000000020');
+SELECT col_is_pk('Partman_Test', 'ID_Taptest_Table_p3000000030', ARRAY['Col1'], 'Check for primary key in ID_Taptest_Table_p3000000030');
+SELECT col_is_pk('Partman_Test', 'ID_Taptest_Table_p3000000040', ARRAY['Col1'], 'Check for primary key in ID_Taptest_Table_p3000000040');
+SELECT col_is_fk('Partman_Test', 'ID_Taptest_Table_p3000000000', 'Col2', 'Check that foreign key was inherited to ID_Taptest_Table_p3000000000');
+SELECT col_is_fk('Partman_Test', 'ID_Taptest_Table_p3000000010', 'Col2', 'Check that foreign key was inherited to ID_Taptest_Table_p3000000010');
+SELECT col_is_fk('Partman_Test', 'ID_Taptest_Table_p3000000020', 'Col2', 'Check that foreign key was inherited to ID_Taptest_Table_p3000000020');
+SELECT col_is_fk('Partman_Test', 'ID_Taptest_Table_p3000000030', 'Col2', 'Check that foreign key was inherited to ID_Taptest_Table_p3000000030');
+SELECT col_is_fk('Partman_Test', 'ID_Taptest_Table_p3000000040', 'Col2', 'Check that foreign key was inherited to ID_Taptest_Table_p3000000040');
+SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000000', 'Col4', 'Check that unique index was inherited to ID_Taptest_Table_p3000000000');
+SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000010', 'Col4', 'Check that unique index was inherited to ID_Taptest_Table_p3000000010');
+SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000020', 'Col4', 'Check that unique index was inherited to ID_Taptest_Table_p3000000020');
+SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000030', 'Col4', 'Check that unique index was inherited to ID_Taptest_Table_p3000000030');
+SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000040', 'Col4', 'Check that unique index was inherited to ID_Taptest_Table_p3000000040');
 SELECT table_privs_are('Partman_Test', 'ID_Taptest_Table_p3000000000', 'Partman_Basic', ARRAY['SELECT','INSERT','UPDATE'], 'Check Partman_Basic privileges of ID_Taptest_Table_p3000000000');
 SELECT table_privs_are('Partman_Test', 'ID_Taptest_Table_p3000000010', 'Partman_Basic', ARRAY['SELECT','INSERT','UPDATE'], 'Check Partman_Basic privileges of ID_Taptest_Table_p3000000010');
 SELECT table_privs_are('Partman_Test', 'ID_Taptest_Table_p3000000020', 'Partman_Basic', ARRAY['SELECT','INSERT','UPDATE'], 'Check Partman_Basic privileges of ID_Taptest_Table_p3000000020');
@@ -100,7 +100,7 @@ SELECT results_eq('SELECT count(*)::int FROM "Partman_Test"."ID_Taptest_Table_p3
 
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON "Partman_Test"."ID_Taptest_Table" FROM "Partman_Revoke", PUBLIC;
 SELECT run_maintenance();
-INSERT INTO "Partman_Test"."ID_Taptest_Table" (col1, col4) VALUES (generate_series(3000000010,3000000025), 'stuff'||generate_series(3000000010,3000000025));
+INSERT INTO "Partman_Test"."ID_Taptest_Table" ("Col1", "Col4") VALUES (generate_series(3000000010,3000000025), 'stuff'||generate_series(3000000010,3000000025));
 -- Run again to make new partition based on latest data
 SELECT run_maintenance();
 
@@ -113,8 +113,8 @@ SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oi
 SELECT has_table('Partman_Test', 'ID_Taptest_Table_p3000000060', 'Check ID_Taptest_Table_p3000000060 exists yet');
 SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''"Partman_Test"."ID_Taptest_Table_p3000000060"''::regclass', ARRAY['u'], 'Check that ID_Taptest_Table_p3000000060 is unlogged');
 SELECT hasnt_table('Partman_Test', 'ID_Taptest_Table_p3000000070', 'Check ID_Taptest_Table_p3000000070 doesn''t exists yet');
---SELECT col_is_pk('Partman_Test', 'ID_Taptest_Table_p3000000050', ARRAY['col1'], 'Check for primary key in ID_Taptest_Table_p3000000050');
---SELECT col_isnt_fk('Partman_Test', 'ID_Taptest_Table_p3000000050', 'col2', 'Check that foreign key was NOT inherited to ID_Taptest_Table_p3000000050');
+--SELECT col_is_pk('Partman_Test', 'ID_Taptest_Table_p3000000050', ARRAY['Col1'], 'Check for primary key in ID_Taptest_Table_p3000000050');
+--SELECT col_isnt_fk('Partman_Test', 'ID_Taptest_Table_p3000000050', 'Col2', 'Check that foreign key was NOT inherited to ID_Taptest_Table_p3000000050');
 SELECT table_privs_are('Partman_Test', 'ID_Taptest_Table_p3000000000', 'Partman_Basic', ARRAY['SELECT','INSERT','UPDATE'], 'Check Partman_Basic privileges of ID_Taptest_Table_p3000000000');
 SELECT table_privs_are('Partman_Test', 'ID_Taptest_Table_p3000000010', 'Partman_Basic', ARRAY['SELECT','INSERT','UPDATE'], 'Check Partman_Basic privileges of ID_Taptest_Table_p3000000010');
 SELECT table_privs_are('Partman_Test', 'ID_Taptest_Table_p3000000020', 'Partman_Basic', ARRAY['SELECT','INSERT','UPDATE'], 'Check Partman_Basic privileges of ID_Taptest_Table_p3000000020');
@@ -128,7 +128,7 @@ SELECT table_privs_are('Partman_Test', 'ID_Taptest_Table_p3000000060', 'Partman_
 GRANT DELETE ON "Partman_Test"."ID_Taptest_Table" TO "Partman_Basic";
 REVOKE ALL ON "Partman_Test"."ID_Taptest_Table" FROM "Partman_Revoke", PUBLIC;
 ALTER TABLE "Partman_Test"."ID_Taptest_Table" OWNER TO "Partman_Owner";
-INSERT INTO "Partman_Test"."ID_Taptest_Table" (col1, col4) VALUES (generate_series(3000000026,3000000038), 'stuff'||generate_series(3000000026,3000000038));
+INSERT INTO "Partman_Test"."ID_Taptest_Table" ("Col1", "Col4") VALUES (generate_series(3000000026,3000000038), 'stuff'||generate_series(3000000026,3000000038));
 
 SELECT run_maintenance();
 
@@ -140,10 +140,10 @@ SELECT results_eq('SELECT count(*)::int FROM "Partman_Test"."ID_Taptest_Table_p3
 SELECT has_table('Partman_Test', 'ID_Taptest_Table_p3000000070', 'Check ID_Taptest_Table_p3000000070 exists');
 SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''"Partman_Test"."ID_Taptest_Table_p3000000070"''::regclass', ARRAY['u'], 'Check that ID_Taptest_Table_p3000000070 is unlogged');
 SELECT hasnt_table('Partman_Test', 'ID_Taptest_Table_p3000000080', 'Check ID_Taptest_Table_p3000000080 doesn''t exists yet');
-SELECT col_is_pk('Partman_Test', 'ID_Taptest_Table_p3000000060', ARRAY['col1'], 'Check for primary key in ID_Taptest_Table_p3000000060');
-SELECT col_is_pk('Partman_Test', 'ID_Taptest_Table_p3000000070', ARRAY['col1'], 'Check for primary key in ID_Taptest_Table_p3000000070');
-SELECT col_is_fk('Partman_Test', 'ID_Taptest_Table_p3000000060', 'col2', 'Check that foreign key was inherited to ID_Taptest_Table_p3000000060');
-SELECT col_is_fk('Partman_Test', 'ID_Taptest_Table_p3000000070', 'col2', 'Check that foreign key was inherited to ID_Taptest_Table_p3000000070');
+SELECT col_is_pk('Partman_Test', 'ID_Taptest_Table_p3000000060', ARRAY['Col1'], 'Check for primary key in ID_Taptest_Table_p3000000060');
+SELECT col_is_pk('Partman_Test', 'ID_Taptest_Table_p3000000070', ARRAY['Col1'], 'Check for primary key in ID_Taptest_Table_p3000000070');
+SELECT col_is_fk('Partman_Test', 'ID_Taptest_Table_p3000000060', 'Col2', 'Check that foreign key was inherited to ID_Taptest_Table_p3000000060');
+SELECT col_is_fk('Partman_Test', 'ID_Taptest_Table_p3000000070', 'Col2', 'Check that foreign key was inherited to ID_Taptest_Table_p3000000070');
 SELECT table_privs_are('Partman_Test', 'ID_Taptest_Table_p3000000000', 'Partman_Basic', ARRAY['SELECT','INSERT','UPDATE'], 'Check Partman_Basic privileges of ID_Taptest_Table_p3000000000');
 SELECT table_privs_are('Partman_Test', 'ID_Taptest_Table_p3000000010', 'Partman_Basic', ARRAY['SELECT','INSERT','UPDATE'], 'Check Partman_Basic privileges of ID_Taptest_Table_p3000000010');
 SELECT table_privs_are('Partman_Test', 'ID_Taptest_Table_p3000000020', 'Partman_Basic', ARRAY['SELECT','INSERT','UPDATE'], 'Check Partman_Basic privileges of ID_Taptest_Table_p3000000020');
@@ -158,7 +158,7 @@ SELECT table_owner_is ('Partman_Test', 'ID_Taptest_Table_p3000000070', 'Partman_
 SELECT table_privs_are('Partman_Test', 'ID_Taptest_Table_p3000000070', 'Partman_Revoke', '{}'::text[], 'Check Partman_Revoke has no privileges on ID_Taptest_Table_p3000000070');
 
 -- Requires default table option
---INSERT INTO "Partman_Test"."ID_Taptest_Table" (col1, col4) VALUES (generate_series(3000000200,3000000210), 'stuff'||generate_series(3000000200,3000000210));
+--INSERT INTO "Partman_Test"."ID_Taptest_Table" ("Col1", "Col4") VALUES (generate_series(3000000200,3000000210), 'stuff'||generate_series(3000000200,3000000210));
 --SELECT run_maintenance();
 --SELECT results_eq('SELECT count(*)::int FROM ONLY "Partman_Test"."ID_Taptest_Table"', ARRAY[11], 'Check that data outside trigger scope goes to parent');
 
