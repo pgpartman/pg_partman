@@ -1,10 +1,12 @@
 4.4.0
- NEW FEATURES
- ============
+NEW FEATURES
+============
+
 -- No longer requires superuser in order to grant privileges directly to child tables (setting inherit_privileges to true or running apply_privileges() directly). Thanks to Stephen Frost for suggesting this fix. This now makes pg_partman no longer require superuser for any operation other than initial installation.
 
- BUG FIXES
- =========
+BUG FIXES
+=========
+
 -- Added new config option to allow maintenance to refresh logical replication subscriptions. This is to fix a shortcoming where logical replication is used to replicate partition sets between databases, but not having a way to automatically account for new tables being added on the publisher side. Set the subscription name via the part_config.subscription_refresh column by just setting the name of the subscription. For sub-partitioning, part_config_sub.sub_subscription_refresh is also available. (Github Issue #307)
 
 -- Fix partition_data_time() function (called by partition_data_proc()) to work with epoch time partitioning properly when moving data out of the default partition with native partitioning. Thanks to @sheeju on Github for reporting the issue and providing fix. (Github PR #309)
@@ -16,6 +18,7 @@
 -- Fixed consistency check to ensure all parent tables that are part of the same sub-partition set have the same configuration in the sub_part_config table. If you encounter an error about inconsistent data in sub-partition configs after updating to this version, please carefully read the error message that is produced on how to fix it.
 
 -- Fixed broken error message from maintenance runs (record "v_row" has no field "sub_parent") when the above consistency check tried to produce an error message to indicate that the sub-partition configurations had an issue.
+
 
 
 4.3.1

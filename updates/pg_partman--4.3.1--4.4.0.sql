@@ -18,8 +18,6 @@
 
 -- Fixed broken error message from maintenance runs (record "v_row" has no field "sub_parent") when the above consistency check tried to produce an error message to indicate that the sub-partition configurations had an issue.
 
--- TODO Update documentation for to note that superuser isn't required anymore. Also add new config option
-
 ALTER TABLE @extschema@.part_config ADD COLUMN subscription_refresh text;
 ALTER TABLE @extschema@.part_config_sub ADD COLUMN sub_subscription_refresh text;
 
@@ -32,7 +30,6 @@ WHERE routine_schema = '@extschema@'
 AND routine_name = 'check_subpart_sameconfig'; 
 
 DROP FUNCTION @extschema@.check_subpart_sameconfig(text);
-
 
 CREATE OR REPLACE VIEW @extschema@.table_privs AS
     SELECT u_grantor.rolname AS grantor,
@@ -2745,7 +2742,6 @@ WHERE parent_table = %L;',
   );
 END
 $$;
-
 
 
 -- Restore dropped object privileges
