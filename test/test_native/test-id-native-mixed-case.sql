@@ -72,11 +72,12 @@ SELECT col_is_fk('Partman_Test', 'ID_Taptest_Table_p3000000010', 'Col2', 'Check 
 SELECT col_is_fk('Partman_Test', 'ID_Taptest_Table_p3000000020', 'Col2', 'Check that foreign key was inherited to ID_Taptest_Table_p3000000020');
 SELECT col_is_fk('Partman_Test', 'ID_Taptest_Table_p3000000030', 'Col2', 'Check that foreign key was inherited to ID_Taptest_Table_p3000000030');
 SELECT col_is_fk('Partman_Test', 'ID_Taptest_Table_p3000000040', 'Col2', 'Check that foreign key was inherited to ID_Taptest_Table_p3000000040');
-SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000000', 'Col4', 'Check that unique index was inherited to ID_Taptest_Table_p3000000000');
-SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000010', 'Col4', 'Check that unique index was inherited to ID_Taptest_Table_p3000000010');
-SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000020', 'Col4', 'Check that unique index was inherited to ID_Taptest_Table_p3000000020');
-SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000030', 'Col4', 'Check that unique index was inherited to ID_Taptest_Table_p3000000030');
-SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000040', 'Col4', 'Check that unique index was inherited to ID_Taptest_Table_p3000000040');
+-- is_indexed is broken for mixed case so have to manually mark as identity objects https://github.com/theory/pgtap/issues/247
+SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000000', '"Col4"', 'Check that unique index was inherited to ID_Taptest_Table_p3000000000');
+SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000010', '"Col4"', 'Check that unique index was inherited to ID_Taptest_Table_p3000000010');
+SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000020', '"Col4"', 'Check that unique index was inherited to ID_Taptest_Table_p3000000020');
+SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000030', '"Col4"', 'Check that unique index was inherited to ID_Taptest_Table_p3000000030');
+SELECT is_indexed('Partman_Test', 'ID_Taptest_Table_p3000000040', '"Col4"', 'Check that unique index was inherited to ID_Taptest_Table_p3000000040');
 SELECT table_privs_are('Partman_Test', 'ID_Taptest_Table_p3000000000', 'Partman_Basic', ARRAY['SELECT','INSERT','UPDATE'], 'Check Partman_Basic privileges of ID_Taptest_Table_p3000000000');
 SELECT table_privs_are('Partman_Test', 'ID_Taptest_Table_p3000000010', 'Partman_Basic', ARRAY['SELECT','INSERT','UPDATE'], 'Check Partman_Basic privileges of ID_Taptest_Table_p3000000010');
 SELECT table_privs_are('Partman_Test', 'ID_Taptest_Table_p3000000020', 'Partman_Basic', ARRAY['SELECT','INSERT','UPDATE'], 'Check Partman_Basic privileges of ID_Taptest_Table_p3000000020');
@@ -215,5 +216,6 @@ SELECT has_table('Partman_Test', 'ID_Taptest_Table_p3000000070', 'Check ID_Tapte
 SELECT is_empty('SELECT * FROM "Partman_Test"."ID_Taptest_Table_p3000000070"', 'Check child table had its data removed ID_Taptest_Table_p3000000070');
 
 SELECT hasnt_table('Partman_Test', 'template_id_taptest_table', 'Check that template table was dropped');
+
 SELECT * FROM finish();
 ROLLBACK;
