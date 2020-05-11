@@ -153,11 +153,12 @@ IF current_setting('server_version_num')::int >= 100000 THEN
             -- statement column should be just the portion of the index definition that defines what it actually is
             v_sql := format('CREATE %s INDEX ON %I.%I %s', CASE WHEN v_index_list.indisunique = TRUE THEN 'UNIQUE' ELSE '' END, v_child_schema, v_child_tablename, v_index_list.statement);
             IF v_index_list.tablespace_name IS NOT NULL THEN
-                v_sql := v_sql || format(' TABLESPACE %I', v_index_list.tablespace_name);
+                execute format('SET LOCAL default_tablespace = %s',  v_index_list.tablespace_name);
             END IF;
 
             RAISE DEBUG 'Create index: %', v_sql;
             EXECUTE v_sql;
+            RESET default_tablespace;
 
         END IF;
 
