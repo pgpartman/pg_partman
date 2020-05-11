@@ -5,7 +5,7 @@
 
 -- NOTE: THIS TEST ONLY WORKS FOR PG11+ due to requiring tests for default partition.
 -- NOTE: THIS FILE MUST BE RUN AS partman_owner AND CONNECT TO THE DATABASE THAT RAN PART 1 TO EFFECTIVLELY TEST AS NONSUPERUSER
---      Ex  pg_prove -ovf -U partman_owner -d mydb test/test_native/test_nonsuperuser/test-time-hourly-nonsuperuser-part2.sql
+--      Ex  pg_prove -ovf -U partman_owner -d mydb test/test_native/test_nonsuperuser/test-id-nonsuperuser-part2.sql
 
 
 \set ON_ERROR_ROLLBACK 1

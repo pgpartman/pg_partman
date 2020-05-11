@@ -118,7 +118,7 @@ CREATE VIEW @extschema@.table_privs AS
  * (not boolean to allow future values)
  */
 CREATE FUNCTION @extschema@.check_automatic_maintenance_value (p_automatic_maintenance text) RETURNS boolean
-    LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER
+    LANGUAGE plpgsql IMMUTABLE 
     AS $$
 DECLARE
 v_result    boolean;

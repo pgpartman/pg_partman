@@ -119,7 +119,7 @@ As of version 4.0.0, the background worker still uses the normal run_maintenance
 
 Extension Objects
 -----------------
-As of 4.0.0, SECURITY DEFINER has been removed from a larger majority of functions in pg_partman. As of version 4.4.0, requiring a superuser to use pg_partman is now completely optional for native partitioning. From now on, the roles that run pg_partman functions and maintenance must have ownership of all partition sets they manage and permissions to create objects in any schema that will contain partition sets that it manages. For ease of use and privilege management, it is recommended to create a role dedicated to partition management. Please see the main README.md file for role & privileges setup instructions.
+As of 4.4.0, SECURITY DEFINER has been removed from all functions in pg_partman. Requiring a superuser to use pg_partman is now completely optional for native partitioning. To run as nonsuperuser, the role(s) that run pg_partman functions and maintenance must have ownership of all partition sets they manage and permissions to create objects in any schema that will contain partition sets that it manages. For ease of use and privilege management, it is recommended to create a role dedicated to partition management. Please see the main README.md file for role & privileges setup instructions.
 
 As a note for people that were not aware, you can name arguments in function calls to make calling them easier and avoid confusion when there are many possible arguments. If a value has a default listed, it is not required to pass a value to that argument. As an example: `SELECT create_parent('schema.table', 'col1', 'partman', 'daily', p_start_partition := '2015-10-20');`
 
