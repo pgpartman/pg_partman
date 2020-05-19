@@ -234,7 +234,7 @@ As a note for people that were not aware, you can name arguments in function cal
  * `p_order` - Allows you to specify the order that data is migrated from the parent/default to the children, either ascending (ASC) or descending (DESC). Default is ASC.
  * `p_lock_wait` - Parameter passed directly through to the underlying partition_data_*() function. Number of seconds to wait on rows that may be locked by another transaction. Default is to wait forever (0).
  * `p_lock_wait_tries` - Parameter to set how many times the procedure will attempt waiting the amount of time set for p_lock_wait. Default is 10 tries.
- * `p_quiet` - Procedures cannot return values, so by default it emmits NOTICE's to show progress. Set this option to silence these notices.
+ * `p_quiet` - Procedures cannot return values, so by default it emits NOTICE's to show progress. Set this option to silence these notices.
 
 *`create_partition_time(p_parent_table text, p_partition_times timestamptz[], p_analyze boolean DEFAULT true, p_debug boolean DEFAULT false) RETURNS boolean`*
 
@@ -439,7 +439,7 @@ As a note for people that were not aware, you can name arguments in function cal
  * `p_keep_table` - Same as the p_keep_table option in the undo_partition() function.
  * `p_lock_wait` - Parameter passed directly through to the underlying partition_data_*() function. Number of seconds to wait on rows that may be locked by another transaction. Default is to wait forever (0).
  * `p_lock_wait_tries` - Parameter to set how many times the procedure will attempt waiting the amount of time set for p_lock_wait. Default is 10 tries.
- * `p_quiet` - Procedures cannot return values, so by default it emmits NOTICE's to show progress. Set this option to silence these notices.
+ * `p_quiet` - Procedures cannot return values, so by default it emits NOTICE's to show progress. Set this option to silence these notices.
 
 
 *`drop_partition_time(p_parent_table text, p_retention interval DEFAULT NULL, p_keep_table boolean DEFAULT NULL, p_keep_index boolean DEFAULT NULL, p_retention_schema text DEFAULT NULL) RETURNS int`*
