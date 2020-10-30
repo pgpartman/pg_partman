@@ -1,6 +1,9 @@
 4.4.1
 
+-- Added documentation for how to use pg_partman with native partitioning.
+-- Fix long present typos mostly in comments, error messages, & docs. (Github PR #315 & #319)
 -- Update description of the pg_partman_bgw.dbname GUC to state that it is not actually optional.
+-- Fix syntax error in reapply_indexes.py
 
 
 4.4.0
