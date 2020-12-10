@@ -1,8 +1,9 @@
 Example Guide On Setting Up Native Partitioning
 ========================================
 
-### TODO UPDATE THIS PARAGRAPH ABOUT partitioning exisitng data
-This HowTo guide will show you some examples of how to set up simple, single level partitioning. It will also show you how to partition data out of a table that has existing data (see **Partitioning an Existing Table**) and undo the partitioning of an existing partition set. For more details on what each function does and the additional features in this extension, please see the **pg_partman.md** documentation file. The examples in this document assume you are running at least 4.4.1 of pg_partman with PostgreSQL 11 or higher. If you need a howto for a previous version, please see an older release available on github to see if one is available. 
+This HowTo guide will show you some examples of how to set up simple, single level partitioning. It will also show you several methods to partition data out of a table that has existing data (see **Partitioning an Existing Table**) and undo the partitioning of an existing partition set (see **Undoing Native Partitioning**). For more details on what each function does and the additional features in this extension, please see the **pg_partman.md** documentation file. 
+
+The examples in this document assume you are running at least 4.4.1 of pg_partman with PostgreSQL 11 or higher. 
 
 Note that all examples here are for native partitioning. If you need to use non-native, trigger-based partitioning, please see the **pg_partman_howto_triggerbased.md** file.
 
@@ -454,7 +455,7 @@ SELECT partman.create_parent('public.new_partitioned_table', 'col3', 'native', '
 The next step is to drop the DEFAULT partition that pg_partman creates for you. 
 ```
 DROP TABLE public.new_partitioned_table_default;
-``
+```
 The state of the new partitioned table should now look something like this. The current time for when this HowTo was written is given for reference:
 ```
 SELECT CURRENT_TIMESTAMP;
@@ -654,3 +655,6 @@ Partitions: original_table_p2020_12_02 FOR VALUES FROM ('2020-12-02 00:00:00-05'
 You can see that created the missing table for Dec 10th.
 
 At this point your new partitioned table should already have been in use and working without any issues!
+
+
+### Undoing Native Partitioning
