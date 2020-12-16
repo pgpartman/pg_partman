@@ -1,6 +1,13 @@
 Example Guide On Setting Up Native Partitioning
 ========================================
 
+- [Simple Time Based: 1 Partition Per Day](#simple-time-based-1-partition-per-day)
+- [Simple Serial ID: 1 Partition Per 10 ID Values](#simple-serial-id-1-partition-Per-10-id-values)
+- [Partitioning an Existing Table](#partitioning-an-existing-table)
+  * [Offline Partitioning](#offline-partitioning)
+  * [Online Partitioning](#online-partitioning)
+- [Undoing Native Partitioning](#undoing-native-partitioning)
+
 This HowTo guide will show you some examples of how to set up simple, single level partitioning. It will also show you several methods to partition data out of a table that has existing data (see [Partitioning an Existing Table](#partitioning-an-existing-table)) and undo the partitioning of an existing partition set (see [Undoing Native Partitioning](#undoing-native-partitioning)). For more details on what each function does and the additional features in this extension, please see the **pg_partman.md** documentation file.
 
 The examples in this document assume you are running at least 4.4.1 of pg_partman with PostgreSQL 11 or higher. 
@@ -99,7 +106,7 @@ Access method: heap
 
 ```
 
-### Simple Serial ID: 1 Partition Per 10 ID Values Starting With Empty Table
+### Simple Serial ID: 1 Partition Per 10 ID Values
 For this use-case, the template table is not created manually before calling `create_parent()`. So it shows that if a primary/unique key is added later, it does not apply to the currently existing child tables. That will have to be done manually. 
 
 ```
