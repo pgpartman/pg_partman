@@ -42,7 +42,7 @@ Indexes:
 Number of partitions: 0
 ```
 
-Unique indexes (including primary keys) cannot be created on a natively partitioned parent unless they include the partition key. For time-based partitioning that generally doesn't work out since that would limit only a single timestamp value in each child table. pg_partman helps to manage this by using a template table to manage properties that currently are not supported by native partitioning. Note that this does *not* solve the issue of the constraint *not* being enforced across the entire partition set. See the main documentation to see which properties are managed by the template, depending on the version of PostgreSQL.
+Unique indexes (including primary keys) cannot be created on a natively partitioned parent unless they include the partition key. For time-based partitioning that generally doesn't work out since that would limit only a single timestamp value in each child table. pg_partman helps to manage this by using a template table to manage properties that currently are not supported by native partitioning. Note that this does *not* solve the issue of the constraint *not* being enforced across the entire partition set. See the [main documentation](pg_partman.md#child-table-property-inheritance) to see which properties are managed by the template, depending on the version of PostgreSQL.
 
 For this example, we are going to manually create the template table first so that when we run `create_parent()` the initial child tables that are created will have a primary key. If you do not supply a template table to pg_partman, it will create one for you in the schema that you installed the extension to. However properties you add to that template are only then applied to newly created child tables after that point. You will have to retroactively apply those properties manually to any child tables that already existed.
 ```
@@ -253,13 +253,13 @@ Partitioning an existing table with native partitioning is not as straight forwa
 #### Offline Partitioning
 
 
-This method is being labelled "offline" because, during points in this process, the data is not accessible to both the new and old table from a single object. The data is moved from the original table to a brand new table. The advantage of this method is that you can move your data in much smaller batches than even the target partition size, which can be a huge efficiency advantage for very large partition sets (you can commit in batches of several thousand vs several million). There is also less object renaming steps as we'll see in the online partitioning method.
+This method is being labelled "offline" because, during points in this process, the data is not accessible to both the new and old table from a single object. The data is moved from the original table to a brand new table. The advantage of this method is that you can move your data in much smaller batches than even the target partition size, which can be a huge efficiency advantage for very large partition sets (you can commit in batches of several thousand vs several million). There are also less object renaming steps as we'll see in the online partitioning method next.
 
 *IMPORTANT NOTE REGUARDING FOREIGN KEYS*
 
 Taking the partitioned table offline is the only method that realistically works when you have foreign keys TO the table being partitioned. Since a brand new table must be created no matter what, the foreign key must also be recreated, so an outage involving all tables that are part of the FK relationship must be taken. A shorter outage may be possible with the online method below, but if you have to take an outage, this offline method is easier.
 
-First here is the original table with some generated data:
+Here is the original table with some generated data:
 
 ```
 CREATE TABLE public.original_table (
@@ -273,11 +273,11 @@ CREATE INDEX ON public.original_table (col1);
 INSERT INTO public.original_table (col1, col2, col3, col4) VALUES (generate_series(1,100000), 'stuff'||generate_series(1,100000), now(), 'stuff');
 ```
 
-First the original table should be renamed so the partitioned table can be made with the original table's name. This makes it so that, when the child tables are created, they have names that are associated with the original table name. 
+First, the original table should be renamed so the partitioned table can be made with the original table's name. This makes it so that, when the child tables are created, they have names that are associated with the original table name. 
 ```
 ALTER TABLE public.original_table RENAME to old_nonpartitioned_table;
 ```
-We'll use the serial partitioning example from above. The initial setup is exactly the same, creating a brand new table that will be the parent and then running create_parent() on it. We'll make the interval slightly larger this time. Also, make sure you've applied all the same original properties to this new table that the old table had: privileges, constraints, defaults, indexes, etc. Privileges are especially important to make sure they match so that all users of the table will continue to work after the conversion.
+We'll use the serial partitioning example from above. The initial setup is exactly the same, creating a brand new table that will be the parent and then running `create_parent()` on it. We'll make the interval slightly larger this time. Also, make sure you've applied all the same original properties to this new table that the old table had: privileges, constraints, defaults, indexes, etc. Privileges are especially important to make sure they match so that all users of the table will continue to work after the conversion.
 
 Note that primary keys/unique indexes cannot be applied to a partitioned parent unless the partition key is part of it. In this case that would work, however it's likely not the intention since that would mean only one row per value is allowed and that would mean only 10,000 rows could ever exist in each child table. Partitioning is definitely not needed then. The next example of online partitioning will show how to handle when you need a primary key for a column that is not part of the partition key.
 
@@ -463,7 +463,7 @@ The next step is to drop the DEFAULT partition that pg_partman creates for you.
 ```
 DROP TABLE public.new_partitioned_table_default;
 ```
-The state of the new partitioned table should now look something like this. The current time for when this HowTo was written is given for reference:
+The state of the new partitioned table should now look something like this. The current date for when this HowTo was written is given for reference:
 ```
 SELECT CURRENT_TIMESTAMP;
        current_timestamp       
@@ -563,7 +563,7 @@ If you were using an IDENTITY column with GENERATED ALWAYS before, you'll want t
 ```
 ALTER TABLE public.original_table ALTER col1 SET GENERATED ALWAYS;
 ```
-Now, double-check that there aren't any child table names that don't conform to the pattern that pg_partman created for the new child tables that it generated while partitioning out the data. pg_partman expects a specific format for the child tables it manages, so if they don't all match, maintenance may not work as expected
+Now, double-check that there are no child table names that don't conform to the pattern that pg_partman uses for the new child tables. pg_partman expects a specific format for the child tables it manages, so if they don't all match, maintenance may not work as expected
 ```
 \d+ original_table;
                                               Partitioned table "public.original_table"
@@ -619,7 +619,7 @@ Before this, depending on the child tables that were generated and the new data 
 ```
 SELECT * FROM partman.check_default(p_exact_count := true);
 ```
-If you don't pass "true" to the function, it just returns a 1 or 0 depending on if any data exists in any default. This is convenient for monitoring situations and it can also be quicker since it stops checking as soon as it finds data in any child table. However, in this case we want to see exactly what our situation is, so passing true will give us an exact count of how many rows are left in the default.
+If you don't pass "true" to the function, it just returns a 1 or 0 to indicate if any data exists in any default. This is convenient for monitoring situations and it can also be quicker since it stops checking as soon as it finds data in any child table. However, in this case we want to see exactly what our situation is, so passing true will give us an exact count of how many rows are left in the default.
 
 You'll also notice that there is a child table missing in the set above (Dec 10, 2020). This is because we set the partition table to start 2 days ahead and we didn't have any data for that date in the original table. You can fix this one of two ways:
 
@@ -684,7 +684,7 @@ CREATE TABLE public.new_regular_table (
 CREATE INDEX ON public.new_regular_table (col3);
 ```
 
-Now we can use the `undo_partition_proc()` procedure to move the data out of our partitioned table to the regular table.  We can even  chose a smaller interval size for this as well to reduce the transaction runtime for each batch. The batch size is a default of 1, which would only run the given interval one time. We want to undo the entire thing with one call, so pass a number at high enough to run through all batches. It will stop when all the data has been moved, even if you passed a higher batch number. We also don't need to keep the old child tables once they're empty, so that is set to false. There are several other options for the undo procedure (keeping or dropping old tables, wait time, etc). See the documentation for more information on those.
+Now we can use the `undo_partition_proc()` procedure to move the data out of our partitioned table to the regular table.  We can even  chose a smaller interval size for this as well to reduce the transaction runtime for each batch. The batch size is a default of 1, which would only run the given interval one time. We want to undo the entire thing with one call, so pass a number at high enough to run through all batches. It will stop when all the data has been moved, even if you passed a higher batch number. We also don't need to keep the old child tables once they're empty, so that is set to false. See the documentation for more information on other options for the undo functions/procedure.
 ```
 CALL partman.undo_partition_proc('public.original_table', p_interval := '1 hour'::text, p_batch := 500, p_target_table := 'public.new_regular_table', p_keep_table := false);
 
