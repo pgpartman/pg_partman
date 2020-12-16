@@ -1,11 +1,11 @@
 Example Guide On Setting Up Native Partitioning
 ========================================
 
-This HowTo guide will show you some examples of how to set up simple, single level partitioning. It will also show you several methods to partition data out of a table that has existing data (see **Partitioning an Existing Table**) and undo the partitioning of an existing partition set (see **Undoing Native Partitioning**). For more details on what each function does and the additional features in this extension, please see the **pg_partman.md** documentation file. 
+This HowTo guide will show you some examples of how to set up simple, single level partitioning. It will also show you several methods to partition data out of a table that has existing data (see [Partitioning an Existing Table](partitioning-an-existing-table)) and undo the partitioning of an existing partition set (see [Undoing Native Partitioning](undoing-native-partitioning)). For more details on what each function does and the additional features in this extension, please see the **pg_partman.md** documentation file.
 
 The examples in this document assume you are running at least 4.4.1 of pg_partman with PostgreSQL 11 or higher. 
 
-Note that all examples here are for native partitioning. If you need to use non-native, trigger-based partitioning, please see the **pg_partman_howto_triggerbased.md** file.
+Note that all examples here are for native partitioning. If you need to use non-native, trigger-based partitioning, please see the [Trigger-based HowTo](pg_partman_howto_triggerbased.md) file.
 
 ### Simple Time Based: 1 Partition Per Day
 For native partitioning, you must start with a parent table that has already been set up to be partitioned in the desired type. Currently pg_partman only supports the RANGE type of partitioning (both for time & id). You cannot turn a non-partitioned table into the parent table of a partitioned set, which can make migration a challenge. This document will show you some techniques for how to manage this later. For now, we will start with a brand new table for this example. Any non-unique indexes can also be added to the parent table in PG11+ and they will automatically be created on all child tables.
@@ -660,7 +660,7 @@ SELECT * FROM original_table ORDER BY col1 DESC limit 5;
 ```
 
 
-### Undoing Native Partitioning (offline)
+### Undoing Native Partitioning
 
 Just as a normal table cannot be converted to a natively partitioned table, the opposite is also true. To undo native partitioning, you must move the data to a brand new table. There may be a way to do this online, but I do not currently have such a method planned out. If someone would like to submit a method or request that I look into it further, please feel free to make an issue on Github. The below method shows how to undo the daily partitioned example above, including handling an IDENTITY column if necessary.
 
