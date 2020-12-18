@@ -364,7 +364,7 @@ SELECT count(*) FROM original_table;
 (1 row)
 
 
-keith@keith=# \d+ public.original_table
+\d+ public.original_table
                                  Partitioned table "public.original_table"
  Column |           Type           | Collation | Nullable | Default | Storage  | Stats target | Description 
 --------+--------------------------+-----------+----------+---------+----------+--------------+-------------
@@ -500,7 +500,7 @@ The next step, which is actually multiple steps in a single transaction, is the 
 1. Add original table as the DEFAULT for the partition set
 1. COMMIT transaction
 
-If you are using an IDENTITY column, it is important to get its last value while the original table is locked and BEFORE you drop the old identity. Then use that returned value in the statement to RESET the IDENTITY column in the new table. A query to obtain this is provided in the SQL statements below
+If you are using an IDENTITY column, it is important to get its last value while the original table is locked and BEFORE you drop the old identity. Then use that returned value in the statement to RESET the IDENTITY column in the new table. A query to obtain this is provided in the SQL statements below.
 
 If at any point there is a problem with one of these mini-steps, just perform a ROLLBACK and you should return to the previous state and allow your original table to work as it was before.
 
