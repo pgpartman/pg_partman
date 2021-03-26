@@ -11,6 +11,7 @@ v_dupe_found            boolean := false;
 v_fk_list               record;
 v_index_list            record;
 v_inherit_fk            boolean;
+v_relopt                record;
 v_parent_index_list     record;
 v_parent_oid            oid;
 v_parent_table          text;
@@ -213,6 +214,20 @@ ELSIF v_template_unlogged = 'p' AND v_child_unlogged = 'u'  THEN
     RAISE DEBUG 'Alter UNLOGGED: %', v_sql;
     EXECUTE v_sql;     
 END IF;
+
+-- Relopts
+FOR v_relopt IN
+    SELECT unnest(reloptions) as value
+    FROM pg_catalog.pg_class
+    WHERE oid = v_template_oid
+LOOP
+    v_sql := format('ALTER TABLE %I.%I set (%s)'
+                    , v_child_schema
+                    , v_child_tablename
+                    , v_relopt.value);
+    RAISE DEBUG 'Set relopts: %', v_sql;
+    EXECUTE v_sql;
+END LOOP;
 
 RETURN true;
 
