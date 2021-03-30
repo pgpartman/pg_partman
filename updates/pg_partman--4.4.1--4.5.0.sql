@@ -1,3 +1,6 @@
+-- Allow upgrades for anyone that may have installed 4.4.1
+
+-- 4.5.0
 -- Officially supported minimal version is now PostgreSQL 9.6. PostgreSQL 9.6 support will be ending the next pg_partman release after PostgreSQL 14 is released.
 
 -- Fixed issue when upgrading from 4.4.0 to 4.4.1 on PG10 and below. Upgrade path now goes directly from 4.4.0 to 4.5.0 and skips 4.4.1. All changes in 4.4.1 have been included in 4.5.0 where necessary. (Github Issue #342)
@@ -70,7 +73,6 @@ FROM information_schema.routine_privileges
 WHERE routine_schema = '@extschema@'
 AND routine_name = 'undo_partition'; 
 
---TODO PRESERVE PRIVILEGES. don't forget procedure in pg11+ only section below
 DROP FUNCTION @extschema@.create_partition_id(text, bigint[], boolean, boolean);
 DROP FUNCTION @extschema@.create_partition_time(text, timestamptz[], boolean, boolean); 
 DROP FUNCTION @extschema@.create_sub_parent(text, text, text, text, text, text[], int, text, boolean, text, text, boolean, boolean, boolean); 
