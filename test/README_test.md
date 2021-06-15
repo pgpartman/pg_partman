@@ -7,6 +7,10 @@ http://pgTAP.org/
 
 A minimum version of pgtap 0.99.1 is required for pg_partman's test suite.
 
+## General Setup
+
+WARNING: You MUST increase `max_locks_per_transaction` above the default value of 64. For me, 128 has worked well so far. This is due to the sub-partitioning tests that create/destroy several hundred tables in a single transaction. If you don't do this, you risk a cluster crash when running subpartitioning tests.
+
 Tests assume that the required extensions have been installed in the following schemas:
 
     pg_partman: partman
@@ -20,7 +24,30 @@ Once that's done, it's best to use the **pg_prove** script that pgTAP comes with
 
     pg_prove -ovf /path/to/partman/test/*.sql
 
-For most tests, they must be run by a superuser since roles & schemas are created & dropped as part of the test. There is a separate test script for each of the partitioning types. The tests are not required to run pg_partman, so if you don't feel safe doing this you don't need to run the tests. But if you are running into problems and report any issues without a clear explanation of what is wrong, I will ask that you run the test suite so you can try and narrow down where the problem may be. You are free to look through to tests to see exactly what they're doing. All tests in the top level of the test folder are run inside a transaction that is rolled back, so they should not change anything (except jobmon logging as mentioned).
+Most tests must be run by a superuser since roles & schemas are created & dropped as part of the test. There is a separate test script for each of the partitioning types. The tests are not required to run pg_partman, so if you don't feel safe doing this you don't need to run the tests. But if you are running into problems and report any issues without a clear explanation of what is wrong, I will ask that you run the test suite so you can try and narrow down where the problem may be. You are free to look through to tests to see exactly what they're doing. All tests in the top level of the test folder are run inside a transaction that is rolled back, so they should not change anything (except jobmon logging as mentioned).
+
+## Docker Environment
+
+If you don't have a build environment setup on your local machine, the project provides a docker container setup for your convenience. As long as Docker is installer, you can use the following commands to run tests:
+
+    # Build and start container (must be run in the project root):
+    docker build -t partman_test_image .
+    docker run -d --name partman_test -v $(pwd):/home/pg_partman partman_test_image
+
+    # Logon to container shell:
+    docker exec -it partman_test bash
+
+    # For each test cycle (on the container shell):
+    /build_for_tests.sh
+    pg_prove -ovf -U postgres -d partman_test /home/pg_partman/test/<test_file_path>.sql
+
+    # Tear down container:
+    docker stop partman_test
+    docker rm partman_test
+
+The Docker container volumizes the project working directory so that any changes to your local copy of the project are reflected immediately on the container. This volumization allows rapid iteration without stopping and starting the container frequently. The [build_for_tests.sh](build_for_tests.sh) script automatically rebuilds the extension, installs it, and creates a fresh database with both pgTAP and the project extension installed.
+
+## Specific Test Types
 
 Tests for the time-custom partition type are in their own folder. The 30second test frequently errors out if run in certain 30 second blocks. Waiting for the next 30 second block and running it again should allow it to pass. Same goes for the 30 second test in the native folder. 
 
