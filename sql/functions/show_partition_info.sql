@@ -80,25 +80,44 @@ v_suffix := substring(v_child_tablename from v_suffix_position);
 
 IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
 
-        IF v_partition_interval::interval <> '3 months' OR (v_partition_interval::interval = '3 months' AND v_partition_type = 'time-custom') THEN
-           child_start_time := to_timestamp(v_suffix, v_datetime_string);
+        IF CURRENT_SETTING('server_version_num')::INT >= 120000 THEN
+          SELECT
+            t1.match
+          INTO child_start_time
+          FROM
+            pg_class t2
+              JOIN LATERAL (
+              SELECT
+                UNNEST(t3)::TIMESTAMPTZ AS match
+              FROM
+                REGEXP_MATCHES(PG_GET_EXPR(t2.relpartbound, t2.oid, TRUE),
+                               $REGEX$'\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}\+\d{2}'\)$REGEX$) t3
+              ) t1
+                   ON TRUE
+          WHERE
+            t2.oid = (v_child_schema || '.' || v_child_tablename)::REGCLASS;
         ELSE
+          IF v_partition_interval::INTERVAL <> '3 months' OR
+             (v_partition_interval::INTERVAL = '3 months' AND v_partition_type = 'time-custom') THEN
+            child_start_time := TO_TIMESTAMP(v_suffix, v_datetime_string);
+          ELSE
             -- to_timestamp doesn't recognize 'Q' date string formater. Handle it
-            v_year := split_part(v_suffix, 'q', 1);
-            v_quarter := split_part(v_suffix, 'q', 2);
+            v_year := SPLIT_PART(v_suffix, 'q', 1);
+            v_quarter := SPLIT_PART(v_suffix, 'q', 2);
             CASE
-                WHEN v_quarter = '1' THEN
-                    child_start_time := to_timestamp(v_year || '-01-01', 'YYYY-MM-DD');
-                WHEN v_quarter = '2' THEN
-                    child_start_time := to_timestamp(v_year || '-04-01', 'YYYY-MM-DD');
-                WHEN v_quarter = '3' THEN
-                    child_start_time := to_timestamp(v_year || '-07-01', 'YYYY-MM-DD');
-                WHEN v_quarter = '4' THEN
-                    child_start_time := to_timestamp(v_year || '-10-01', 'YYYY-MM-DD');
-                ELSE
-                    -- handle case when partition name did not use "q" convetion
-                    child_start_time := to_timestamp(v_suffix, v_datetime_string);
+              WHEN v_quarter = '1' THEN
+                child_start_time := TO_TIMESTAMP(v_year || '-01-01', 'YYYY-MM-DD');
+              WHEN v_quarter = '2' THEN
+                child_start_time := TO_TIMESTAMP(v_year || '-04-01', 'YYYY-MM-DD');
+              WHEN v_quarter = '3' THEN
+                child_start_time := TO_TIMESTAMP(v_year || '-07-01', 'YYYY-MM-DD');
+              WHEN v_quarter = '4' THEN
+                child_start_time := TO_TIMESTAMP(v_year || '-10-01', 'YYYY-MM-DD');
+              ELSE
+                -- handle case when partition name did not use "q" convetion
+                child_start_time := TO_TIMESTAMP(v_suffix, v_datetime_string);
             END CASE;
+          END IF;
         END IF;
 
         child_end_time := (child_start_time + v_partition_interval::interval);
