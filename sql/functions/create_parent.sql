@@ -387,48 +387,49 @@ IF v_control_type = 'time' OR (v_control_type = 'id' AND p_epoch <> 'none') THEN
             END IF;
     END CASE;
 
-   -- First partition is either the min premake or p_start_partition
+    -- First partition is either the min premake or p_start_partition
     v_start_time := COALESCE(p_start_partition::timestamptz, CURRENT_TIMESTAMP - (v_time_interval * p_premake));
+    v_base_timestamp := p_start_partition::TIMESTAMPTZ;
 
     IF v_time_interval >= '1 year' THEN
-        v_base_timestamp := date_trunc('year', v_start_time);
-        IF v_time_interval >= '10 years' THEN
-            v_base_timestamp := date_trunc('decade', v_start_time);
-            IF v_time_interval >= '100 years' THEN
-                v_base_timestamp := date_trunc('century', v_start_time);
-                IF v_time_interval >= '1000 years' THEN
-                    v_base_timestamp := date_trunc('millennium', v_start_time);
-                END IF; -- 1000
-            END IF; -- 100
-        END IF; -- 10
+      v_base_timestamp := COALESCE(v_base_timestamp, DATE_TRUNC('year', v_start_time));
+      IF v_time_interval >= '10 years' THEN
+        v_base_timestamp := COALESCE(v_base_timestamp, DATE_TRUNC('decade', v_start_time));
+        IF v_time_interval >= '100 years' THEN
+          v_base_timestamp := COALESCE(v_base_timestamp, DATE_TRUNC('century', v_start_time));
+          IF v_time_interval >= '1000 years' THEN
+            v_base_timestamp := COALESCE(v_base_timestamp, DATE_TRUNC('millennium', v_start_time));
+          END IF; -- 1000
+        END IF; -- 100
+      END IF; -- 10
     END IF; -- 1
 
     v_datetime_string := 'YYYY';
     IF v_time_interval < '1 year' THEN
-        IF p_interval = 'quarterly' THEN
-            v_base_timestamp := date_trunc('quarter', v_start_time);
-            v_datetime_string = 'YYYY"q"Q';
+      IF p_interval = 'quarterly' THEN
+        v_base_timestamp := COALESCE(v_base_timestamp, DATE_TRUNC('quarter', v_start_time));
+        v_datetime_string = 'YYYY"q"Q';
+      ELSE
+        v_base_timestamp := COALESCE(v_base_timestamp, DATE_TRUNC('month', v_start_time));
+        v_datetime_string := v_datetime_string || '_MM';
+      END IF;
+      IF v_time_interval < '1 month' THEN
+        IF p_interval = 'weekly' THEN
+          v_base_timestamp := COALESCE(v_base_timestamp, DATE_TRUNC('week', v_start_time));
+          v_datetime_string := 'IYYY"w"IW';
         ELSE
-            v_base_timestamp := date_trunc('month', v_start_time); 
-            v_datetime_string := v_datetime_string || '_MM';
+          v_base_timestamp := COALESCE(v_base_timestamp, DATE_TRUNC('day', v_start_time));
+          v_datetime_string := v_datetime_string || '_DD';
         END IF;
-        IF v_time_interval < '1 month' THEN
-            IF p_interval = 'weekly' THEN
-                v_base_timestamp := date_trunc('week', v_start_time);
-                v_datetime_string := 'IYYY"w"IW';
-            ELSE 
-                v_base_timestamp := date_trunc('day', v_start_time);
-                v_datetime_string := v_datetime_string || '_DD';
-            END IF;
-            IF v_time_interval < '1 day' THEN
-                v_base_timestamp := date_trunc('hour', v_start_time);
-                v_datetime_string := v_datetime_string || '_HH24MI';
-                IF v_time_interval < '1 minute' THEN
-                    v_base_timestamp := date_trunc('minute', v_start_time);
-                    v_datetime_string := v_datetime_string || 'SS';
-                END IF; -- minute
-            END IF; -- day
-        END IF; -- month
+        IF v_time_interval < '1 day' THEN
+          v_base_timestamp := COALESCE(v_base_timestamp, DATE_TRUNC('hour', v_start_time));
+          v_datetime_string := v_datetime_string || '_HH24MI';
+          IF v_time_interval < '1 minute' THEN
+            v_base_timestamp := COALESCE(v_base_timestamp, DATE_TRUNC('minute', v_start_time));
+            v_datetime_string := v_datetime_string || 'SS';
+          END IF; -- minute
+        END IF; -- day
+      END IF; -- month
     END IF; -- year
 
     v_partition_time_array := array_append(v_partition_time_array, v_base_timestamp);
