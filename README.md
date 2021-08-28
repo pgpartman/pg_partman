@@ -60,6 +60,7 @@ As of version 4.1.0, pg_partman no longer requires a superuser to run for native
     GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA partman TO partman;
     GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA partman TO partman;  -- PG11+ only
     GRANT ALL ON SCHEMA my_partition_schema TO partman;
+    GRANT TEMPORARY ON DATABASE mydb to partman; -- allow creation of temp tables to move data out of default 
 
 If you need the role to also be able to create schemas, you will need to grant create on the database as well. In general this shouldn't be required as long as you give the above role CREATE privileges on any pre-existing schemas that will contain partition sets.
 

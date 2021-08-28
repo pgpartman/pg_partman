@@ -175,7 +175,6 @@ SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTA
 --INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(200,210), extract('epoch' from CURRENT_TIMESTAMP + '20 weeks'::interval)::int);
 --SELECT results_eq('SELECT count(*)::int FROM ONLY partman_test.time_taptest_table', ARRAY[11], 'Check that data outside trigger scope goes to parent');
 
-
 SELECT drop_partition_time('partman_test.time_taptest_table', '3 weeks', p_keep_table := false);
 SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'4 weeks'::interval, 'IYYY"w"IW'), 
     'Check time_taptest_table_'||to_char(CURRENT_TIMESTAMP-'4 weeks'::interval, 'IYYY"w"IW')||' does not exist (-4 weeks)');
