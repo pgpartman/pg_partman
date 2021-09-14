@@ -335,8 +335,8 @@ As a note for people that were not aware, you can name arguments in function cal
   * Given a schema-qualified child table name (p_child_table), return the relevant boundary values of that child as well as the suffix appended to the child table name.
   * `p_partition_interval` - If given, return boundary results based on this interval. If not given, function looks up the interval stored in the part_config table for this partition set.
   * `p_parent_table` - Optional argument that can be given when parent_table is known and to avoid a catalog lookup for the parent table associated with p_child_table.
-  * `OUT child_start_times & child_end_time` - Function returns values for these output parameters if the partition set is time-based. Otherwise outputs NULL.
-  * `OUT child_start_id & child_end_id` - Function returns values for these output parameters if the partition set is integer-based. Otherwise outputs NULL.
+  * `OUT child_start_times & child_end_time` - Function returns values for these output parameters if the partition set is time-based. Otherwise outputs NULL. Note that start value is INCLUSIVE and end value is EXCLUSIVE of the given child table boundaries, exactly as they are defined in the database.
+  * `OUT child_start_id & child_end_id` - Function returns values for these output parameters if the partition set is integer-based. Otherwise outputs NULL. Note that start value is INCLUSIVE and end value is EXCLUSIVE of the given child table boundaries, exactly as they are defined in the database.
   * `OUT suffix` - Outputs the text portition appended to the child table that identifies its contents minus the "_p" (Ex "2020_01_30" OR "920000"). Useful for generating your own suffixes for partitioning similar to how pg_partman does it.
 
 
@@ -558,7 +558,7 @@ Stores all configuration data for partition sets mananged by the extension.
 
  * Stores all configuration data for sub-partitioned sets managed by `pg_partman`.
  * The **`sub_parent`** column is the parent table of the subpartition set and all other columns govern how that parent's children are subpartitioned.
- * All columns except `sub_parent` work the same exact way as their counterparts in the **`part_config`** table.
+ * All columns except `sub_parent` work the same exact way as their counterparts in the **`part_config`** table or parameters passed to `create_parent()`.
 
 ### Scripts
 

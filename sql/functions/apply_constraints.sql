@@ -74,7 +74,7 @@ WHERE parent_table = p_parent_table
 AND constraint_cols IS NOT NULL;
 
 IF v_constraint_cols IS NULL THEN
-    RAISE DEBUG 'Given parent table (%) not set up for constraint management (constraint_cols is NULL)', p_parent_table;
+    RAISE DEBUG 'apply_constraints: Given parent table (%) not set up for constraint management (constraint_cols is NULL)', p_parent_table;
     -- Returns silently to allow this function to be simply called by maintenance processes without having to check if config options are set.
     RETURN;
 END IF;
@@ -120,9 +120,10 @@ IF p_child_table IS NULL THEN
         v_partition_suffix := (v_last_partition_id - (v_partition_interval::int * (v_optimize_constraint + v_premake + 1) ))::text; 
     END IF;
 
-    v_child_tablename := @extschema@.check_name_length(v_parent_tablename, v_partition_suffix, TRUE);
+    RAISE DEBUG 'apply_constraint: v_parent_tablename: %, v_last_partition: %, v_last_partition_timestamp: %, v_partition_suffix: %'
+                , v_parent_tablename, v_last_partition, v_last_partition_timestamp, v_partition_suffix;
 
-    RAISE DEBUG 'apply_constraint: v_parent_tablename: % , v_partition_suffix: %', v_parent_tablename, v_partition_suffix;
+    v_child_tablename := @extschema@.check_name_length(v_parent_tablename, v_partition_suffix, TRUE);
 
     IF v_jobmon_schema IS NOT NULL THEN
         PERFORM update_step(v_step_id, 'OK', format('Target child table: %s.%s', v_parent_schema, v_child_tablename));

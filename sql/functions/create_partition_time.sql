@@ -140,7 +140,11 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
 
     -- Do not create the child table if it's outside the bounds of the top parent. 
     IF v_sub_timestamp_min IS NOT NULL THEN
-        IF v_time < v_sub_timestamp_min OR v_time > v_sub_timestamp_max THEN
+        IF v_time < v_sub_timestamp_min OR v_time >= v_sub_timestamp_max THEN
+
+            RAISE DEBUG 'create_partition_time: p_parent_table: %, v_time: %, v_sub_timestamp_min: %, v_sub_timestamp_max: %'
+                    , p_parent_table, v_time, v_sub_timestamp_min, v_sub_timestamp_max;
+
             CONTINUE;
         END IF;
     END IF;
@@ -369,6 +373,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             , sub_inherit_privileges
             , sub_constraint_valid
             , sub_subscription_refresh
+            , sub_date_trunc_interval
         FROM @extschema@.part_config_sub
         WHERE sub_parent = p_parent_table
     LOOP
@@ -387,7 +392,8 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
                 , p_epoch := %L
                 , p_template_table := %L
                 , p_jobmon := %L
-                , p_start_partition := %L )'
+                , p_start_partition := %L
+                , p_date_trunc_interval := %L )'
             , v_parent_schema||'.'||v_partition_name
             , v_row.sub_control
             , v_row.sub_partition_type
@@ -399,7 +405,8 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             , v_row.sub_epoch
             , v_row.sub_template_table
             , v_row.sub_jobmon
-            , p_start_partition);
+            , p_start_partition
+            , v_row.sub_date_trunc_interval);
         
         RAISE DEBUG 'create_partition_time (create_parent loop): %', v_sql;
         EXECUTE v_sql;
