@@ -3973,9 +3973,7 @@ TRUNCATE partman_preserve_privs_temp;
 DO $pg11only$
 DECLARE
 
-v_partition_data_proc_sql        text;
 v_undo_partition_proc_sql        text;
-v_run_maintenance_proc_sql       text;
 
 BEGIN
 IF current_setting('server_version_num')::int >= 110000 THEN
@@ -3987,10 +3985,9 @@ FROM information_schema.routine_privileges
 WHERE routine_schema = '@extschema@'
 AND routine_name = 'undo_partition_proc'; 
 
-
 DROP PROCEDURE @extschema@.undo_partition_proc(text, text, int, int, text, boolean, int, int, boolean, text[]);
 
-
+v_undo_partition_proc_sql := $undo_partition_proc$
 CREATE PROCEDURE @extschema@.undo_partition_proc(
     p_parent_table text
     , p_interval text DEFAULT NULL
@@ -4152,6 +4149,9 @@ RAISE NOTICE 'Ensure to VACUUM ANALYZE the old parent & target table after undo 
 END
 $$;
 
+$undo_partition_proc$;
+
+EXECUTE v_undo_partition_proc_sql;
 
 -- Restore dropped object privileges
 DO $$
