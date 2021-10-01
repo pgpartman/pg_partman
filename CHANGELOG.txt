@@ -1,11 +1,15 @@
 4.6.0
 NEW FEATURES
 ============
+-- Support for PostgreSQL 14
+
 -- Added p_drop_cascade option to undo_partition()/undo_partition_proc() to allow undoing sub-partition sets from parent tables higher in the inheritance tree. Only applies when p_keep_tables is set to false. Note this causes all child tables below a sub-partition parent to be dropped when that parent is dropped.
 
 -- Better support NOTIFY commands with the extension's built-in background worker. Thank you to @eisaev on Github for this fix.  (GitHub Issue #384).
 
 -- Deprecate pg_partman's specialized UPSERT support for native partitioning in PG11+. Raise error for users to use built-in INSERT ON CONFLICT feature instead.
+
+-- Added new optional parameter to drop_partition_time() to tell partman to use a different reference timestamp from which to determine which partitions should be affected. Thanks to @wesselvdv on Github for this feature (Github PR#386).
 
 
 BUG FIXES
@@ -18,7 +22,7 @@ BUG FIXES
 
 -- Fixed edge case in sub-partitioning where an additional subpartition child table could be created that is just outside the max boundary limit of its parent table boundaries. 
 
-
+-- Better handling of large interval values in ID partitioning (bigint). Thanks to @calebj on Github for reporting the issue and providing a fix (Github Issue #388).
 
 4.5.1
 NEW FEATURES

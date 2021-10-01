@@ -117,7 +117,7 @@ IF p_child_table IS NULL THEN
         v_partition_suffix := to_char(v_last_partition_timestamp - (v_partition_interval::interval * (v_optimize_constraint + v_premake + 1) ), v_datetime_string);
     ELSIF v_control_type = 'id' THEN
         SELECT child_start_id INTO v_last_partition_id FROM @extschema@.show_partition_info(v_parent_schema||'.'||v_last_partition, v_partition_interval, v_parent_table);
-        v_partition_suffix := (v_last_partition_id - (v_partition_interval::int * (v_optimize_constraint + v_premake + 1) ))::text; 
+        v_partition_suffix := (v_last_partition_id - (v_partition_interval::bigint * (v_optimize_constraint + v_premake + 1) ))::text; 
     END IF;
 
     RAISE DEBUG 'apply_constraint: v_parent_tablename: %, v_last_partition: %, v_last_partition_timestamp: %, v_partition_suffix: %'

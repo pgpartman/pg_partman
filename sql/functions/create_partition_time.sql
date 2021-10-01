@@ -258,16 +258,16 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
                     , v_parent_tablename
                     , v_parent_schema
                     , v_partition_name
-                    , EXTRACT('epoch' FROM v_partition_timestamp_start)
-                    , EXTRACT('epoch' FROM v_partition_timestamp_end));
+                    , EXTRACT('epoch' FROM v_partition_timestamp_start)::bigint
+                    , EXTRACT('epoch' FROM v_partition_timestamp_end)::bigint);
             ELSIF v_epoch = 'milliseconds' THEN
                 EXECUTE format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I FOR VALUES FROM (%L) TO (%L)'
                     , v_parent_schema
                     , v_parent_tablename
                     , v_parent_schema
                     , v_partition_name
-                    , EXTRACT('epoch' FROM v_partition_timestamp_start) * 1000
-                    , EXTRACT('epoch' FROM v_partition_timestamp_end) * 1000);
+                    , EXTRACT('epoch' FROM v_partition_timestamp_start)::bigint * 1000
+                    , EXTRACT('epoch' FROM v_partition_timestamp_end)::bigint * 1000);
             END IF;
             -- Create secondary, time-based constraint since native's constraint is already integer based
             EXECUTE format('ALTER TABLE %I.%I ADD CONSTRAINT %I CHECK (%s >= %L AND %4$s < %6$L)'
@@ -299,18 +299,18 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
                             , v_partition_name
                             , v_partition_name||'_partition_int_check'
                             , v_control
-                            , EXTRACT('epoch' from v_partition_timestamp_start)
+                            , EXTRACT('epoch' from v_partition_timestamp_start)::bigint
                             , v_control
-                            , EXTRACT('epoch' from v_partition_timestamp_end) );
+                            , EXTRACT('epoch' from v_partition_timestamp_end)::bigint );
         ELSIF v_epoch = 'milliseconds' THEN
             EXECUTE format('ALTER TABLE %I.%I ADD CONSTRAINT %I CHECK (%I >= %L AND %I < %L)'
                             , v_parent_schema
                             , v_partition_name
                             , v_partition_name||'_partition_int_check'
                             , v_control
-                            , EXTRACT('epoch' from v_partition_timestamp_start) * 1000
+                            , EXTRACT('epoch' from v_partition_timestamp_start)::bigint * 1000
                             , v_control
-                            , EXTRACT('epoch' from v_partition_timestamp_end) * 1000);
+                            , EXTRACT('epoch' from v_partition_timestamp_end)::bigint * 1000);
         END IF;
 
         EXECUTE format('ALTER TABLE %I.%I INHERIT %I.%I'
