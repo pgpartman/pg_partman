@@ -16,10 +16,6 @@
 
 -- Added new optional parameter to drop_partition_time() to tell partman to use a different reference timestamp from which to determine which partitions should be affected. Thanks to @wesselvdv on Github for this feature (Github PR#386).
 
--- TODO Install 4.5.1 with existing partition set. Upgrade to 4.6.0 and test (daily, weekly, int)
--- TODO Update docs
-
-
 ALTER TABLE @extschema@.part_config ADD COLUMN drop_cascade_fk BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE @extschema@.part_config_sub ADD COLUMN sub_date_trunc_interval TEXT;
 
@@ -49,12 +45,17 @@ FROM information_schema.routine_privileges
 WHERE routine_schema = '@extschema@'
 AND routine_name = 'undo_partition'; 
 
+INSERT INTO partman_preserve_privs_temp 
+SELECT 'GRANT EXECUTE ON FUNCTION @extschema@.drop_partition_time(text, interval, boolean, boolean, text, timestamptz) TO '||array_to_string(array_agg(grantee::text), ',')||';' 
+FROM information_schema.routine_privileges
+WHERE routine_schema = '@extschema@'
+AND routine_name = 'drop_partition_time'; 
 
 DROP FUNCTION @extschema@.check_subpart_sameconfig(text);
 DROP FUNCTION @extschema@.create_parent(text, text, text, text, text[], int, text, text, boolean, text, text, text[], boolean, text, boolean);
 DROP FUNCTION @extschema@.create_sub_parent(text, text, text, text, text, text[], int, text, boolean, text, text, boolean, boolean);
 DROP FUNCTION @extschema@.undo_partition(text, int, text, boolean, numeric, text, text[]);
-
+DROP FUNCTION @extschema@.drop_partition_time(text, interval, boolean, boolean, text);
 
 CREATE OR REPLACE FUNCTION @extschema@.drop_partition_id(p_parent_table text, p_retention bigint DEFAULT NULL, p_keep_table boolean DEFAULT NULL, p_keep_index boolean DEFAULT NULL, p_retention_schema text DEFAULT NULL) RETURNS int
     LANGUAGE plpgsql
@@ -363,7 +364,7 @@ END
 $$;
 
 
-CREATE OR REPLACE FUNCTION @extschema@.drop_partition_time(p_parent_table text, p_retention interval DEFAULT NULL, p_keep_table boolean DEFAULT NULL, p_keep_index boolean DEFAULT NULL, p_retention_schema text DEFAULT NULL, p_reference_timestamp TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP) RETURNS int
+CREATE FUNCTION @extschema@.drop_partition_time(p_parent_table text, p_retention interval DEFAULT NULL, p_keep_table boolean DEFAULT NULL, p_keep_index boolean DEFAULT NULL, p_retention_schema text DEFAULT NULL, p_reference_timestamp timestamptz DEFAULT CURRENT_TIMESTAMP) RETURNS int
     LANGUAGE plpgsql
     AS $$
 DECLARE
