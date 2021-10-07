@@ -42,6 +42,14 @@ IMPORTANT NOTES:
 
  * The UNLOGGED status was moved to the template table as of v4.2.0 of pg_partman. This is due to an inconsistency in the way the property is handled when either enabling or disabling UNLOGGED on the parent table of a native partition set. That property does not actually change when the ALTER command is written so new child tables will continue to use the property that existed before. So if you wanted to change a partition set from UNLOGGED to LOGGED for all future children, it does not work. With the property now being managed on the template table, changing it there will allow the change to propogate to newly created children. Pre-existing child tables will have to be changed manually, but that has always been the case. See reported bug at https://www.postgresql.org/message-id/flat/15954-b61523bed4b110c4%40postgresql.org
 
+### Time Zones
+
+It is important to ensure that the time zones for all systems that will be running pg_partman maintenance operations are consistent, especially when running time-based partitioning. The calls to pg_partman functions will use the time zone that is set by the client at the time the functions are called. This is consistent with the way PostgreSQL clients work in general.
+
+It is highly recommended to run your database system in UTC time to overcome issues that are currently not possible to solve due to Daylight Saving time changes. Then also ensure the client that will be creating partition sets and running the maintenance calls is also set to UTC.
+
+There is currently an open issue for anyone looking to help try and solve some of these DST issues - https://github.com/pgpartman/pg_partman/issues/334
+
 ### Sub-partitioning
 
 Sub-partitioning with multiple levels is supported, but it is of very limited use in PostgreSQL and provides next to NO PERFORMANCE BENEFIT outside of extremely large data in a single partition set (100s of terabytes, petabytes). If you're looking for performance benefits, adjust your partition interval before considering sub-partitioning. It's main use is in data organization and retention management.
