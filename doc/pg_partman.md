@@ -29,6 +29,7 @@ For this extension, most of the attributes of the child partitions are all obtai
 | privileges/ownership                              | All                   |                       |
 | constraints                                       | All                   |                       |
 | defaults                                          | All                   |                       |
+| publications                                      | 14                    | 10,11,12,13           |
 
 Privileges & ownership are inherited by default for non-native partitioning, but NOT for native partitioning. Also note that this inheritance is only at child table creation and isn't automatically retroactive when changed (see `reapply_privileges()`). Unless you need direct access to the child tables, this should not be needed. You can set the `inherit_privileges` option if this is needed (see config table information below).  
 

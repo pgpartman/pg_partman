@@ -149,7 +149,7 @@ CREATE FUNCTION @extschema@.check_epoch_type (p_type text) RETURNS boolean
 DECLARE
 v_result    boolean;
 BEGIN
-    SELECT p_type IN ('none', 'seconds', 'milliseconds') INTO v_result;
+    SELECT p_type IN ('none', 'seconds', 'milliseconds', 'nanoseconds') INTO v_result;
     RETURN v_result;
 END
 $$;
@@ -166,7 +166,7 @@ CHECK (@extschema@.check_epoch_type(sub_epoch));
 /*
  * Check for valid config table partition types
  */
-CREATE OR REPLACE FUNCTION @extschema@.check_partition_type (p_type text) RETURNS boolean
+CREATE FUNCTION @extschema@.check_partition_type (p_type text) RETURNS boolean
     LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER
     SET search_path TO pg_catalog, pg_temp
     AS $$
