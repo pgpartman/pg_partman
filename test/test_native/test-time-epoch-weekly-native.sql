@@ -9,7 +9,7 @@
 BEGIN;
 SELECT set_config('search_path','partman, public',false);
 
-SELECT plan(54);
+SELECT plan(57);
 CREATE SCHEMA partman_test;
 CREATE SCHEMA partman_retention_test;
 
@@ -194,8 +194,20 @@ SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMES
 SELECT has_table('partman_retention_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'3 weeks'::interval, 'IYYY"w"IW'), 
     'Check time_taptest_table_'||to_char(CURRENT_TIMESTAMP-'3 weeks'::interval, 'IYYY"w"IW')||' got moved to new schema (-3 weeks)');
 
+UPDATE part_config SET retention = '10 days'::interval WHERE parent_table = 'partman_test.time_taptest_table';
+SELECT child_start_time AS two_week_old_partition_start_time FROM show_partition_info('partman_test.time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'2 weeks'::interval, 'IYYY"w"IW'))
+\gset
+SELECT drop_partition_time('partman_test.time_taptest_table', p_retention_schema := 'partman_retention_test', p_reference_timestamp := (:'two_week_old_partition_start_time')::timestamp+'17 days'::interval);
+SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'2 weeks'::interval, 'IYYY"w"IW'),
+    'Check time_taptest_table_'||to_char(CURRENT_TIMESTAMP-'2 weeks'::interval, 'IYYY"w"IW')||' exists after 17 days (retention + partition size)');
+SELECT drop_partition_time('partman_test.time_taptest_table', p_retention_schema := 'partman_retention_test', p_reference_timestamp := (:'two_week_old_partition_start_time')::timestamp+'18 days'::interval);
+SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'2 weeks'::interval, 'IYYY"w"IW'),
+    'Check time_taptest_table_'||to_char(CURRENT_TIMESTAMP-'2 weeks'::interval, 'IYYY"w"IW')||' does not exist after 18 days (1 day past retention + partition size)');
+SELECT has_table('partman_retention_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'2 weeks'::interval, 'IYYY"w"IW'),
+    'Check time_taptest_table_'||to_char(CURRENT_TIMESTAMP-'3 weeks'::interval, 'IYYY"w"IW')||' got moved to new schema after 18 days (1 day past retention + partition size)');
+
 SELECT undo_partition('partman_test.time_taptest_table', 20, p_target_table := 'partman_test.undo_taptest', p_keep_table := false);
-SELECT results_eq('SELECT count(*)::int FROM ONLY partman_test.undo_taptest', ARRAY[81], 'Check count from target table after undo');
+SELECT results_eq('SELECT count(*)::int FROM ONLY partman_test.undo_taptest', ARRAY[60], 'Check count from target table after undo');
 SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'IYYY"w"IW'), 
     'Check time_taptest_table_'||to_char(CURRENT_TIMESTAMP, 'IYYY"w"IW')||' does not exist (now)');
 SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'1 week'::interval, 'IYYY"w"IW'), 
