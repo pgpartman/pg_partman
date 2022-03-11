@@ -85,6 +85,7 @@ ELSE
         , epoch
         , retention_keep_table
         , retention_keep_index
+        , drop_cascade_fk
         , datetime_string
         , retention_schema
         , jobmon
@@ -94,6 +95,7 @@ ELSE
         , v_epoch
         , v_retention_keep_table
         , v_retention_keep_index
+        , v_drop_cascade_fk
         , v_datetime_string
         , v_retention_schema
         , v_jobmon
