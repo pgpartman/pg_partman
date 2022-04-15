@@ -154,6 +154,7 @@ BEGIN
 END
 $$;
 
+
 ALTER TABLE @extschema@.part_config
 ADD CONSTRAINT part_config_epoch_check 
 CHECK (@extschema@.check_epoch_type(epoch));

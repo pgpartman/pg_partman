@@ -2,8 +2,9 @@
 -- Fix default partition not being added to logical replication publication when using template table for PostgreSQL versions before 14. It is recommended to use the built in publication inheritance for PG14+.
 -- Add support for nanosecond epoch partitioning
 -- Fix updating pg_partman in some recent versions (4.4.0 -> current) when granting privileges to pg_partman objects using a role name that has special characters in the name. If older update scripts need to be fixed, please create an issue on Github.
-
--- TODO UPDATE docs with new nanosecond option
+-- Fixed bug with row locking in partition_data_time(). Thanks to @cbisnett on github for the fix (Github PR #435).
+-- Fixed drop_cascade_fk option not being honored when dropping time-based child tables during retention (only applies to non-native partitioning). Thanks to @lorenzo on github for the fix (Github Issue #442).
+-- Fixed retention intervals for time-based partitioning causing unexpected results depending on the interval given. Thanks to @sfrost for the fix after reviewing Github Issue #446.
 
 CREATE OR REPLACE FUNCTION @extschema@.apply_cluster(p_parent_schema text, p_parent_tablename text, p_child_schema text, p_child_tablename text) RETURNS void
     LANGUAGE plpgsql
@@ -1859,7 +1860,6 @@ END
 $$;
 
 
-
 CREATE OR REPLACE FUNCTION @extschema@.create_partition_id(p_parent_table text, p_partition_ids bigint[], p_analyze boolean DEFAULT true, p_start_partition text DEFAULT NULL) RETURNS boolean
     LANGUAGE plpgsql 
     AS $$
@@ -3457,6 +3457,7 @@ IF p_retention IS NULL THEN
         , retention::interval
         , retention_keep_table
         , retention_keep_index
+        , drop_cascade_fk
         , datetime_string
         , retention_schema
         , jobmon
@@ -3468,6 +3469,7 @@ IF p_retention IS NULL THEN
         , v_retention
         , v_retention_keep_table
         , v_retention_keep_index
+        , v_drop_cascade_fk
         , v_datetime_string
         , v_retention_schema
         , v_jobmon
@@ -3485,6 +3487,7 @@ ELSE
         , epoch
         , retention_keep_table
         , retention_keep_index
+        , drop_cascade_fk
         , datetime_string
         , retention_schema
         , jobmon
@@ -3494,6 +3497,7 @@ ELSE
         , v_epoch
         , v_retention_keep_table
         , v_retention_keep_index
+        , v_drop_cascade_fk
         , v_datetime_string
         , v_retention_schema
         , v_jobmon
@@ -3554,7 +3558,7 @@ LOOP
         , v_partition_interval::text
         , p_parent_table);
     -- Add one interval since partition names contain the start of the constraint period
-    IF v_retention < (p_reference_timestamp - (v_partition_timestamp + v_partition_interval)) THEN
+    IF (v_partition_timestamp + v_partition_interval) < (p_reference_timestamp - v_retention) THEN
 
         -- Do not allow final partition to be dropped if it is not a sub-partition parent
         SELECT count(*) INTO v_count FROM @extschema@.show_partitions(p_parent_table);
@@ -4221,7 +4225,7 @@ FOR i IN 1..p_batch_count LOOP
         WHILE v_lock_iter <= 5 LOOP
             v_lock_iter := v_lock_iter + 1;
             BEGIN
-                EXECUTE format('SELECT %s FROM ONLY %I.%I WHERE %s >= %L AND %3$s < %5$L FOR UPDATE NOWAIT'
+                EXECUTE format('SELECT %s FROM ONLY %I.%I WHERE %s >= %L AND %4$s < %5$L FOR UPDATE NOWAIT'
                     , v_column_list
                     , v_source_schemaname
                     , v_source_tablename

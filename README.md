@@ -23,7 +23,7 @@ INSTALLATION
 ------------
 Requirement: 
 
- * PostgreSQL >= 9.6
+ * PostgreSQL >= 10
 
 Recommended: 
 

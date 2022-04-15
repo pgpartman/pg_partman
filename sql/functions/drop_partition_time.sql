@@ -57,6 +57,7 @@ IF p_retention IS NULL THEN
         , retention::interval
         , retention_keep_table
         , retention_keep_index
+        , drop_cascade_fk
         , datetime_string
         , retention_schema
         , jobmon
@@ -68,6 +69,7 @@ IF p_retention IS NULL THEN
         , v_retention
         , v_retention_keep_table
         , v_retention_keep_index
+        , v_drop_cascade_fk
         , v_datetime_string
         , v_retention_schema
         , v_jobmon
@@ -156,7 +158,7 @@ LOOP
         , v_partition_interval::text
         , p_parent_table);
     -- Add one interval since partition names contain the start of the constraint period
-    IF v_retention < (p_reference_timestamp - (v_partition_timestamp + v_partition_interval)) THEN
+    IF (v_partition_timestamp + v_partition_interval) < (p_reference_timestamp - v_retention) THEN
 
         -- Do not allow final partition to be dropped if it is not a sub-partition parent
         SELECT count(*) INTO v_count FROM @extschema@.show_partitions(p_parent_table);
