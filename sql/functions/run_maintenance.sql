@@ -169,7 +169,7 @@ LOOP
         WHERE n.nspname = v_parent_schema
         AND c.relname = v_default_tablename;
 
-        IF v_is_default != 'DEFAULT' THEN
+        IF v_is_default IS DISTINCT FROM 'DEFAULT' THEN
             v_default_tablename := v_parent_tablename;
         END IF;
     ELSE
