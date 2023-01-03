@@ -1,4 +1,7 @@
-CREATE FUNCTION @extschema@.partition_data_time(
+-- Fix incorrect positional variable usage in partition_data_time that lead to row locking timeout not working properly. Thanks to @nicwolff on Github for the fix. (PR #495, Issue #496)
+
+
+CREATE OR REPLACE FUNCTION @extschema@.partition_data_time(
         p_parent_table text
         , p_batch_count int DEFAULT 1
         , p_batch_interval interval DEFAULT NULL
