@@ -1,15 +1,16 @@
 -- Removed trigger-based partitioning support
 -- Simplified default time-based partitioning suffixes to YYYYMMDD for intervals greater than or equal to 1 day and YYYYMMDD_HH24MISS for intervals less than 1 day. Removal of extra underscores to allow longer base partition names. Existing partition suffixes will still be supported, but newly created partition sets will use the new naming patterns by default.
     -- TODO See if user-supplied datetime_string suffix can be supported
--- Drop specialized publication/subscription support. Upgrade our postgres to a more recent version that logical replication in partitioning support built in.
+-- Drop specialized publication/subscription support. Upgrade your postgres to a more recent version that has logical replication in partitioning support built in.
 -- Changed order of parameters in undo_partition function since target table is now a required parameter.
 -- By default, data in the default partition is now ignored when calculating new child partitions to create. If a new child table's boundaries include data that exists in the default, this will cause an error during maintenance and must be manually resolved by either removing that data from the default or partitioning it out to the proper child table using the partition_data function/procedure.
 -- Note that the parameter order changed in create_parent so all non-default parameters are first (type now defaults to range)
 -- Deprecated interval types:
     -- Remove quarterly partitioning. Write a doc for how to migrate away to native, 3-month partitioning
-    -- Remove weekly partitioning style with ISO style week numbers. Write doc for how to migrate away. Just set to standard 1 week or 7 day interval. datetime_string will be YYYY_MM_DD with the value being the first day of that week
+    -- Remove weekly partitioning style with ISO style week numbers. Write doc for how to migrate away. Just set to standard 1 week or 7 day interval. datetime_string will be YYYYMMDD with the value being the first day of that week
     -- Add an exception during maintenance runs for partition sets that have the quarterly or weekly datetime string format. Direct them to documentation for converstion. Don't just have the extension update automatically convert them since that will break it even worse by causing mixed child suffixes.
     -- Hourly partitioning now has seconds on the child partition suffix. Not sure that needs conversion, but make note that it will be different for partition sets created with 5.x
+    
 -- TODO Handle default partition setting in subpartitioning
 -- TODO Test and see if tablespace management is still needed in PG14+. 
 -- TODO Review if/how apply_cluster works on native
@@ -17,6 +18,8 @@
 -- Review dropping/detaching child table support - https://github.com/pgpartman/pg_partman/issues/471
 -- TODO Make a separate background worker to run the analyze process. note in release notes that normal  partition maintenance does NOT run analyze by default anymore
 -- TODO in show_partition_name(), if the child table actually exists, get the boundaries from the catalogs instead of the tablename. If child table doesn't exist, throw an error. Avoid needing to parse child tablenames anymore and avoid issues with parsing tablename to get boundaries (https://github.com/pgpartman/pg_partman/issues/487)
+-- TODO Move the index dropping part of the drop_partition functions outside the check for if the retention schema is NULL. Should still be able to remove indexes from the child tables even if they're getting moved to a new schema. See about making a dedicated function for index removal. It can either take a single table name or a schema to removal indexes from all tables in a given schema
+
 
 -- #### Table alterations ####
 DROP TABLE @extschema@.custom_time_partitions;
