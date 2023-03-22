@@ -1,3 +1,4 @@
+-- TODO Redo part_config and part_config sub with new column ordering to be consistent
 CREATE TABLE @extschema@.part_config (
     parent_table text NOT NULL
     , control text NOT NULL

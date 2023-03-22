@@ -1,7 +1,9 @@
 -- ########## TIME DAILY TESTS ##########
--- Other tests: check that maintenance catches up if tables are missing
-    -- Test using default template table. Initial child tables will have no indexes. New tables after template has indexes added should.
-    -- The FK tests in this test will fail on PG11+. No way to run specific tests for specific versions easily. Just ignore for now.
+-- Other tests: 
+    -- Privilege inheritance
+    -- check that maintenance catches up if tables are missing
+    -- Test using default template table. Initial child tables will have no indexes or primary keys. New tables after template has indexes added should.
+    -- Test for native FK inheritance
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true
@@ -9,7 +11,7 @@
 BEGIN;
 SELECT set_config('search_path','partman, public',false);
 
-SELECT plan(229);
+SELECT plan(221);
 
 CREATE SCHEMA partman_test;
 CREATE SCHEMA partman_retention_test;
@@ -20,7 +22,12 @@ CREATE ROLE partman_owner;
 CREATE TABLE partman_test.fk_test_reference (col2 text unique not null);
 INSERT INTO partman_test.fk_test_reference VALUES ('stuff');
 
-CREATE TABLE partman_test.time_taptest_table (col1 int, col2 text default 'stuff', col3 timestamptz NOT NULL DEFAULT now()) PARTITION BY RANGE (col3);
+CREATE TABLE partman_test.time_taptest_table 
+    (col1 int
+        , col2 text default 'stuff'
+        , col3 timestamptz NOT NULL DEFAULT now()
+        , CONSTRAINT fk_test FOREIGN KEY (col2) REFERENCES partman_test.fk_test_reference(col2) ) 
+    PARTITION BY RANGE (col3);
 CREATE TABLE partman_test.undo_taptest (LIKE partman_test.time_taptest_table INCLUDING ALL);
 GRANT SELECT,INSERT,UPDATE ON partman_test.time_taptest_table TO partman_basic;
 GRANT ALL ON partman_test.time_taptest_table TO partman_revoke;
@@ -37,7 +44,6 @@ SELECT table_owner_is ('partman', 'template_partman_test_time_taptest_table', 'p
 
 -- Add inheritable stuff to template table
 ALTER TABLE partman.template_partman_test_time_taptest_table ADD PRIMARY KEY (col1);
-ALTER TABLE partman.template_partman_test_time_taptest_table ADD FOREIGN KEY (col2) REFERENCES partman_test.fk_test_reference(col2);
 
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(1,10), CURRENT_TIMESTAMP);
 
@@ -83,25 +89,6 @@ SELECT col_isnt_pk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMES
     'Check for NO primary key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'3 days'::interval, 'YYYYMMDD'));
 SELECT col_isnt_pk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'4 days'::interval, 'YYYYMMDD'), ARRAY['col1'], 
     'Check for NO primary key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'4 days'::interval, 'YYYYMMDD'));
-
-SELECT col_isnt_fk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'), ARRAY['col2'], 
-    'Check for NO foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'));
-SELECT col_isnt_fk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'1 day'::interval, 'YYYYMMDD'), ARRAY['col2'], 
-    'Check for NO foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'1 day'::interval, 'YYYYMMDD'));
-SELECT col_isnt_fk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'2 day'::interval, 'YYYYMMDD'), ARRAY['col2'], 
-    'Check for NO foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'2 day'::interval, 'YYYYMMDD'));
-SELECT col_isnt_fk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'3 day'::interval, 'YYYYMMDD'), ARRAY['col2'], 
-    'Check for NO foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'3 day'::interval, 'YYYYMMDD'));
-SELECT col_isnt_fk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'4 day'::interval, 'YYYYMMDD'), ARRAY['col2'], 
-    'Check for NO foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'4 day'::interval, 'YYYYMMDD'));
-SELECT col_isnt_fk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'1 day'::interval, 'YYYYMMDD'), ARRAY['col2'], 
-    'Check for NO foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'1 day'::interval, 'YYYYMMDD'));
-SELECT col_isnt_fk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'2 day'::interval, 'YYYYMMDD'), ARRAY['col2'], 
-    'Check for NO foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'2 day'::interval, 'YYYYMMDD'));
-SELECT col_isnt_fk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'3 day'::interval, 'YYYYMMDD'), ARRAY['col2'], 
-    'Check for NO foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'3 day'::interval, 'YYYYMMDD'));
-SELECT col_isnt_fk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'4 day'::interval, 'YYYYMMDD'), ARRAY['col2'], 
-    'Check for NO foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'4 day'::interval, 'YYYYMMDD'));
 
 SELECT table_privs_are('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'), 'partman_basic', 
     ARRAY['SELECT','INSERT','UPDATE'], 
@@ -232,17 +219,17 @@ SELECT col_is_pk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTA
     'Check for primary key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'10 days'::interval, 'YYYYMMDD'));
 
 SELECT col_is_fk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'5 days'::interval, 'YYYYMMDD'), ARRAY['col2'], 
-    'Check for foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'5 days'::interval, 'YYYYMMDD')||'. This test will fail in PG11+.');
+    'Check for foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'5 days'::interval, 'YYYYMMDD')||'.');
 SELECT col_is_fk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'6 days'::interval, 'YYYYMMDD'), ARRAY['col2'], 
-    'Check for foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'6 days'::interval, 'YYYYMMDD')||'. This test will fail in PG11+.');
+    'Check for foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'6 days'::interval, 'YYYYMMDD')||'.');
 SELECT col_is_fk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'7 days'::interval, 'YYYYMMDD'), ARRAY['col2'], 
-    'Check for foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'7 days'::interval, 'YYYYMMDD')||'. This test will fail in PG11+.');
+    'Check for foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'7 days'::interval, 'YYYYMMDD')||'.');
 SELECT col_is_fk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'8 days'::interval, 'YYYYMMDD'), ARRAY['col2'], 
-    'Check for foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'8 days'::interval, 'YYYYMMDD')||'. This test will fail in PG11+.');
+    'Check for foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'8 days'::interval, 'YYYYMMDD')||'.');
 SELECT col_is_fk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'9 days'::interval, 'YYYYMMDD'), ARRAY['col2'], 
-    'Check for foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'9 days'::interval, 'YYYYMMDD')||'. This test will fail in PG11+.');
+    'Check for foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'9 days'::interval, 'YYYYMMDD')||'.');
 SELECT col_is_fk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'10 days'::interval, 'YYYYMMDD'), ARRAY['col2'], 
-    'Check for foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'10 days'::interval, 'YYYYMMDD')||'. This test will fail in PG11+.');
+    'Check for foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'10 days'::interval, 'YYYYMMDD')||'.');
 
 
 SELECT is_empty('SELECT * FROM ONLY partman_test.time_taptest_table', 'Check that parent table has had no data inserted to it');
@@ -308,9 +295,9 @@ SELECT col_is_pk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTA
     'Check for primary key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'12 days'::interval, 'YYYYMMDD'));
 
 SELECT col_is_fk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'11 days'::interval, 'YYYYMMDD'), ARRAY['col2'], 
-    'Check for foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'11 days'::interval, 'YYYYMMDD')||'. This test will fail in PG11+.');
+    'Check for foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'11 days'::interval, 'YYYYMMDD')||'.');
 SELECT col_is_fk('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'12 days'::interval, 'YYYYMMDD'), ARRAY['col2'], 
-    'Check for foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'12 days'::interval, 'YYYYMMDD')||'. This test will fail in PG11+.');
+    'Check for foreign key in time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'12 days'::interval, 'YYYYMMDD')||'.');
 
 
 SELECT table_privs_are('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'), 'partman_basic', ARRAY['SELECT','INSERT','UPDATE'], 
@@ -600,11 +587,10 @@ SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTA
 SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'13 days'::interval, 'YYYYMMDD'), 
     'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'13 days'::interval, 'YYYYMMDD')||' does not exist');
 
------ This test won't work unless a default table option is added to native
---INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(200,210), CURRENT_TIMESTAMP + '20 days'::interval);
---SELECT results_eq('SELECT count(*)::int FROM ONLY partman_test.time_taptest_table', ARRAY[11], 'Check that data outside trigger scope goes to parent');
+INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(200,210), CURRENT_TIMESTAMP + '20 days'::interval);
+SELECT results_eq('SELECT count(*)::int FROM ONLY partman_test.time_taptest_table_default', ARRAY[11], 'Check that data child scope goes to default');
 
-SELECT drop_partition_time('partman_test.time_taptest_table', '3 days', p_keep_table := false);
+SELECT drop_partition_time('partman_test.time_taptest_table', '3 days'::interval, p_keep_table := false);
 SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'4 days'::interval, 'YYYYMMDD'), 
     'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'4 days'::interval, 'YYYYMMDD')||' does not exist');
 
@@ -616,7 +602,7 @@ SELECT has_table('partman_retention_test', 'time_taptest_table_p'||to_char(CURRE
     'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'3 days'::interval, 'YYYYMMDD')||' got moved to new schema');
 
 SELECT undo_partition('partman_test.time_taptest_table', 'partman_test.undo_taptest', 20, p_keep_table := false);
-SELECT results_eq('SELECT count(*)::int FROM  partman_test.undo_taptest', ARRAY[118], 'Check count from target table after undo');
+SELECT results_eq('SELECT count(*)::int FROM  partman_test.undo_taptest', ARRAY[129], 'Check count from target table after undo');
 SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'), 
     'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD')||' does not exist');
 SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'1 day'::interval, 'YYYYMMDD'), 
