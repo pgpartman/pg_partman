@@ -1,4 +1,4 @@
--- IMPORTANT NOTE: Many functions have had their parameters altered, rearranged or removed. Please review ALL calls to pg_partman functions to ensure that your parameter values match up with the proper setting.
+-- IMPORTANT NOTE: Many functions have had their parameters altered, renamed, rearranged or removed. These should be more consistent across the code-base now. Please review ALL calls to pg_partman functions to ensure that your parameter names and values have been updated to match the changes. 
 
 -- IMPORTANT NOTE: It is recommended that you take a backup of the part_config and part_config_sub tables before upgrading just to ensure they can be restored in case there are any issues. These tables are recreated as part of the upgrade.
 
@@ -23,12 +23,18 @@
 
 -- Creating a template table is now optional when calling create_parent(). Set p_template_table to 'false' to skip template table creation. Note this is not a boolean parameter since this also meant to take a template table name, so the explicit string value 'false' must be set.
 
+-- TODO Procedures
 -- TODO Review if/how apply_cluster works on native
 -- TODO Review dropping/detaching child table support - https://github.com/pgpartman/pg_partman/issues/471
 -- TODO  note in release notes that normal  partition maintenance does NOT run analyze by default anymore
 -- TODO make a test for this: Move the index dropping part of the drop_partition functions outside the check for if the retention schema is NULL. Should still be able to remove indexes from the child tables even if they're getting moved to a new schema. 
 -- TODO update the docs around analyze not being done by default with run_maintainance, but it DOES run by default with partition_dada_* now.
 -- TODO Tests for millisecond and nanosecond epoch
+-- TODO make formatting of function signatures consistent (each parameter on its own line, closing parentheses on line after final parameter)
+-- TODO Consider renaming "id" partitioning to "int" partitioning
+-- TODO test dump_partitioned_table_definition
+-- TODO test gap_fill
+-- TODO test partition_data_proc & undo_partition_proc (new variables)
 
 -- #### Ugrade exceptions ####
 DO $upgrade_partman$
@@ -458,6 +464,7 @@ DROP FUNCTION IF EXISTS @extschema@.apply_publications(text, text, text);
 DROP FUNCTION IF EXISTS @extschema@.create_function_id(text, bigint);
 DROP FUNCTION IF EXISTS @extschema@.create_function_time(text, bigint);
 DROP FUNCTION IF EXISTS @extschema@.create_trigger(text);
+DROP FUNCTION IF EXISTS @extschema@.drop_partition_column(text, text);
 
 -- Dropped and replaced - TODO preserve privs. Also preserve priveleges on the part_config & part_config_sub table since those were dropped/recreated
 DROP FUNCTION @extschema@.check_subpart_sameconfig(text);
@@ -467,8 +474,15 @@ DROP FUNCTION @extschema@.create_partition_time(text, timestamptz[], boolean, te
 DROP FUNCTION @extschema@.create_sub_parent(text, text, text, text, text, text[], int, text, boolean, text, text, boolean, boolean, text);
 DROP FUNCTION @extschema@.run_maintenance(text, boolean, boolean);
 DROP FUNCTION @extschema@.undo_partition(text, int, text, boolean, numeric, text, text[], boolean);
+DROP PROCEDURE @extschema@.partition_data_proc (text, text, int, int, text, text, int, int, boolean, text[]);
+DROP PROCEDURE @extschema@.undo_partition_proc(text, text, int, int, text, boolean, int, int, boolean, text[], boolean)
 
-CREATE OR REPLACE FUNCTION @extschema@.apply_constraints(p_parent_table text, p_child_table text DEFAULT NULL, p_analyze boolean DEFAULT FALSE, p_job_id bigint DEFAULT NULL) RETURNS void
+CREATE OR REPLACE FUNCTION @extschema@.apply_constraints(
+    p_parent_table text
+    , p_child_table text DEFAULT NULL
+    , p_analyze boolean DEFAULT FALSE
+    , p_job_id bigint DEFAULT NULL)
+    RETURNS void
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -881,12 +895,12 @@ CREATE FUNCTION @extschema@.create_parent(
     , p_control text
     , p_interval text
     , p_type text DEFAULT 'range'
-    , p_default_table boolean DEFAULT true
-    , p_constraint_cols text[] DEFAULT NULL 
-    , p_premake int DEFAULT 4
-    , p_automatic_maintenance text DEFAULT 'on' 
-    , p_start_partition text DEFAULT NULL
     , p_epoch text DEFAULT 'none' 
+    , p_premake int DEFAULT 4
+    , p_start_partition text DEFAULT NULL
+    , p_default_table boolean DEFAULT true
+    , p_automatic_maintenance text DEFAULT 'on' 
+    , p_constraint_cols text[] DEFAULT NULL 
     , p_template_table text DEFAULT NULL
     , p_jobmon boolean DEFAULT true
     , p_date_trunc_interval text DEFAULT NULL)
@@ -1525,8 +1539,10 @@ END
 $$;
 
 
-
-CREATE FUNCTION @extschema@.create_partition_id(p_parent_table text, p_partition_ids bigint[], p_start_partition text DEFAULT NULL) RETURNS boolean
+CREATE FUNCTION @extschema@.create_partition_id(
+    p_parent_table text
+    , p_partition_ids bigint[]
+    , p_start_partition text DEFAULT NULL) RETURNS boolean
     LANGUAGE plpgsql 
     AS $$
 DECLARE
@@ -1828,7 +1844,10 @@ END
 $$;
 
 
-CREATE FUNCTION @extschema@.create_partition_time(p_parent_table text, p_partition_times timestamptz[], p_start_partition text DEFAULT NULL) 
+CREATE FUNCTION @extschema@.create_partition_time(
+    p_parent_table text
+    , p_partition_times timestamptz[]
+    , p_start_partition text DEFAULT NULL) 
 RETURNS boolean
     LANGUAGE plpgsql
     AS $$
@@ -3033,35 +3052,35 @@ $$;
 
 
 CREATE OR REPLACE FUNCTION @extschema@.dump_partitioned_table_definition(
-  p_parent_table TEXT,
-  p_ignore_template_table BOOLEAN DEFAULT false
-) RETURNS TEXT
+  p_parent_table text,
+  p_ignore_template_table boolean DEFAULT false
+) RETURNS text
   LANGUAGE PLPGSQL STABLE
 AS $$
 DECLARE
-  v_create_parent_definition TEXT;
-  v_update_part_config_definition TEXT;
+  v_create_parent_definition text;
+  v_update_part_config_definition text;
   -- Columns from part_config table.
-  v_parent_table TEXT; -- NOT NULL
-  v_control TEXT; -- NOT NULL
-  v_partition_type TEXT; -- NOT NULL
-  v_partition_interval TEXT; -- NOT NULL
+  v_parent_table text; -- NOT NULL
+  v_control text; -- NOT NULL
+  v_partition_type text; -- NOT NULL
+  v_partition_interval text; -- NOT NULL
   v_constraint_cols TEXT[];
   v_premake integer; -- NOT NULL
   v_optimize_constraint integer; -- NOT NULL
   v_epoch text; -- NOT NULL
-  v_retention TEXT;
-  v_retention_schema TEXT;
-  v_retention_keep_table BOOLEAN; -- NOT NULL
-  v_infinite_time_partitions BOOLEAN; -- NOT NULL
-  v_datetime_string TEXT;
-  v_automatic_maintenance TEXT; -- NOT NULL
-  v_jobmon BOOLEAN; -- NOT NULL
-  v_sub_partition_set_full BOOLEAN; -- NOT NULL
-  v_template_table TEXT;
-  v_inherit_privileges BOOLEAN; -- DEFAULT false
-  v_constraint_valid BOOLEAN; -- DEFAULT true NOT NULL
-  v_subscription_refresh text; 
+  v_retention text;
+  v_retention_schema text;
+  v_retention_keep_table boolean; -- NOT NULL
+  v_infinite_time_partitions boolean; -- NOT NULL
+  v_datetime_string text;
+  v_automatic_maintenance text; -- NOT NULL
+  v_jobmon boolean; -- NOT NULL
+  v_sub_partition_set_full boolean; -- NOT NULL
+  v_template_table text;
+  v_inherit_privileges boolean; -- DEFAULT false
+  v_constraint_valid boolean; -- DEFAULT true NOT NULL
+  v_subscription_refresh TEXT; 
   v_ignore_default_data boolean; -- DEFAULT false NOT NULL
 BEGIN
   SELECT
@@ -3775,7 +3794,7 @@ ELSE
         v_default_exists := true;
         EXECUTE format ('CREATE TEMP TABLE IF NOT EXISTS partman_temp_data_storage (LIKE %I.%I INCLUDING INDEXES) ON COMMIT DROP', v_source_schemaname, v_source_tablename);
     ELSE
-        RAISE DEBUG 'No default table found when partition_data_id() was called';
+        RAISE DEBUG 'No default table found when partition_data_time() was called';
         RETURN v_total_rows;
     END IF;
 END IF;
@@ -3965,7 +3984,11 @@ END
 $$;
 
 
-CREATE FUNCTION @extschema@.run_maintenance(p_parent_table text DEFAULT NULL, p_analyze boolean DEFAULT false, p_jobmon boolean DEFAULT true) RETURNS void 
+CREATE FUNCTION @extschema@.run_maintenance(
+    p_parent_table text DEFAULT NULL
+    , p_analyze boolean DEFAULT false
+    , p_jobmon boolean DEFAULT true)
+    RETURNS void 
     LANGUAGE plpgsql 
     AS $$
 DECLARE
@@ -4515,7 +4538,14 @@ END
 $$;
 
 
-CREATE OR REPLACE FUNCTION @extschema@.show_partition_name(p_parent_table text, p_value text, OUT partition_schema text, OUT partition_table text, OUT suffix_timestamp timestamptz, OUT suffix_id bigint, OUT table_exists boolean) RETURNS record
+CREATE OR REPLACE FUNCTION @extschema@.show_partition_name(
+    p_parent_table text, p_value text
+    , OUT partition_schema text
+    , OUT partition_table text
+    , OUT suffix_timestamp timestamptz
+    , OUT suffix_id bigint
+    , OUT table_exists boolean
+) RETURNS record
     LANGUAGE plpgsql STABLE
     AS $$
 DECLARE
@@ -4655,7 +4685,11 @@ END
 $$;
 
 
-CREATE OR REPLACE FUNCTION @extschema@.show_partitions (p_parent_table text, p_order text DEFAULT 'ASC', p_include_default boolean DEFAULT false) RETURNS TABLE (partition_schemaname text, partition_tablename text)
+CREATE OR REPLACE FUNCTION @extschema@.show_partitions (
+    p_parent_table text
+    , p_order text DEFAULT 'ASC'
+    , p_include_default boolean DEFAULT false)
+    RETURNS TABLE (partition_schemaname text, partition_tablename text)
     LANGUAGE plpgsql STABLE
     SET search_path = @extschema@,pg_temp
     AS $$
@@ -5245,6 +5279,327 @@ $$;
 
 
 -- #### Procedure alterations ####
+
+CREATE PROCEDURE @extschema@.partition_data_proc (
+    p_parent_table text
+    , p_loop_count int DEFAULT NULL
+    , p_interval text DEFAULT NULL
+    , p_lock_wait int DEFAULT 0
+    , p_lock_wait_tries int DEFAULT 10
+    , p_wait int DEFAULT 1, p_order text DEFAULT 'ASC'
+    , p_order text DEFAULT 'ASC',
+    , p_source_table text DEFAULT NULL
+    , p_ignored_columns text[] DEFAULT NULL
+    , p_quiet boolean DEFAULT false)
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+
+v_adv_lock          boolean;
+v_control           text;
+v_control_type      text;
+v_epoch             text;
+v_is_autovac_off    boolean := false;
+v_lockwait_count    int := 0;
+v_loop_count        int := 0;
+v_parent_schema     text;
+v_parent_tablename  text;
+v_row               record;
+v_rows_moved        bigint;
+v_source_schema     text;
+v_source_tablename  text;
+v_sql               text;
+v_total             bigint := 0;
+
+BEGIN
+
+v_adv_lock := pg_try_advisory_xact_lock(hashtext('pg_partman partition_data_proc'), hashtext(p_parent_table));
+IF v_adv_lock = 'false' THEN
+    RAISE NOTICE 'Partman partition_data_proc already running for given parent table: %.', p_parent_table;
+    RETURN;
+END IF;
+
+SELECT control, epoch
+INTO v_control, v_epoch
+FROM @extschema@.part_config 
+WHERE parent_table = p_parent_table;
+IF NOT FOUND THEN
+    RAISE EXCEPTION 'ERROR: No entry in part_config found for given table: %', p_parent_table;
+END IF;
+
+SELECT n.nspname, c.relname INTO v_parent_schema, v_parent_tablename
+FROM pg_catalog.pg_class c
+JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
+AND c.relname = split_part(p_parent_table, '.', 2)::name;
+    IF v_parent_tablename IS NULL THEN
+        RAISE EXCEPTION 'Unable to find given parent table in system catalogs. Ensure it is schema qualified: %', p_parent_table;
+    END IF;
+
+IF p_source_table IS NOT NULL THEN
+    SELECT n.nspname, c.relname INTO v_source_schema, v_source_tablename
+    FROM pg_catalog.pg_class c
+    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+    WHERE n.nspname = split_part(p_source_table, '.', 1)::name
+    AND c.relname = split_part(p_source_table, '.', 2)::name;
+        IF v_source_tablename IS NULL THEN
+            RAISE EXCEPTION 'Unable to find given source table in system catalogs. Ensure it is schema qualified: %', p_source_table;
+        END IF;
+END IF;
+ 
+SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
+
+IF v_control_type = 'id' AND v_epoch <> 'none' THEN
+        v_control_type := 'time';
+END IF;
+
+/*
+-- Currently no way to catch exception and reset autovac settings back to normal. Until I can do that, leaving this feature out for now
+-- Leaving the functions to turn off/reset in to let people do that manually if desired
+IF p_autovacuum_on = false THEN         -- Add this parameter back to definition when this is working
+    -- Turn off autovac for parent, source table if set, and all child tables
+    v_is_autovac_off := @extschema@.autovacuum_off(v_parent_schema, v_parent_tablename, v_source_schema, v_source_tablename);
+    COMMIT;
+END IF;
+*/
+
+v_sql := format('SELECT %I.partition_data_%s (p_parent_table := %L, p_lock_wait := %L, p_order := %L, p_analyze := false'
+        , '@extschema@', v_control_type, p_parent_table, p_lock_wait, p_order);
+IF p_interval IS NOT NULL THEN
+    v_sql := v_sql || format(', p_batch_interval := %L', p_interval);
+END IF;
+IF p_source_table IS NOT NULL THEN
+    v_sql := v_sql || format(', p_source_table := %L', p_source_table);
+END IF;
+IF p_ignored_columns IS NOT NULL THEN
+    v_sql := v_sql || format(', p_ignored_columns := %L', p_ignored_columns);
+END IF;
+v_sql := v_sql || ')';
+RAISE DEBUG 'partition_data sql: %', v_sql;
+
+LOOP
+    EXECUTE v_sql INTO v_rows_moved;
+    -- If lock wait timeout, do not increment the counter
+    IF v_rows_moved != -1 THEN
+        v_loop_count := v_loop_count + 1;
+        v_total := v_total + v_rows_moved;
+        v_lockwait_count := 0;
+    ELSE
+        v_lockwait_count := v_lockwait_count + 1;
+        IF v_lockwait_count > p_lock_wait_tries THEN
+            RAISE EXCEPTION 'Quitting due to inability to get lock on next batch of rows to be moved';
+        END IF;
+    END IF;
+    IF p_quiet = false THEN
+        IF v_rows_moved > 0 THEN
+            RAISE NOTICE 'Loop: %, Rows moved: %', v_loop_count, v_rows_moved;
+        ELSIF v_rows_moved = -1 THEN
+            RAISE NOTICE 'Unable to obtain row locks for data to be moved. Trying again...';
+        END IF;
+    END IF;
+    -- If no rows left or given loop argument limit is reached
+    IF v_rows_moved = 0 OR (p_loop_count > 0 AND v_loop_count >= p_loop_count) THEN
+        EXIT;
+    END IF;
+    COMMIT;
+    PERFORM pg_sleep(p_wait);
+    RAISE DEBUG 'v_rows_moved: %, v_loop_count: %, v_total: %, v_lockwait_count: %, p_wait: %', p_wait, v_rows_moved, v_loop_count, v_total, v_lockwait_count;
+END LOOP;
+
+/*
+IF v_is_autovac_off = true THEN
+    -- Reset autovac back to default if it was turned off by this procedure
+    PERFORM @extschema@.autovacuum_reset(v_parent_schema, v_parent_tablename, v_source_schema, v_source_tablename);
+    COMMIT; 
+END IF;
+*/
+
+IF p_quiet = false THEN
+    RAISE NOTICE 'Total rows moved: %', v_total;
+END IF;
+RAISE NOTICE 'Ensure to VACUUM ANALYZE the parent (and source table if used) after partitioning data';
+
+/* Leaving here until I can figure out what's wrong with procedures and exception handling
+EXCEPTION
+    WHEN QUERY_CANCELED THEN
+        ROLLBACK;
+        -- Reset autovac back to default if it was turned off by this procedure
+        IF v_is_autovac_off = true THEN
+            PERFORM @extschema@.autovacuum_reset(v_parent_schema, v_parent_tablename, v_source_schema, v_source_tablename);
+        END IF;
+        RAISE EXCEPTION '%', SQLERRM;
+    WHEN OTHERS THEN
+        ROLLBACK;
+        -- Reset autovac back to default if it was turned off by this procedure
+        IF v_is_autovac_off = true THEN
+            PERFORM @extschema@.autovacuum_reset(v_parent_schema, v_parent_tablename, v_source_schema, v_source_tablename);
+        END IF;
+        RAISE EXCEPTION '%', SQLERRM;
+*/
+END;
+$$;
+
+
+CREATE PROCEDURE @extschema@.undo_partition_proc(
+    p_parent_table text
+    , p_target_table text DEFAULT NULL
+    , p_loop_count int DEFAULT NULL
+    , p_interval text DEFAULT NULL
+    , p_keep_table boolean DEFAULT true
+    , p_lock_wait int DEFAULT 0
+    , p_lock_wait_tries int DEFAULT 10
+    , p_wait int DEFAULT 1
+    , p_ignored_columns text[] DEFAULT NULL
+    , p_drop_cascade boolean DEFAULT false
+    , p_quiet boolean DEFAULT false)
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+
+v_adv_lock                  boolean;
+v_is_autovac_off            boolean := false;
+v_lockwait_count            int := 0;
+v_loop_count               int := 0;
+v_parent_schema             text;
+v_parent_tablename          text;
+v_partition_type            text;
+v_partitions_undone         int;
+v_partitions_undone_total   int := 0;
+v_row                       record;
+v_rows_undone               bigint;
+v_target_schema             text;
+v_target_tablename          text;
+v_sql                       text;
+v_total                     bigint := 0;
+
+BEGIN
+
+v_adv_lock := pg_try_advisory_xact_lock(hashtext('pg_partman undo_partition_proc'), hashtext(p_parent_table));
+IF v_adv_lock = 'false' THEN
+    RAISE NOTICE 'Partman undo_partition_proc already running for given parent table: %.', p_parent_table;
+    RETURN;
+END IF;
+
+SELECT partition_type
+INTO v_partition_type
+FROM @extschema@.part_config 
+WHERE parent_table = p_parent_table;
+IF NOT FOUND THEN
+    RAISE EXCEPTION 'ERROR: No entry in part_config found for given table: %', p_parent_table;
+END IF;
+
+IF v_partition_type = 'native' AND p_target_table IS NULL THEN
+    RAISE EXCEPTION 'Natively partitioned table sets require setting the p_target_table parameter to undo partitioning.';
+END IF;
+
+SELECT n.nspname, c.relname INTO v_parent_schema, v_parent_tablename
+FROM pg_catalog.pg_class c
+JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
+AND c.relname = split_part(p_parent_table, '.', 2)::name;
+    IF v_parent_tablename IS NULL THEN
+        RAISE EXCEPTION 'Unable to find given parent table in system catalogs. Ensure it is schema qualified: %', p_parent_table;
+    END IF;
+
+IF p_target_table IS NOT NULL THEN
+    SELECT n.nspname, c.relname INTO v_target_schema, v_target_tablename
+    FROM pg_catalog.pg_class c
+    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+    WHERE n.nspname = split_part(p_target_table, '.', 1)::name
+    AND c.relname = split_part(p_target_table, '.', 2)::name;
+        IF v_target_tablename IS NULL THEN
+            RAISE EXCEPTION 'Unable to find given target table in system catalogs. Ensure it is schema qualified: %', p_target_table;
+        END IF;
+END IF;
+
+/*
+-- Currently no way to catch exception and reset autovac settings back to normal. Until I can do that, leaving this feature out for now
+-- Leaving the functions to turn off/reset in to let people do that manually if desired
+IF p_autovacuum_on = false THEN         -- Add this parameter back to definition when this is working
+    -- Turn off autovac for parent, source table if set, and all child tables
+    v_is_autovac_off := @extschema@.autovacuum_off(v_parent_schema, v_parent_tablename, v_source_schema, v_source_tablename);
+    COMMIT;
+END IF;
+*/
+
+v_sql := format('SELECT partitions_undone, rows_undone FROM %I.undo_partition (%L, p_keep_table := %L, p_lock_wait := %L'
+        , '@extschema@'
+        , p_parent_table
+        , p_keep_table
+        , p_lock_wait);
+IF p_interval IS NOT NULL THEN
+    v_sql := v_sql || format(', p_batch_interval := %L', p_interval);
+END IF;
+IF p_target_table IS NOT NULL THEN
+    v_sql := v_sql || format(', p_target_table := %L', p_target_table);
+END IF;
+IF p_ignored_columns IS NOT NULL THEN
+    v_sql := v_sql || format(', p_ignored_columns := %L', p_ignored_columns);
+END IF;
+IF p_drop_cascade IS NOT NULL THEN
+    v_sql := v_sql || format(', p_drop_cascade := %L', p_drop_cascade);
+END IF;
+v_sql := v_sql || ')';
+RAISE DEBUG 'partition_data sql: %', v_sql;
+
+LOOP
+    EXECUTE v_sql INTO v_partitions_undone, v_rows_undone;
+    -- If lock wait timeout, do not increment the counter
+    IF v_rows_undone != -1 THEN
+        v_loop_count := v_loop_count + 1;
+        v_partitions_undone_total := v_partitions_undone_total + v_partitions_undone;
+        v_total := v_total + v_rows_undone;
+        v_lockwait_count := 0;
+    ELSE
+        v_lockwait_count := v_lockwait_count + 1;
+        IF v_lockwait_count > p_lock_wait_tries THEN
+            RAISE EXCEPTION 'Quitting due to inability to get lock on next batch of rows to be moved';
+        END IF;
+    END IF;
+    IF p_quiet = false THEN
+        IF v_rows_undone > 0 THEN
+            RAISE NOTICE 'Batch: %, Partitions undone this batch: %, Rows undone this batch: %', v_loop_count, v_partitions_undone, v_rows_undone;
+        ELSIF v_rows_undone = -1 THEN
+            RAISE NOTICE 'Unable to obtain row locks for data to be moved. Trying again...';
+        END IF;
+    END IF;
+    COMMIT;
+
+    -- If no rows left or given loop argument limit is reached
+    IF v_rows_undone = 0 OR (p_loop_count > 0 AND v_loop_count >= p_loop_count) THEN
+        EXIT;
+    END IF;
+
+    -- undo_partition functions will remove config entry once last child is dropped
+    -- Added here to handle edge-case
+    SELECT partition_type
+    INTO v_partition_type
+    FROM @extschema@.part_config 
+    WHERE parent_table = p_parent_table;
+    IF NOT FOUND THEN
+        EXIT;
+    END IF;
+
+    PERFORM pg_sleep(p_wait);
+    
+    RAISE DEBUG 'v_partitions_undone: %, v_rows_undone: %, v_loop_count: %, v_total: %, v_lockwait_count: %, p_wait: %', v_partitions_undone, p_wait, v_rows_undone, v_loop_count, v_total, v_lockwait_count;
+END LOOP;
+
+/*
+IF v_is_autovac_off = true THEN
+    -- Reset autovac back to default if it was turned off by this procedure
+    PERFORM @extschema@.autovacuum_reset(v_parent_schema, v_parent_tablename, v_source_schema, v_source_tablename);
+    COMMIT; 
+END IF;
+*/
+
+IF p_quiet = false THEN
+    RAISE NOTICE 'Total partitions undone: %, Total rows moved: %', v_partitions_undone_total, v_total;
+END IF;
+RAISE NOTICE 'Ensure to VACUUM ANALYZE the old parent & target table after undo has finished';
+
+END
+$$;
 
 
 -- #### Drop Upgrade Objects ####
