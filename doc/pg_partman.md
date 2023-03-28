@@ -205,7 +205,7 @@ RETURNS bigint
  * For sub-partitioned sets, you must start partitioning data at the highest level and work your way down each level. This means you must first run this function before running create_sub_parent() to create the additional partitioning levels. Then continue running this function again on each new sub-parent once they're created. See the  pg_partman_howto.md document for a full example. IMPORTANT NOTE: Be VERY cautious with sub-partition sets and using this function since sub-partitioning can be a destructive operation. See create_sub_parent().
  * `p_parent_table` - the existing parent table. MUST be schema qualified, even if in public schema.
  * `p_batch_count` - optional argument, how many times to run the `batch_interval` in a single call of this function. Default value is 1. Currently sets how many child tables will be processed in a single run, but when p_batch_interval is working again will refer explicitly to how many batches to run.
- * `p_batch_interval` - optional argument, temporarily deprecated in version 5.0.0. Previously with non-native partitioning this could be an interval smaller than the partition interval, allowing for very large sized partitions to be broken up into smaller commit batches. Defaults to the configured partition interval if not given or if you give an interval larger than the partition interval. Work is being done to bring this feature back for native partitioning, but with some limitations.
+ * `p_batch_interval` - optional argument, sets the interval of data to be moved in each batch. Defaults to the configured partition interval if not given or if you give an interval larger than the partition interval. IMPORTANT NOTE: This cannot be set smaller than the partition interval if moving data out of the default table. Work is being done to allow this, but with some limitations. If you are moving data from a source table that is not the partition set's default table, you can set this interval smaller than the partitioning interval to help avoid moving large amounts of data in long running transactions.
  * `p_lock_wait` - optional argument, sets how long in seconds to wait for a row to be unlocked before timing out. Default is to wait forever.
  * `p_order` - optional argument, by default data is migrated out of the default in ascending order (ASC). Allows you to change to descending order (DESC).
  * `p_analyze` - optional argument, by default whenever a new child table is created, an analyze is run on the parent table of the partition set to ensure constraint exclusion works. This analyze can be skipped by setting this to false and help increase the speed of moving large amounts of data. If this is set to false, it is highly recommended that a manual analyze of the partition set be done upon completion to ensure statistics are updated properly.
@@ -233,7 +233,7 @@ RETURNS bigint
  * For sub-partitioned sets, you must start partitioning data at the highest level and work your way down each level. This means you must first run this function before running create_sub_parent() to create the additional partitioning levels. Then continue running this function again on each new sub-parent once they're created. See the  pg_partman_howto.md document for a full example. IMPORTANT NOTE: Be VERY cautious with sub-partition sets and using this function since sub-partitioning can be a destructive operation. See create_sub_parent().
  * `p_parent_table` - the existing parent table. MUST be schema qualified, even if in public schema.
  * `p_batch_count` - optional argument, how many times to run the `batch_interval` in a single call of this function. Default value is 1. For native partitioning, this sets how many child tables will be processed in a single run.
- * `p_batch_interval` - optional argument, temporarily deprecated in version 5.0.0. Previously with non-native partitioning this could be an interval smaller than the partition interval, allowing for very large sized partitions to be broken up into smaller commit batches. Defaults to the configured partition interval if not given or if you give an interval larger than the partition interval. Work is being done to bring this feature back for native partitioning, but with some limitations.
+ * `p_batch_interval` - optional argument, sets the interval of data to be moved in each batch. Defaults to the configured partition interval if not given or if you give an interval larger than the partition interval. IMPORTANT NOTE: This cannot be set smaller than the partition interval if moving data out of the default table. Work is being done to allow this, but with some limitations. If you are moving data from a source table that is not the partition set's default table, you can set this interval smaller than the partitioning interval to help avoid moving large amounts of data in long running transactions.
  * `p_lock_wait` - optional argument, sets how long in seconds to wait for a row to be unlocked before timing out. Default is to wait forever.
  * `p_order` - optional argument, by default data is migrated out of the parent in ascending order (ASC). Allows you to change to descending order (DESC).
  * `p_analyze` - optional argument, by default whenever a new child table is created, an analyze is run on the parent table of the partition set to ensure constraint exclusion works. This analyze can be skipped by setting this to false and help increase the speed of moving large amounts of data. If this is set to false, it is highly recommended that a manual analyze of the partition set be done upon completion to ensure statistics are updated properly.
@@ -261,8 +261,8 @@ partition_data_proc (
  * Calls either partition_data_time() or partition_data_id() in a loop depending on partitioning type.
  * `p_parent_table` - Parent table of an already created partition set.
  * `p_loop_count` - How many times to loop through the value given for p_interval. If p_interval not set, will use default partition interval and make at most this many partition(s). Procedure commits at the end of each loop (NOT passed as p_batch_count to partitioning function). If not set, all data in the parent/source table will be partitioned in a single run of the procedure.
- * `p_interval` - optional argument, temporarily deprecated in version 5.0.0. Value that is passed on to the partitioning function as p_batch_interval argument. See underlying functions for further explanation.
- * `p_lock_wait` - Parameter passed directly through to the underlying partition_data_*() function. Number of seconds to wait on rows that may be locked by another transaction. Default is to wait forever (0).
+ * `p_interval` - Parameter that is passed on to the partitioning function as p_batch_interval argument. See underlying functions for further explanation.
+ * `p_lock_wait` - Parameter that is passed directly through to the underlying partition_data_*() function. Number of seconds to wait on rows that may be locked by another transaction. Default is to wait forever (0).
  * `p_lock_wait_tries` - Parameter to set how many times the procedure will attempt waiting the amount of time set for p_lock_wait. Default is 10 tries.
  * `p_wait` - Cause the procedure to pause for a given number of seconds between commits (batches) to reduce write load
  * `p_order` -  Same as the p_order option in the called partitioning function
@@ -524,18 +524,18 @@ RETURNS boolean
 ### Destruction Functions
 
 ```
+
 undo_partition(
     p_parent_table text
     , p_target_table text
-    , p_batch_count int DEFAULT 1
+    , p_loop_count int DEFAULT 1
     , p_batch_interval text DEFAULT NULL
     , p_keep_table boolean DEFAULT true
     , p_lock_wait numeric DEFAULT 0
     , p_ignored_columns text[] DEFAULT NULL
     , p_drop_cascade boolean DEFAULT false
     , OUT partitions_undone int
-    , OUT rows_undone bigint
-)
+    , OUT rows_undone bigint) 
 RETURNS record
 ``
 
@@ -548,7 +548,7 @@ RETURNS record
  * For subpartitioned tables, you may have to start at the lowest level parent table and undo from there then work your way up. 
  * `p_parent_table` - parent table of the partition set. Must be schema qualified and match a parent table name already configured in `pg_partman`.
  * `p_target_table` - A schema-qualified table to move the old partitioned table's data to. Required for undoing a native partitioning since a partition table cannot be converted into a non-partitioned table. Schema can be different from original table.
- * `p_batch_count` - an optional argument, this sets how many times to move the amount of data equal to the `p_batch_interval` argument (or default partition interval if not set) in a single run of the function. Defaults to 1.
+ * `p_loop_count` - an optional argument, this sets how many times to move the amount of data equal to the `p_batch_interval` argument (or default partition interval if not set) in a single run of the function. Defaults to 1.
  * `p_batch_interval` - optional argument. A time or id interval of how much of the data to move. This can be smaller than the partition interval, allowing for very large partitions to be broken up into smaller commit batches. Defaults to the configured partition interval if not given or if you give an interval larger than the partition interval. Note that the value must be given as text to this parameter.
  * `p_keep_table` - an optional argument, setting this to false will cause the old child table to be dropped instead of deattached after all of its data has been moved. Note that it takes at least two batches to actually drop a table from the set.
  * `p_lock_wait` - optional argument, sets how long in seconds to wait for either the table or a row to be unlocked before timing out. Default is to wait forever.

@@ -23,7 +23,7 @@
 
 -- Creating a template table is now optional when calling create_parent(). Set p_template_table to 'false' to skip template table creation. Note this is not a boolean parameter since this also meant to take a template table name, so the explicit string value 'false' must be set.
 
--- TODO Procedures
+-- TODO Doc note, recommend clustering on the control column when partitioning data (from source or default table). May help with retrieval speed since data is being gathered in order
 -- TODO Review if/how apply_cluster works on native
 -- TODO Review dropping/detaching child table support - https://github.com/pgpartman/pg_partman/issues/471
 -- TODO  note in release notes that normal  partition maintenance does NOT run analyze by default anymore
@@ -406,7 +406,8 @@ CHECK (@extschema@.check_partition_type(sub_partition_type));
 
 -- #### Brand new functions ####
 
-CREATE FUNCTION calculate_time_partition_info(p_time_interval interval
+CREATE FUNCTION @extschema@.calculate_time_partition_info(
+        p_time_interval interval
         , p_start_time timestamptz
         , p_date_trunc_interval text DEFAULT NULL
         , OUT base_timestamp timestamptz
@@ -475,7 +476,7 @@ DROP FUNCTION @extschema@.create_sub_parent(text, text, text, text, text, text[]
 DROP FUNCTION @extschema@.run_maintenance(text, boolean, boolean);
 DROP FUNCTION @extschema@.undo_partition(text, int, text, boolean, numeric, text, text[], boolean);
 DROP PROCEDURE @extschema@.partition_data_proc (text, text, int, int, text, text, int, int, boolean, text[]);
-DROP PROCEDURE @extschema@.undo_partition_proc(text, text, int, int, text, boolean, int, int, boolean, text[], boolean)
+DROP PROCEDURE @extschema@.undo_partition_proc(text, text, int, int, text, boolean, int, int, boolean, text[], boolean);
 
 CREATE OR REPLACE FUNCTION @extschema@.apply_constraints(
     p_parent_table text
@@ -1218,7 +1219,7 @@ IF v_control_type = 'time' OR (v_control_type = 'id' AND p_epoch <> 'none') THEN
 
     SELECT base_timestamp, datetime_string 
     INTO v_base_timestamp, v_datetime_string
-    FROM calculate_time_partition_info(v_time_interval, v_start_time, p_date_trunc_interval);
+    FROM @extschema@.calculate_time_partition_info(v_time_interval, v_start_time, p_date_trunc_interval);
 
     RAISE DEBUG 'create_parent(): parent_table: %, v_base_timestamp: %', p_parent_table, v_base_timestamp;
 
@@ -1495,10 +1496,11 @@ IF p_default_table THEN
         , v_parent_schema, v_parent_tablename, v_parent_schema, v_default_partition);
     EXECUTE v_sql;
 
+    -- Manage template inherited properies
+    PERFORM @extschema@.inherit_template_properties(p_parent_table, v_parent_schema, v_default_partition);
+
 END IF;
 
--- Manage template inherited properies
-PERFORM @extschema@.inherit_template_properties(p_parent_table, v_parent_schema, v_default_partition);
 
 IF v_jobmon_schema IS NOT NULL THEN
     PERFORM update_step(v_step_id, 'OK', 'Done');
@@ -3634,7 +3636,7 @@ IF v_default_exists THEN
 ELSE
 
     -- Set analyze to true if a table is created
-    v_analyze := PERFORM @extschema@.create_partition_id(p_parent_table, v_partition_id);
+    v_analyze := @extschema@.create_partition_id(p_parent_table, v_partition_id);
 
     EXECUTE format('WITH partition_data AS (
             DELETE FROM ONLY %1$I.%2$I WHERE %3$I >= %4$s AND %3$I < %5$s RETURNING *)
@@ -3936,7 +3938,7 @@ FOR i IN 1..p_batch_count LOOP
             , v_column_list);
 
         -- Set analyze to true if a table is created
-        v_analyze :=  @extschema@.create_partition_time(p_parent_table, v_partition_timestamp, p_analyze);
+        v_analyze := @extschema@.create_partition_time(p_parent_table, v_partition_timestamp);
 
         EXECUTE format('WITH partition_data AS (
                 DELETE FROM partman_temp_data_storage RETURNING *)
@@ -3948,7 +3950,7 @@ FOR i IN 1..p_batch_count LOOP
     ELSE
 
         -- Set analyze to true if a table is created
-        v_analyze := @extschema@.create_partition_time(p_parent_table, v_partition_timestamp, p_analyze);
+        v_analyze := @extschema@.create_partition_time(p_parent_table, v_partition_timestamp);
 
         EXECUTE format('WITH partition_data AS (
                             DELETE FROM ONLY %I.%I WHERE %s >= %L AND %3$s < %5$L RETURNING *)
@@ -4520,7 +4522,7 @@ IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
 
     SELECT to_char(base_timestamp, datetime_string)
     INTO suffix
-    FROM calculate_time_partition_info(v_partition_interval::interval, child_start_time);
+    FROM @extschema@.calculate_time_partition_info(v_partition_interval::interval, child_start_time);
 
 ELSIF v_control_type = 'id' THEN
 
@@ -4815,7 +4817,7 @@ $$;
 CREATE FUNCTION @extschema@.undo_partition(
     p_parent_table text
     , p_target_table text
-    , p_batch_count int DEFAULT 1
+    , p_loop_count int DEFAULT 1
     , p_batch_interval text DEFAULT NULL
     , p_keep_table boolean DEFAULT true
     , p_lock_wait numeric DEFAULT 0
@@ -5095,7 +5097,7 @@ LOOP
         END IF;
 
         v_undo_count := v_undo_count + 1;
-        EXIT outer_child_loop WHEN v_batch_loop_count >= p_batch_count; -- Exit outer FOR loop if p_batch_count is reached
+        EXIT outer_child_loop WHEN v_batch_loop_count >= p_loop_count; -- Exit outer FOR loop if p_loop_count is reached
         CONTINUE outer_child_loop; -- skip data moving steps below
     END IF;
     v_inner_loop_count := 1;
@@ -5208,7 +5210,7 @@ LOOP
 
         END IF; -- end v_control_type check
 
-        EXIT outer_child_loop WHEN v_batch_loop_count >= p_batch_count; -- Exit outer FOR loop if p_batch_count is reached
+        EXIT outer_child_loop WHEN v_batch_loop_count >= p_loop_count; -- Exit outer FOR loop if p_loop_count is reached
 
     END LOOP inner_child_loop;
 END LOOP outer_child_loop;
@@ -5286,11 +5288,12 @@ CREATE PROCEDURE @extschema@.partition_data_proc (
     , p_interval text DEFAULT NULL
     , p_lock_wait int DEFAULT 0
     , p_lock_wait_tries int DEFAULT 10
-    , p_wait int DEFAULT 1, p_order text DEFAULT 'ASC'
-    , p_order text DEFAULT 'ASC',
+    , p_wait int DEFAULT 1
+    , p_order text DEFAULT 'ASC'
     , p_source_table text DEFAULT NULL
     , p_ignored_columns text[] DEFAULT NULL
-    , p_quiet boolean DEFAULT false)
+    , p_quiet boolean DEFAULT false
+)
     LANGUAGE plpgsql
     AS $$
 DECLARE
