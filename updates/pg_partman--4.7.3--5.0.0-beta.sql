@@ -1,17 +1,15 @@
--- IMPORTANT NOTE: Many functions have had their parameters altered, renamed, rearranged or removed. These should be more consistent across the code-base now. Please review ALL calls to pg_partman functions to ensure that your parameter names and values have been updated to match the changes. 
-
 -- IMPORTANT NOTE: It is recommended that you take a backup of the part_config and part_config_sub tables before upgrading just to ensure they can be restored in case there are any issues. These tables are recreated as part of the upgrade.
 
--- Removed trigger-based partitioning support. All partitioning is now done using built-in (native) declarative partitioning. The partitioning 'type' will now refer to the types of delcarative partitioning that are supported. As of 5.0.0, only 'ranged' is supported, but others are in development.
+-- (Breaking Change) Many functions have had their parameters altered, renamed, rearranged or removed. These should be more consistent across the code-base now. Please review ALL calls to pg_partman functions to ensure that your parameter names and values have been updated to match the changes. 
 
--- Simplified all time-based partitioning suffixes to YYYYMMDD for intervals greater than or equal to 1 day and YYYYMMDD_HH24MISS for intervals less than 1 day. Removal of extra underscores to allow longer base partition names. Existing partition suffixes will still be supported, but newly created partition sets will use the new naming patterns by default. It is recommended that migration to the new suffixes is done when possible to ensure future support of possible pg_partman changes.
-    -- TODO See if user-supplied datetime_string suffix can be supported
-    -- TODO Supply migration documentation
+-- (Breaking Chang) Removed trigger-based partitioning support. All partitioning is now done using built-in (native) declarative partitioning. The partitioning 'type' will now refer to the types of delcarative partitioning that are supported. As of 5.0.0, only 'ranged' is supported, but others are in development.
 
--- Along with the new suffixes, the previous specialized time-based interval types have been deprecated. All time-based interval values must be valid values for the interval data type. 
-    -- Remove quarterly partitioning. TODO Write a doc for how to migrate away to native, 3-month partitioning
-    -- Remove weekly partitioning style with ISO style week numbers. If you want partitions to follow standard week boundaries (start on Sunday or Monday), set your starting partition value to start on a date that matches your desired 7 day interval. TODO Write doc for how to migrate away. Just set to standard 1 week or 7 day interval. datetime_string will be YYYYMMDD with the value being the first day of that week
-    -- Hourly partitioning now has seconds on the child partition suffix. TODO Not sure that needs conversion, but make note that it will be different for partition sets created with 5.x
+-- (Breaking Change) Some specialized time-based interval types have been deprecated. All time-based interval values must be valid values for the interval data type. 
+    -- Removed specialized quarterly partitioning. 
+    -- Removed specialized weekly partitioning with ISO style week numbers. 
+    -- Hourly partitioning now has seconds on the child partition suffix. Migration for this is not necessary, but just be aware that any new partition sets created with this interval may look different than existing ones if the suffix isn't migrated.
+
+-- Simplified all time-based partitioning suffixes to YYYYMMDD for intervals greater than or equal to 1 day and YYYYMMDD_HH24MISS for intervals less than 1 day. Removal of extra underscores to allow longer base partition names. Existing partition suffixes will still be supported, but newly created partition sets will use the new naming patterns by default. It is recommended that migration to the new suffixes is done when possible to ensure future support of possible pg_partman changes. The documentation on migrating the old specialized weekly/quarterly partition sets to be supported in 5.0.0 can be used as guidance for migrating other child tablenames as well.
 
 -- By default, data in the default partition is now ignored when calculating new child partitions to create. If a new child table's boundaries would include data that exists in the default, this will cause an error during maintenance and must be manually resolved by either removing that data from the default or partitioning it out to the proper child table using the partition_data function/procedure.
     -- A flag is available to take default data into consideration, but this should only be used in rare circumstances to correct maintenance issues and should not be left permanently enabled.
@@ -23,18 +21,13 @@
 
 -- Creating a template table is now optional when calling create_parent(). Set p_template_table to 'false' to skip template table creation. Note this is not a boolean parameter since this also meant to take a template table name, so the explicit string value 'false' must be set.
 
--- TODO Doc note, recommend clustering on the control column when partitioning data (from source or default table). May help with retrieval speed since data is being gathered in order
 -- TODO Review if/how apply_cluster works on native
 -- TODO Review dropping/detaching child table support - https://github.com/pgpartman/pg_partman/issues/471
 -- TODO  note in release notes that normal  partition maintenance does NOT run analyze by default anymore
 -- TODO make a test for this: Move the index dropping part of the drop_partition functions outside the check for if the retention schema is NULL. Should still be able to remove indexes from the child tables even if they're getting moved to a new schema. 
--- TODO update the docs around analyze not being done by default with run_maintainance, but it DOES run by default with partition_dada_* now.
 -- TODO Tests for millisecond and nanosecond epoch
 -- TODO make formatting of function signatures consistent (each parameter on its own line, closing parentheses on line after final parameter)
--- TODO Consider renaming "id" partitioning to "int" partitioning
 -- TODO test dump_partitioned_table_definition
--- TODO test gap_fill
--- TODO test partition_data_proc & undo_partition_proc (new variables)
 
 -- #### Ugrade exceptions ####
 DO $upgrade_partman$
@@ -4435,8 +4428,6 @@ v_partition_interval    text;
 v_partition_type        text;
 v_start_string          text; 
 v_start_time_epoch      double precision;
-v_suffix                text;
-v_suffix_position       int;
 v_year                  text;
 
 BEGIN
@@ -4483,11 +4474,8 @@ END IF;
 
 SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_child_schema, v_child_tablename, v_control);
 
-v_suffix_position := (length(v_child_tablename) - position('p_' in reverse(v_child_tablename))) + 2;
-v_suffix := substring(v_child_tablename from v_suffix_position);
-
-RAISE DEBUG 'show_partition_info: v_child_schema: %, v_child_tablename: %, v_suffix: %',
-            v_child_schema, v_child_tablename, v_suffix;
+RAISE DEBUG 'show_partition_info: v_child_schema: %, v_child_tablename: %',
+            v_child_schema, v_child_tablename;
 
 -- Look at actual partition bounds in catalog and pull values from there. 
 SELECT (regexp_match(pg_get_expr(c.relpartbound, c.oid, true)
