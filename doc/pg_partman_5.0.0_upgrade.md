@@ -1,7 +1,7 @@
-Migration Guildlines for Upgrading to pg_partman 5.0.0
-======================================================
+Guildelines for Upgrading to pg_partman 5.0.0
+=============================================
 
-IMPORTANT NOTE: This document assumes all partition sets are native partition sets. If you have trigger-based partitioing sets, you must migrate them to native first before doing any further work to make your partition set compatible with pg_partman 5.0.0 and greater.
+IMPORTANT NOTE: This document assumes all partition sets are native partition sets. If you have trigger-based partitioning sets, you must migrate them to native first before doing any further work to make your partition set compatible with pg_partman 5.0.0 and greater.
 
 ## Deprecated Partitioning Methods
 There are several partitioning schemes that pg_partman supported prior to version 5.0.0 that are no longer supported, namely ISO weekly and Quarterly. Note that is still possible to partition with these intervals in version 5 and above, it's that the specialized versions of this partitioning that were done before no longer are.

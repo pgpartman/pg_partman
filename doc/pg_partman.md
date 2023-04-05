@@ -3,15 +3,15 @@ PostgreSQL Partition Manager Extension (`pg_partman`)
 
 About
 -----
-PostgreSQL Partition Manager is an extension to help make managing time or serial id based table partitioning easier. It has many options, but usually only a few are needed, so it's much easier to use than it may first appear (and definitely easier than implementing it yourself).
+PostgreSQL Partition Manager is an extension to help make managing time or number/id based table partitioning easier. It has many options, but usually only a few are needed, so it's much easier to use than it may first appear (and definitely easier than implementing it yourself).
 
-As of version 5.0.0, the minimum version of PostgreSQL required is 14 and trigger-based partitioning is no longer supported. All partitioning is done using built-in declarative partitioning. Currently only ranged partitioning is supported for time- and integer-based intervals. Version 4.x of pg_partman, which still has trigger-based support, is no longer in active development and will only be receiving critical bug fixes for a limited time.
+As of version 5.0.0, the minimum version of PostgreSQL required is 14 and trigger-based partitioning is no longer supported. All partitioning is done using built-in declarative partitioning. Currently only ranged partitioning is supported for time- and number-based intervals. Version 4.x of pg_partman, which still has trigger-based support, is no longer in active development and will only be receiving critical bug fixes for a limited time. If partitioning is a critical part of your infrastructure, please make plans to upgrade in the near future.
 
 A default partition to catch data outside the existing child boundaries is automatically created for all partition sets. The `check_default()` function provides monitoring for any data getting inserted into the default table and the `partition_data_`* set of functions can easily partition that data for you if it is valid data. That is much easier than automatically creating new child tables on demand and having to clean up potentially hundreds or thousands of unwanted partitions. And also better than throwing an error and losing the data! 
 
 Note that future child table creation is based on the data currently in the partition set and, by default, ignores data in the default. It is recommended that you set the `premake` value high enough to encompass your expected data range being inserted. See below for further explanations on these configuration values.
 
-If you have an existing partition set and you'd like to migrate it to pg_partman, please see the migration.md file in the doc folder (TODO this is currently only for non-native partitioning. Update it). 
+If you have an existing partition set and you'd like to migrate it to pg_partman, please see the migrate_to_partman.md file in the doc folder.
 
 ### Child Table Property Inheritance
 
@@ -34,15 +34,15 @@ If you are using the IDENTITY feature for sequences, the automatic generation of
 
 IMPORTANT NOTES: 
 
- * The template table feature in use to handle certain features is only a temporary solution to help speed up native partitioning adoption. As things are handled better natively, the use of the template table will be phased out quickly from pg_partman.  If a feature that was managed by the template is eventually supported natively, it will eventually be removed from template management in pg_partman, so please plan ahead for that during major version upgrading if it applies to you.
+ * The template table feature in use to handle certain features is only a temporary solution to help speed up native partitioning adoption. As things are handled better natively, the use of the template table will be phased out quickly from pg_partman. If a feature that was managed by the template is supported natively in the future, it will eventually be removed from template management in pg_partman, so please plan ahead for that during major version upgrading if it applies to you.
 
  * The UNLOGGED status is managed via pg_partman's template due to an inconsistency in the way the property is handled when either enabling or disabling UNLOGGED on the parent table of a native partition set. That property does not actually change when the ALTER command is written so new child tables will continue to use the property that existed before. So if you wanted to change a partition set from UNLOGGED to LOGGED for all future children, it does not work. With the property now being managed on the template table, changing it there will allow the change to propagate to newly created children. Pre-existing child tables will have to be changed manually, but that has always been the case. See reported bug at https://www.postgresql.org/message-id/flat/15954-b61523bed4b110c4%40postgresql.org
 
 ### Time Zones
 
-It is important to ensure that the time zones for all systems that will be running pg_partman maintenance operations are consistent, especially when running time-based partitioning. The calls to pg_partman functions will use the time zone that is set by the client at the time the functions are called. This is consistent with the way PostgreSQL clients work in general.
+It is important to ensure that the time zones for all systems that will be running pg_partman maintenance operations are consistent, especially when running time-based partitioning. The calls to pg_partman functions will use the time zone that is set by the client at the time the functions are called. This is consistent with the way libpq clients work in general.
 
-It is highly recommended to run your database system in UTC time to overcome issues that are currently not possible to solve due to Daylight Saving time changes.  Then also ensure the client that will be creating partition sets and running the maintenance calls is also set to UTC. For example, trying to partition hourly will either break when the time changes or skip creating a child table.
+It is highly recommended to run your database system in UTC time to overcome issues that are currently not possible to solve due to Daylight Saving Time (DST) changes. Then also ensure the client that will be creating partition sets and running the maintenance calls is also set to UTC. For example, trying to partition hourly will either break when the time changes or skip creating a child table.
 
 ### Sub-partitioning
 
@@ -50,7 +50,6 @@ Sub-partitioning with multiple levels is supported, but it is of very limited us
 
 You can do time->time, id->id, time->id and id->time. There is no set limit on the level of subpartitioning you can do, but be sensible and keep in mind performance considerations on managing many tables in a single inheritance set. Also, if the number of tables in a single partition set gets very high, you may have to adjust the `max_locks_per_transaction` postgresql.conf setting above the default of 64. Otherwise you may run into shared memory issues or even crash the cluster. If you have contention issues when `run_maintenance()` is called for general maintenance of all partition sets, you can set the **`automatic_maintenance`** column in the **`part_config`** table to false if you do not want that general call to manage your subpartition set. But you must then call `run_maintenance(parent_table)` directly, and often enough, to have to future partitions made. You can use the run_maintenance_proc() procedure instead of the base function to cause less contention issues since it automatically commits after each partition set's maintenance.
 
-TODO: See if this is still true
 PUBLICATION/SUBSCRIPTION for logical replication is NOT supported with native sub-partitioning.
 
 See the `create_parent_sub()` & `run_maintenance()` functions below for more information.
@@ -64,7 +63,7 @@ Keep in mind that for subpartition sets, when a parent table has a child dropped
 
 One of the big advantages of partitioning is a feature called **constraint exclusion** (see docs for explanation of functionality and examples http://www.postgresql.org/docs/current/static/ddl-partitioning.html#DDL-PARTITIONING-CONSTRAINT-EXCLUSION). The problem with most partitioning setups however, is that this will only be used on the partitioning control column. If you use a WHERE condition on any other column in the partition set, a scan across all child tables will occur unless there are also constraints on those columns. And predicting what a column's values will be to pre-create constraints can be very hard or impossible. `pg_partman` has a feature to apply constraints on older tables in a partition set that no longer have any edits done to them ("old" being defined as older than the `optimize_constraint` config value). It checks the current min/max values in the given columns and then applies a constraint to that child table. This can allow the constraint exclusion feature to potentially eliminate scanning older child tables when other columns are used in WHERE conditions. Be aware that this limits being able to edit those columns, but for the situations where it is applicable it can have a tremendous affect on query performance for very large partition sets. So if you are only inserting new data this can be very useful, but if data is regularly being inserted/updated throughout the entire partition set, this is of limited use. Functions for easily recreating constraints are also available if data does end up having to be edited in those older partitions. Note that constraints managed by PG Partman SHOULD NOT be renamed in order to allow the extension to manage them properly for you. For a better example of how this works, please see this blog post: http://www.keithf4.com/managing-constraint-exclusion-in-table-partitioning
 
-Adding these constraints could potentially cause contention with the data contained in those tables and also make pg_partman maintenance take a long time to run. As of version 4.2+ of pg_partman, there is now a "constraint_valid" column in the part_config(_sub) table to set whether these constraints should be set NOT VALID on creation. While this can make the creation of the constraint(s) nearly instantaneous, constraint exclusion cannot be used until it is validated. This is why constraints are added as valid by default.
+Adding these constraints could potentially cause contention with the data contained in those tables and also make pg_partman maintenance take a long time to run. There is a "constraint_valid" column in the part_config(_sub) table to set whether these constraints should be set NOT VALID on creation. While this can make the creation of the constraint(s) nearly instantaneous, constraint exclusion cannot be used until it is validated. This is why constraints are added as valid by default.
 
 NOTE: This may not work with sub-partitioning. It will work on the first level of partitioning, but is not guaranteed to work properly on further sub-partition sets depending on the interval combinations and the optimize_constraint value. Ex: Weekly -> Daily with a daily optimize_constraint of 7 won't work as expected. Weekly constraints will get created but daily sub-partition ones likely will not.
 
@@ -78,7 +77,7 @@ Keep in mind that for intervals equal to or greater than 100 years, the extensio
 
 ### Naming Length Limits
 
-PostgreSQL has an object naming length limit of 63 bytes (NOT characters). If you try and create an object with a longer name, it truncates off any characters at the end to fit that limit. This can cause obvious issues with partition names that rely on having a specifically named suffix. PG Partman automatically handles this for all child table names. It will truncate off the existing parent table name to fit the required suffix. Be aware that if you have tables with very long, similar names, you may run into naming conflicts if they are part of separate partition sets. With serial based partitioning, be aware that over time the table name will be truncated more and more to fit a longer partition suffix. So while the extension will try and handle this edge case for you, it is recommended to keep table names that will be partitioned as short as possible.
+PostgreSQL has an object naming length limit of 63 bytes (NOT characters). If you try and create an object with a longer name, it truncates off any characters at the end to fit that limit. This can cause obvious issues with partition names that rely on having a specifically named suffix. PG Partman automatically handles this for all child table names. It will truncate off the existing parent table name to fit the required suffix. Be aware that if you have tables with very long, similar names, you may run into naming conflicts if they are part of separate partition sets. With number based partitioning, be aware that over time the table name will be truncated more and more to fit a longer partition suffix. So while the extension will try and handle this edge case for you, it is recommended to keep table names that will be partitioned as short as possible.
 
 ### Unique Constraints
 
@@ -227,7 +226,7 @@ partition_data_id(p_parent_table text
 RETURNS bigint
 ```
 
- * This function is used to partition data that may have existed prior to setting up the parent table as a integer-based, serial id partition set. It also fixes data that gets inserted into the default.
+ * This function is used to partition data that may have existed prior to setting up the parent table as a number-based partition set. It also fixes data that gets inserted into the default.
  * If the needed partition does not exist, it will automatically be created. If the needed partition already exists, the data will be moved there.
  * If you are trying to partition a large amount of data automatically, it is recommended to use the `partition_data_proc` procedure to commit data in smaller batches.  This will greatly reduce issues caused by long running transactions and data contention.
  * For sub-partitioned sets, you must start partitioning data at the highest level and work your way down each level. This means you must first run this function before running create_sub_parent() to create the additional partitioning levels. Then continue running this function again on each new sub-parent once they're created. See the  pg_partman_howto.md document for a full example. IMPORTANT NOTE: Be VERY cautious with sub-partition sets and using this function since sub-partitioning can be a destructive operation. See create_sub_parent().
@@ -684,7 +683,7 @@ Stores all configuration data for partition sets mananged by the extension.
     - The schema-qualified name of the table used as a template for applying any inheritance options not handled by the native partitioning options in PG.
  - `retention`
     - Text type value that determines how old the data in a child partition can be before it is dropped.
-    - Must be a value that can either be cast to the interval (for time-based partitioning) or bigint (for serial partitioning) data types.
+    - Must be a value that can either be cast to the interval (for time-based partitioning) or bigint (for number partitioning) data types.
     - Leave this column NULL (the default) to always keep all child partitions. See **About** section for more info.
  - `retention_schema`
     - Schema to move tables to as part of the retentions system instead of dropping them. Overrides retention_keep_table option.

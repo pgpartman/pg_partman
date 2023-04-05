@@ -1,33 +1,32 @@
 -- IMPORTANT NOTE: It is recommended that you take a backup of the part_config and part_config_sub tables before upgrading just to ensure they can be restored in case there are any issues. These tables are recreated as part of the upgrade.
+    -- If you see any errors about the following tables existing during an upgrade attempt, please review their content and ensure you do not need any of the backed up pre-5.x configuration data they contain. Drop them if not needed and try the upgrade again: part_config_pre_500_data, part_config_sub_pre_500_data
+
+-- (Breaking Change) Removed trigger-based partitioning support. All partitioning is now done using built-in (native) declarative partitioning. The partitioning 'type' in pg_partman will now refer to the types of delcarative partitioning that are supported. As of 5.0.0, only 'range' is supported, but others are in development.
 
 -- (Breaking Change) Many functions have had their parameters altered, renamed, rearranged or removed. These should be more consistent across the code-base now. Please review ALL calls to pg_partman functions to ensure that your parameter names and values have been updated to match the changes. 
 
--- (Breaking Chang) Removed trigger-based partitioning support. All partitioning is now done using built-in (native) declarative partitioning. The partitioning 'type' will now refer to the types of delcarative partitioning that are supported. As of 5.0.0, only 'ranged' is supported, but others are in development.
+-- (Breaking Change) Due to a majority of extension objects being dropped & recreated, privileges on the extension objects ARE NOT being preserved as they have been done with past extension updates. Ensure existing privileges are recorded before upgrading pg_partman and are regranted/revoked after the upgrade is complete. Check the following system catalogs for privilege information for pg_partman objects: information_schema.routine_privileges & information_schema.table_privileges
 
--- (Breaking Change) Some specialized time-based interval types have been deprecated. All time-based interval values must be valid values for the interval data type. 
-    -- Removed specialized quarterly partitioning. 
-    -- Removed specialized weekly partitioning with ISO style week numbers. 
-    -- Hourly partitioning now has seconds on the child partition suffix. Migration for this is not necessary, but just be aware that any new partition sets created with this interval may look different than existing ones if the suffix isn't migrated.
+-- (Breaking Change) Some specialized time-based interval types have been deprecated. 
+    -- All time-based interval values must now be valid values for the interval data type. The previous weekly, hourly, daily, etc interval values are no longer supported.
+    -- Removed specialized quarterly partitioning (see new migration doc). 
+    -- Removed specialized weekly partitioning with ISO style week numbers (see new migration doc). 
+    -- Hourly partitioning now has seconds on the child partition suffix. Migration for this is not necessary, but just be aware that any new partition sets created with this interval may look different than existing ones from prior pg_partman versions.
 
--- Simplified all time-based partitioning suffixes to YYYYMMDD for intervals greater than or equal to 1 day and YYYYMMDD_HH24MISS for intervals less than 1 day. Removal of extra underscores to allow longer base partition names. Existing partition suffixes will still be supported, but newly created partition sets will use the new naming patterns by default. It is recommended that migration to the new suffixes is done when possible to ensure future support of possible pg_partman changes. The documentation on migrating the old specialized weekly/quarterly partition sets to be supported in 5.0.0 can be used as guidance for migrating other child tablenames as well.
+-- The minimum required version of PostgreSQL is now 14
+
+-- Simplified all time-based partitioning suffixes to YYYYMMDD for intervals greater than or equal to 1 day and YYYYMMDD_HH24MISS for intervals less than 1 day. Removed extra underscores to allow longer base partition names. Existing partition suffixes will still be supported, but newly created partition sets will use the new naming patterns by default. It is recommended that migration to the new suffixes is done when possible to ensure future support of possible pg_partman changes. The documentation on migrating the old specialized weekly/quarterly partition sets to be supported in 5.0.0 can be used as guidance for migrating other child tablenames as well.
 
 -- By default, data in the default partition is now ignored when calculating new child partitions to create. If a new child table's boundaries would include data that exists in the default, this will cause an error during maintenance and must be manually resolved by either removing that data from the default or partitioning it out to the proper child table using the partition_data function/procedure.
     -- A flag is available to take default data into consideration, but this should only be used in rare circumstances to correct maintenance issues and should not be left permanently enabled.
 
 -- As of PostgreSQL 13, newly created child tables in a partition set that is part of a logical repication PUBLICATION are automatically added to that PUBLICATION. Therefore the "publications" array configuration in the pg_partman configuration tables was removed. Simply make sure the parent table is a part of the necessary publications and it will be natively handled from now on.
-    -- The SUBSCRIPTION does not automatically get refreshed to account for new tables added to a published partition set. If pg_partman is also managing your partition set on the SUBSCRIPTION side, ensure the "subscription_refresh" flag in the configuration table is set to true so that maintenance will automatically run to add the new tables.
+    -- Note The SUBSCRIPTION does not automatically get refreshed to account for new tables added to a published partition set. If pg_partman is also managing your partition set on the SUBSCRIPTION side, ensure the "subscription_refresh" flag in the configuration table is set to true so that maintenance will automatically run to add the new tables to the subscription.
 
--- Now supports dropping indexes for partitions moved to another schema as part of retention
+-- Added support for dropping indexes for partitions moved to another schema as part of retention
 
--- Creating a template table is now optional when calling create_parent(). Set p_template_table to 'false' to skip template table creation. Note this is not a boolean parameter since this also meant to take a template table name, so the explicit string value 'false' must be set.
+-- Creating a template table is now optional when calling create_parent(). Set p_template_table to 'false' to skip template table creation. Note this is not a boolean since this parameter is also meant to take a template table name, so the explicit string value 'false' must be set.
 
--- TODO Review if/how apply_cluster works on native
--- TODO Review dropping/detaching child table support - https://github.com/pgpartman/pg_partman/issues/471
--- TODO  note in release notes that normal  partition maintenance does NOT run analyze by default anymore
--- TODO make a test for this: Move the index dropping part of the drop_partition functions outside the check for if the retention schema is NULL. Should still be able to remove indexes from the child tables even if they're getting moved to a new schema. 
--- TODO Tests for millisecond and nanosecond epoch
--- TODO make formatting of function signatures consistent (each parameter on its own line, closing parentheses on line after final parameter)
--- TODO test dump_partitioned_table_definition
 
 -- #### Ugrade exceptions ####
 DO $upgrade_partman$
@@ -58,10 +57,9 @@ DROP TABLE @extschema@.custom_time_partitions;
 
 ALTER TABLE @extschema@.part_config ALTER ignore_default_data SET DEFAULT true;
 
--- Do NOT drop these tables as part of upgrade. If they exist, a previous upgrade may have been attempted and 
---      we don't want to lose data that user may have backed up and need for recovery
--- TODO Add note in upgrade 5.x notes that if they get any errors about these tables existing, they need to
---      manually drop them if they're sure they don't need the data anymore.
+-- Do NOT drop these tables until upgrade has completed successfully (see end of this update file)
+--      If they exist, a previous upgrade may have been attempted and 
+--      we don't want to lose data that user may have backed up and need for recovery.
 CREATE UNLOGGED TABLE @extschema@.part_config_pre_500_data (LIKE @extschema@.part_config);
 CREATE UNLOGGED TABLE @extschema@.part_config_sub_pre_500_data (LIKE @extschema@.part_config_sub);
 
@@ -215,6 +213,8 @@ CREATE TABLE @extschema@.part_config (
     , constraint_valid boolean DEFAULT true NOT NULL
     , subscription_refresh text
     , ignore_default_data boolean NOT NULL DEFAULT true
+    , default_table boolean DEFAULT true
+    , date_trunc_interval text
     , CONSTRAINT part_config_parent_table_pkey PRIMARY KEY (parent_table)
     , CONSTRAINT positive_premake_check CHECK (premake > 0)
 );
@@ -294,9 +294,9 @@ CREATE TABLE @extschema@.part_config_sub (
     , sub_inherit_privileges boolean DEFAULT false
     , sub_constraint_valid boolean DEFAULT true NOT NULL
     , sub_subscription_refresh text
-    , sub_date_trunc_interval TEXT
     , sub_ignore_default_data boolean NOT NULL DEFAULT true
     , sub_default_table boolean default true
+    , sub_date_trunc_interval TEXT
     , CONSTRAINT part_config_sub_pkey PRIMARY KEY (sub_parent)
     , CONSTRAINT part_config_sub_sub_parent_fkey FOREIGN KEY (sub_parent) REFERENCES @extschema@.part_config (parent_table) ON DELETE CASCADE ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED
     , CONSTRAINT positive_premake_check CHECK (sub_premake > 0)
@@ -460,7 +460,8 @@ DROP FUNCTION IF EXISTS @extschema@.create_function_time(text, bigint);
 DROP FUNCTION IF EXISTS @extschema@.create_trigger(text);
 DROP FUNCTION IF EXISTS @extschema@.drop_partition_column(text, text);
 
--- Dropped and replaced - TODO preserve privs. Also preserve priveleges on the part_config & part_config_sub table since those were dropped/recreated
+
+-- Dropped and replaced
 DROP FUNCTION @extschema@.check_subpart_sameconfig(text);
 DROP FUNCTION @extschema@.create_parent(text, text, text, text, text[], int, text, text, boolean, text, text, text[], boolean, text, boolean, text);
 DROP FUNCTION @extschema@.create_partition_id(text, bigint[], boolean, text);
@@ -470,6 +471,7 @@ DROP FUNCTION @extschema@.run_maintenance(text, boolean, boolean);
 DROP FUNCTION @extschema@.undo_partition(text, int, text, boolean, numeric, text, text[], boolean);
 DROP PROCEDURE @extschema@.partition_data_proc (text, text, int, int, text, text, int, int, boolean, text[]);
 DROP PROCEDURE @extschema@.undo_partition_proc(text, text, int, int, text, boolean, int, int, boolean, text[], boolean);
+
 
 CREATE OR REPLACE FUNCTION @extschema@.apply_constraints(
     p_parent_table text
@@ -1248,7 +1250,9 @@ IF v_control_type = 'time' OR (v_control_type = 'id' AND p_epoch <> 'none') THEN
         , automatic_maintenance
         , jobmon 
         , template_table
-        , inherit_privileges)
+        , inherit_privileges
+        , default_table
+        , date_trunc_interval)
     VALUES (
         p_parent_table
         , p_type
@@ -1261,7 +1265,9 @@ IF v_control_type = 'time' OR (v_control_type = 'id' AND p_epoch <> 'none') THEN
         , p_automatic_maintenance
         , p_jobmon
         , v_template_schema||'.'||v_template_tablename
-        , v_inherit_privileges);
+        , v_inherit_privileges
+        , p_default_table
+        , p_date_trunc_interval);
 
     RAISE DEBUG 'create_parent: v_partition_time_array: %', v_partition_time_array;
 
@@ -1397,7 +1403,9 @@ IF v_control_type = 'id' AND p_epoch = 'none' THEN
         , automatic_maintenance
         , jobmon
         , template_table
-        , inherit_privileges)
+        , inherit_privileges
+        , default_table
+        , date_trunc_interval)
     VALUES (
         p_parent_table
         , p_type
@@ -1408,7 +1416,9 @@ IF v_control_type = 'id' AND p_epoch = 'none' THEN
         , p_automatic_maintenance 
         , p_jobmon
         , v_template_schema||'.'||v_template_tablename
-        , v_inherit_privileges); 
+        , v_inherit_privileges
+        , p_default_table
+        , p_date_trunc_interval); 
 
     v_last_partition_created := @extschema@.create_partition_id(p_parent_table, v_partition_id_array);
 
@@ -3066,6 +3076,7 @@ DECLARE
   v_epoch text; -- NOT NULL
   v_retention text;
   v_retention_schema text;
+  v_retention_keep_index boolean;
   v_retention_keep_table boolean; -- NOT NULL
   v_infinite_time_partitions boolean; -- NOT NULL
   v_datetime_string text;
@@ -3077,6 +3088,8 @@ DECLARE
   v_constraint_valid boolean; -- DEFAULT true NOT NULL
   v_subscription_refresh TEXT; 
   v_ignore_default_data boolean; -- DEFAULT false NOT NULL
+  v_date_trunc_interval text; 
+  v_default_table boolean ;
 BEGIN
   SELECT
     pc.parent_table,
@@ -3089,6 +3102,7 @@ BEGIN
     pc.epoch,
     pc.retention,
     pc.retention_schema,
+    pc.retention_keep_index,
     pc.retention_keep_table,
     pc.infinite_time_partitions,
     pc.datetime_string,
@@ -3099,7 +3113,9 @@ BEGIN
     pc.inherit_privileges,
     pc.constraint_valid, 
     pc.subscription_refresh,
-    pc.ignore_default_data 
+    pc.ignore_default_data, 
+    pc.date_trunc_interval,
+    pc.default_table
   INTO
     v_parent_table,
     v_control,
@@ -3111,6 +3127,7 @@ BEGIN
     v_epoch,
     v_retention,
     v_retention_schema,
+    v_retention_keep_index,
     v_retention_keep_table,
     v_infinite_time_partitions,
     v_datetime_string,
@@ -3121,9 +3138,15 @@ BEGIN
     v_inherit_privileges,
     v_constraint_valid,
     v_subscription_refresh,
-    v_ignore_default_data 
+    v_ignore_default_data, 
+    v_date_trunc_interval,
+    v_default_table
   FROM @extschema@.part_config pc
   WHERE pc.parent_table = p_parent_table;
+
+  IF v_parent_table IS NULL THEN
+    RAISE EXCEPTION 'Given parent table not found in pg_partman configuration table: %', p_parent_table;
+  END IF;
 
   IF p_ignore_template_table THEN
     v_template_table := NULL;
@@ -3133,27 +3156,29 @@ BEGIN
 E'SELECT @extschema@.create_parent(
 \tp_parent_table := %L,
 \tp_control := %L,
-\tp_type := %L,
 \tp_interval := %L,
-\tp_constraint_cols := %L,
-\tp_premake := %s,
-\tp_automatic_maintenance := %L,
+\tp_type := %L,
 \tp_epoch := %L,
+\tp_premake := %s,
+\tp_default_table := %L,
+\tp_automatic_maintenance := %L,
+\tp_constraint_cols := %L,
 \tp_template_table := %L,
-\tp_jobmon := %L
-\t-- v_start_partition is intentionally ignored as there
-\t-- isn''t any obviously correct definition.
+\tp_jobmon := %L,
+\tp_date_trunc_interval := %L
 );',
       v_parent_table,
       v_control,
-      v_partition_type,
       v_partition_interval,
-      v_constraint_cols,
-      v_premake,
-      v_automatic_maintenance,
+      v_partition_type,
       v_epoch,
+      v_premake,
+      v_default_table,
+      v_automatic_maintenance,
+      v_constraint_cols,
       v_template_table,
-      v_jobmon
+      v_jobmon,
+      v_date_trunc_interval
     );
 
   v_update_part_config_definition := format(
@@ -3161,6 +3186,7 @@ E'UPDATE @extschema@.part_config SET
 \toptimize_constraint = %s,
 \tretention = %L,
 \tretention_schema = %L,
+\tretention_keep_index = %L,
 \tretention_keep_table = %L,
 \tinfinite_time_partitions = %L,
 \tdatetime_string = %L,
@@ -3173,6 +3199,7 @@ WHERE parent_table = %L;',
     v_optimize_constraint,
     v_retention,
     v_retention_schema,
+    v_retention_keep_index,
     v_retention_keep_table,
     v_infinite_time_partitions,
     v_datetime_string,
@@ -5596,5 +5623,4 @@ $$;
 -- #### Drop Upgrade Objects ####
 DROP TABLE @extschema@.part_config_pre_500_data;
 DROP TABLE @extschema@.part_config_sub_pre_500_data;
---TODO Drop temp table for privileges
 
