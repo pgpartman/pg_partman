@@ -4,9 +4,9 @@ Guildelines for Upgrading to pg_partman 5.0.0
 IMPORTANT NOTE: This document assumes all partition sets are native partition sets. If you have trigger-based partitioning sets, you must migrate them to native first before doing any further work to make your partition set compatible with pg_partman 5.0.0 and greater.
 
 ## Deprecated Partitioning Methods
-There are several partitioning schemes that pg_partman supported prior to version 5.0.0 that are no longer supported, namely ISO weekly and Quarterly. Note that is still possible to partition with these intervals in version 5 and above, it's that the specialized versions of this partitioning that were done before no longer are.
+There are several partitioning schemes that pg_partman supported prior to version 5.0.0 that are no longer supported, namely ISO weekly and Quarterly. Note that is still possible to partition with these intervals in version 5 and above using the intervals "1 week" or "3 months". It's just the specialized versions of this partitioning that were done before are no longer supported.
 
-Previously weekly partitioning could be done using the ISO week format `IYYYwIW` which would result in partitioning suffixes like 2021w44 or 1994w32 where the number after the `w` was the numbered week of that year and the year would always be sure to be aligned with an ISO week. Also supported was a quarterly partitioning method with the suffix `YYYYq#` where # was one of the 4 standard quarters in a year starting with January 1st. The quarterly method was particularly problematic to support since, for a time, not all the time-based functions supported it. 
+Previously weekly partitioning could be done using the ISO week format `IYYYwIW` which would result in partitioning suffixes like 2021w44 or 1994w32 where the number after the `w` was the numbered week of that year and the year would always be sure to be aligned with an ISO week. Also supported was a quarterly partitioning method with the suffix `YYYYq#` where # was one of the 4 standard quarters in a year starting with January 1st. The quarterly method was particularly problematic to support since not all the time-based functions supported it properly. 
 
 So while quarterly was problematic to maintain, weekly did work well for the most part. But after reviewing the code to maintain all the different specialized suffixes (8 in total), it was decided to simplify the suffixes that would be supported. Now there are only two possiblities: 
 
@@ -130,6 +130,7 @@ Now we can call run_maintenance() to ensure partition maintenance is working as 
 ```
 SELECT partman.run_maintenance('partman_test.time_taptest_table');
 ```
+```
 keith=# \d+ partman_test.time_taptest_table
                                                        Partitioned table "partman_test.time_taptest_table"
  Column |           Type           | Collation | Nullable |                    Default                     | Storage  | Compression | Stats target | Description 
@@ -155,7 +156,7 @@ Partitions: partman_test.time_taptest_table_p20230130 FOR VALUES FROM ('2023-01-
             partman_test.time_taptest_table_p20230508 FOR VALUES FROM ('2023-05-08 00:00:00-04') TO ('2023-05-15 00:00:00-04'),
             partman_test.time_taptest_table_default DEFAULT
 ```
-You can see that maintenance has created new partitions with our new naming pattern without any issues. You make get one or more depending on the state of your child tables at the time this is run
+You can see that maintenance has created new partitions with our new naming pattern without any issues. You may get one or more depending on the state of your child tables at the time this is run
 
 If all is well, you can return your `premake` and `infinite_time_partitions` values back to their previous values if needed.
 
