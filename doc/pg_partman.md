@@ -536,7 +536,7 @@ undo_partition(
     , OUT partitions_undone int
     , OUT rows_undone bigint) 
 RETURNS record
-``
+```
 
  * Undo a partition set created by `pg_partman`. This function MOVES the data from the child tables to the given target table.
  * If you are trying to un-partition a large amount of data automatically, it is recommended to use the `undo_partition_data()` procedure to do the same thing. This will greatly reduce issues caused by long running transactions and data contention.
@@ -571,7 +571,7 @@ undo_partition_proc(
     , p_quiet boolean DEFAULT false
 )
 
- ```
+```
 
  * A procedure that can un-partition data in distinct commit batches to avoid long running transactions and data contention issues.
  * Calls the undo_partition() function in a loop, committing as needed.
@@ -611,7 +611,6 @@ RETURNS int
  * Returns the number of partitions affected.
 
 
-
 ```
 drop_partition_id(
     p_parent_table text
@@ -622,7 +621,6 @@ drop_partition_id(
 )
 RETURNS int
 ```
-
 
  * This function is used to drop child tables from an integer-based partition set based on a retention policy. By default, the table just uninherited and not actually dropped. For automatically dropping old tables, it is recommended to use the `run_maintenance()` function with retention configured instead of calling this directly.
  * `p_parent_table` - the existing parent table of a time-based partition set. MUST be schema qualified, even if in public schema.
