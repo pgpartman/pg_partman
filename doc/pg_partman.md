@@ -523,7 +523,6 @@ RETURNS boolean
 ### Destruction Functions
 
 ```
-
 undo_partition(
     p_parent_table text
     , p_target_table text
