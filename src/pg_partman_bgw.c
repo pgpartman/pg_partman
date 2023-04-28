@@ -48,21 +48,13 @@ static volatile sig_atomic_t got_sigterm = false;
 static int pg_partman_bgw_interval = 3600; // Default hourly
 static char *pg_partman_bgw_role = "postgres"; // Default to postgres role
 
-// Do not analyze by default on PG11+
-#if (PG_VERSION_NUM >= 110000)
+// Do not analyze by default
 static char *pg_partman_bgw_analyze = "off";
-#else
-static char *pg_partman_bgw_analyze = "on";
-#endif
 
 static char *pg_partman_bgw_jobmon = "on";
 static char *pg_partman_bgw_dbname = NULL;
 
-#if (PG_VERSION_NUM < 100500)
-static bool (*split_function_ptr)(char *, char, List **) = &SplitIdentifierString;
-#else
 static bool (*split_function_ptr)(char *, char, List **) = &SplitGUCList;
-#endif
 
 /*
  * Signal handler for SIGTERM
@@ -119,7 +111,6 @@ _PG_init(void)
                             NULL,
                             NULL);
 
-    #if (PG_VERSION_NUM >= 110000)
     DefineCustomStringVariable("pg_partman_bgw.analyze",
                             "Whether to run an analyze on a partition set whenever a new partition is created during run_maintenance(). Set to 'on' to send TRUE (default). Set to 'off' to send FALSE.",
                             NULL,
@@ -130,18 +121,6 @@ _PG_init(void)
                             NULL,
                             NULL,
                             NULL);
-    #else
-    DefineCustomStringVariable("pg_partman_bgw.analyze",
-                            "Whether to run an analyze on a partition set whenever a new partition is created during run_maintenance(). Set to 'on' to send TRUE (default). Set to 'off' to send FALSE.",
-                            NULL,
-                            &pg_partman_bgw_analyze,
-                            "on",
-                            PGC_SIGHUP,
-                            0,
-                            NULL,
-                            NULL,
-                            NULL);
-    #endif  
 
     DefineCustomStringVariable("pg_partman_bgw.dbname",
                             "CSV list of specific databases in the cluster to run pg_partman BGW on.",
@@ -198,13 +177,8 @@ _PG_init(void)
         BGWORKER_BACKEND_DATABASE_CONNECTION;
     worker.bgw_start_time = BgWorkerStart_RecoveryFinished;
     worker.bgw_restart_time = 600;
-    #if (PG_VERSION_NUM < 100000)
-    worker.bgw_main = pg_partman_bgw_main;
-    #endif
-    #if (PG_VERSION_NUM >= 100000)
     sprintf(worker.bgw_library_name, "pg_partman_bgw");
     sprintf(worker.bgw_function_name, "pg_partman_bgw_main");
-    #endif
     worker.bgw_main_arg = CStringGetDatum(pg_partman_bgw_dbname);
     worker.bgw_notify_pid = 0;
     RegisterBackgroundWorker(&worker);
@@ -292,9 +266,6 @@ void pg_partman_bgw_main(Datum main_arg) {
                     BGWORKER_BACKEND_DATABASE_CONNECTION;
                 worker.bgw_start_time = BgWorkerStart_RecoveryFinished;
                 worker.bgw_restart_time = BGW_NEVER_RESTART;
-                #if (PG_VERSION_NUM < 100000)
-                worker.bgw_main = NULL;
-                #endif
                 sprintf(worker.bgw_library_name, "pg_partman_bgw");
                 sprintf(worker.bgw_function_name, "pg_partman_bgw_run_maint");
                 full_string_length = snprintf(worker.bgw_name, sizeof(worker.bgw_name),
@@ -334,14 +305,12 @@ void pg_partman_bgw_main(Datum main_arg) {
                 }
                 Assert(status == BGWH_STARTED);
 
-                #if (PG_VERSION_NUM >= 90500)
                 // Shutdown wait function introduced in 9.5. The latch problems this wait fixes are only encountered in 
-                // 9.6 and later. So this shouldn't be a problem for 9.4.
+                // 9.6 and later.
                 elog(DEBUG1, "Waiting for BGW shutdown...");
                 status = WaitForBackgroundWorkerShutdown(handle);
                 elog(DEBUG1, "BGW shutdown status: %d", status);
                 Assert(status == BGWH_STOPPED);
-                #endif
             }
 
             pfree(rawstring);
@@ -353,17 +322,10 @@ void pg_partman_bgw_main(Datum main_arg) {
 
         elog(DEBUG1, "Latch status just before waitlatch call: %d", MyProc->procLatch.is_set);
 
-        #if (PG_VERSION_NUM >= 100000)
         rc = WaitLatch(&MyProc->procLatch,
                        WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
                        pg_partman_bgw_interval * 1000L,
                        PG_WAIT_EXTENSION);
-        #endif
-        #if (PG_VERSION_NUM < 100000)
-        rc = WaitLatch(&MyProc->procLatch,
-                       WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
-                       pg_partman_bgw_interval * 1000L);
-        #endif
         /* emergency bailout if postmaster has died */
         if (rc & WL_POSTMASTER_DEATH) {
             proc_exit(1);
@@ -422,12 +384,7 @@ void pg_partman_bgw_run_maint(Datum arg) {
 
     elog(DEBUG1, "Before run_maint initialize connection for db %s", dbname);
 
-    #if (PG_VERSION_NUM < 110000)
-    BackgroundWorkerInitializeConnection(dbname, pg_partman_bgw_role);
-    #endif
-    #if (PG_VERSION_NUM >= 110000)
     BackgroundWorkerInitializeConnection(dbname, pg_partman_bgw_role, 0);
-    #endif
     
     elog(DEBUG1, "After run_maint initialize connection for db %s", dbname);
 
