@@ -116,7 +116,7 @@ Stop all writes to the partition set being migrated if possible. If you cannot d
 
 Step 3
 ------
-Rename the existing partitions to new naming convention. pg_partman uses a static pattern of suffixes for all partitions, both time & serial. All suffixes start with the string "_p". Even the custom time intervals use the same patterns. All of them are listed here for your reference.
+Rename the existing partitions to new naming convention. pg_partman uses a static pattern of suffixes for all partitions, both time & serial. All suffixes start with the string "_p" and are listed here for reference.
 
     _pYYYYMMDD          - All time intervals greater than 1 day
     _pYYYYMMDD_HH24MISS - All time intervals less than 1 day
