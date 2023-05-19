@@ -27,6 +27,7 @@
 
 -- Creating a template table is now optional when calling create_parent(). Set p_template_table to 'false' to skip template table creation. Note this is not a boolean since this parameter is also meant to take a template table name, so the explicit string value 'false' must be set.
 
+-- Edge case with infinite_time_partitions fixed. If set to true and data far ahead of "now" was inserted, no new child tables would be created based on the premake.
 
 -- #### Ugrade exceptions ####
 DO $upgrade_partman$
