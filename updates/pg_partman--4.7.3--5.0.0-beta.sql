@@ -4219,7 +4219,7 @@ LOOP
                                 , v_row_max_time.partition_tablename
                             ) INTO v_current_partition_timestamp;
 
-            IF infinite_time_partitions AND (v_current_partition_timestamp < CURRENT_TIMESTAMP) THEN
+            IF v_row.infinite_time_partitions AND (v_current_partition_timestamp < CURRENT_TIMESTAMP) THEN
                 -- No new data has been inserted relative to "now", but keep making child tables anyway
                 v_current_partition_timestamp = CURRENT_TIMESTAMP;
                 -- Nothing else to do in this case so just end early

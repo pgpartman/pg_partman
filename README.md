@@ -28,6 +28,7 @@ Recommended:
  * pg_jobmon (>=v1.4.1). PG Job Monitor will automatically be used if it is installed and setup properly.
 https://github.com/omniti-labs/pg_jobmon
 
+### From Source
 In the directory where you downloaded pg_partman, run
 
     make install
@@ -36,6 +37,10 @@ If you do not want the background worker compiled and just want the plain PL/PGS
 
     make NO_BGW=1 install
 
+### Package
+I do not personally maintain any OS packages for pg_partman, but several repository maintainers from the PostgreSQL Development Group (PGDG) have kindly been maintaining packages for the community. Please check the [PostgreSQL Downloads](https://www.postgresql.org/download/) page to see if your OS has a package available
+
+### Setup
 The background worker must be loaded on database start by adding the library to shared_preload_libraries in postgresql.conf
 
     shared_preload_libraries = 'pg_partman_bgw'     # (change requires restart)
@@ -73,7 +78,7 @@ https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/PostgreSQL_Partitions.htm
 UPGRADE
 -------
 
-Run "make install" same as above to put the script files and libraries in place. Then run the following in PostgreSQL itself:
+Run "make install" same as above or update your respective packages to put the new script files and libraries in place. Then run the following in PostgreSQL itself:
 
     ALTER EXTENSION pg_partman UPDATE TO '<latest version>';
 
@@ -83,7 +88,7 @@ If upgrading between any major versions of pg_partman (4.x -> 5.x, etc), please 
 
 IMPORTANT NOTE: Some updates to pg_partman must drop and recreate its own database objects. If you are revoking PUBLIC privileges from functions/procedures, that can be added back to objects that are recreated as part of an update. If restrictions from PUBLIC use are desired for pg_partman, it is recommended to install it into its own schema as shown above and the revoke undesired access to that schema. Otherwise you may have to add an additional step to your extension upgrade procedures to revoke PUBLIC access again.
 
-Special considerations may be needed if you are upgrading to 5+ from any version less than 5.0.0. Please see [pg_partman_5.0.0_upgrade.md](doc/pg_partman_5.0.0_upgrade.md).
+Special considerations are needed if you are upgrading to 5+ from any version less than 5.0.0. Please see [pg_partman_5.0.0_upgrade.md](doc/pg_partman_5.0.0_upgrade.md).
 
 EXAMPLES
 --------
@@ -91,9 +96,9 @@ For setting up native partitioning with pg_partman on a brand new table, or to m
 
 For migrating a trigger-based partitioned table to native partitioning using pg_partman, see [migrate_to_native.md](doc/migrate_to_native.md). Note that if you plan to migrate to pg_partman, you will first have to migrate to a natively partitioned table before it can be managed by pg_partman.
 
-Other HowTo documents are also available in the documents folder.
+Other documents are also available in the documents folder.
 
-See the [pg_partman.md file](doc/pg_partman.md) in the doc folder for full details on all commands and options for pg_partman.
+See the [pg_partman.md reference file](doc/pg_partman.md) in the doc folder for full details on all commands and options for pg_partman.
 
 
 TESTING
