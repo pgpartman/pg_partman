@@ -29,6 +29,8 @@
 
 -- Edge case with infinite_time_partitions fixed. If set to true and data far ahead of "now" was inserted, no new child tables would be created based on the premake.
 
+-- Many thanks to Leigh Downs w/ Crunchy Data for the extensive testing done during the 5.x development cycle!
+
 -- #### Ugrade exceptions ####
 DO $upgrade_partman$
 DECLARE
