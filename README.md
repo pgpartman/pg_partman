@@ -31,9 +31,12 @@ Recommended:
  * pg_jobmon (>=v1.4.0). PG Job Monitor will automatically be used if it is installed and setup properly.
 https://github.com/omniti-labs/pg_jobmon
 
+
+
 In the directory where you downloaded pg_partman, run
 
     make install
+ 
 
 If you do not want the background worker compiled and just want the plain PL/PGSQL functions, you can run this instead:
 
@@ -48,6 +51,23 @@ You can also set other control variables for the BGW in postgresql.conf. "dbname
     pg_partman_bgw.interval = 3600
     pg_partman_bgw.role = 'keith'
     pg_partman_bgw.dbname = 'keith'
+
+If in windows, create file install.sh and insert
+
+    #!/bin/bash
+    EXTENSION=pg_partman
+    VERSION=$(grep default_version $EXTENSION.control | \
+            sed -e "s/default_version[[:space:]]*=[[:space:]]*'\([^']*\)'/\1/")
+
+    cat sql/types/*.sql > "${EXTENSION}--${VERSION}.sql"
+    cat sql/tables/*.sql >> "${EXTENSION}--${VERSION}.sql"
+    cat sql/functions/*.sql >> "${EXTENSION}--${VERSION}.sql"
+    cat sql/procedures/*.sql >> "${EXTENSION}--${VERSION}.sql"
+
+Run 
+    sh install.sh
+
+Copy the new file and pg_partman.control to SHAREDIR/extension/ in postgres folder
 
 Log into PostgreSQL and run the following commands. Schema is optional (but recommended) and can be whatever you wish, but it cannot be changed after installation. If you're using the BGW, the database cluster can be safely started without having the extension first created in the configured database(s). You can create the extension at any time and the BGW will automatically pick up that it exists without restarting the cluster (as long as shared_preload_libraries was set) and begin running maintenance as configured.
 
