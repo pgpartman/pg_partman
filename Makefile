@@ -24,7 +24,7 @@ all: sql/$(EXTENSION)--$(EXTVERSION).sql
 
 SCRIPTS = bin/common/*.py
 
-sql/$(EXTENSION)--$(EXTVERSION).sql: $(sort $(wildcard sql/types/*.sql)) $(sort $(wildcard sql/tables/*.sql)) $(sort $(wildcard sql/functions/*.sql)) $(sort $(wildcard sql/procedures/*.sql))
+sql/$(EXTENSION)--$(EXTVERSION).sql: $(wildcard sql/types/*.sql sql/tables/*.sql sql/functions/*.sql sql/procedures/*.sql)
 	cat $^ > $@
 
 DATA = $(wildcard updates/*--*.sql) sql/$(EXTENSION)--$(EXTVERSION).sql
