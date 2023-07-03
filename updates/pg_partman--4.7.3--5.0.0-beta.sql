@@ -192,6 +192,19 @@ FROM @extschema@.part_config;
 DROP TABLE @extschema@.part_config_sub;
 DROP TABLE @extschema@.part_config;
 
+-- Allow list/hash in future update
+CREATE OR REPLACE FUNCTION @extschema@.check_partition_type (p_type text) RETURNS boolean
+    LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER
+    SET search_path TO pg_catalog, pg_temp
+    AS $$
+DECLARE
+v_result    boolean;
+BEGIN
+    SELECT p_type IN ('range') INTO v_result;
+    RETURN v_result;
+END
+$$;
+
 CREATE TABLE @extschema@.part_config (
     parent_table text NOT NULL
     , control text NOT NULL
@@ -225,6 +238,21 @@ CREATE TABLE @extschema@.part_config (
 CREATE INDEX part_config_type_idx ON @extschema@.part_config (partition_type);
 SELECT pg_catalog.pg_extension_config_dump('@extschema@.part_config'::regclass, '');
 
+ALTER TABLE @extschema@.part_config ADD CONSTRAINT control_constraint_col_chk CHECK ((constraint_cols @> ARRAY[control]) <> true);
+ALTER TABLE @extschema@.part_config ADD CONSTRAINT retention_schema_not_empty_chk CHECK (retention_schema <> '');
+
+ALTER TABLE @extschema@.part_config
+ADD CONSTRAINT part_config_automatic_maintenance_check
+CHECK (@extschema@.check_automatic_maintenance_value(automatic_maintenance));
+
+ALTER TABLE @extschema@.part_config
+ADD CONSTRAINT part_config_epoch_check
+CHECK (@extschema@.check_epoch_type(epoch));
+
+ALTER TABLE @extschema@.part_config
+ADD CONSTRAINT part_config_type_check
+CHECK (@extschema@.check_partition_type(partition_type));
+
 CREATE TABLE @extschema@.part_config_sub (
     sub_parent text
     , sub_control text NOT NULL
@@ -254,27 +282,21 @@ CREATE TABLE @extschema@.part_config_sub (
 );
 SELECT pg_catalog.pg_extension_config_dump('@extschema@.part_config_sub'::regclass, '');
 
-ALTER TABLE @extschema@.part_config ADD CONSTRAINT control_constraint_col_chk CHECK ((constraint_cols @> ARRAY[control]) <> true);
 ALTER TABLE @extschema@.part_config_sub ADD CONSTRAINT control_constraint_col_chk CHECK ((sub_constraint_cols @> ARRAY[sub_control]) <> true);
 
-ALTER TABLE @extschema@.part_config ADD CONSTRAINT retention_schema_not_empty_chk CHECK (retention_schema <> '');
 ALTER TABLE @extschema@.part_config_sub ADD CONSTRAINT retention_schema_not_empty_chk CHECK (sub_retention_schema <> '');
-
-ALTER TABLE @extschema@.part_config
-ADD CONSTRAINT part_config_automatic_maintenance_check
-CHECK (@extschema@.check_automatic_maintenance_value(automatic_maintenance));
 
 ALTER TABLE @extschema@.part_config_sub
 ADD CONSTRAINT part_config_sub_automatic_maintenance_check
 CHECK (@extschema@.check_automatic_maintenance_value(sub_automatic_maintenance));
 
-ALTER TABLE @extschema@.part_config
-ADD CONSTRAINT part_config_epoch_check
-CHECK (@extschema@.check_epoch_type(epoch));
-
 ALTER TABLE @extschema@.part_config_sub
 ADD CONSTRAINT part_config_sub_epoch_check
 CHECK (@extschema@.check_epoch_type(sub_epoch));
+
+ALTER TABLE @extschema@.part_config_sub
+ADD CONSTRAINT part_config_sub_type_check
+CHECK (@extschema@.check_partition_type(sub_partition_type));
 
 -- TEMPORARY; it is safe because part_config*_pre_500_data have no constraints
 -- and exists only inside the CREATE EXTENSION transaction.
@@ -379,27 +401,6 @@ SELECT
     , sub_date_trunc_interval
     , sub_ignore_default_data
 FROM @extschema@.part_config_sub_pre_500_data;
-
--- Allow list/hash in future update
-CREATE OR REPLACE FUNCTION @extschema@.check_partition_type (p_type text) RETURNS boolean
-    LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER
-    SET search_path TO pg_catalog, pg_temp
-    AS $$
-DECLARE
-v_result    boolean;
-BEGIN
-    SELECT p_type IN ('range') INTO v_result;
-    RETURN v_result;
-END
-$$;
-
-ALTER TABLE @extschema@.part_config
-ADD CONSTRAINT part_config_type_check
-CHECK (@extschema@.check_partition_type(partition_type));
-
-ALTER TABLE @extschema@.part_config_sub
-ADD CONSTRAINT part_config_sub_type_check
-CHECK (@extschema@.check_partition_type(sub_partition_type));
 
 -- #### Brand new functions ####
 
