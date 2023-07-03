@@ -975,7 +975,7 @@ END IF;
 IF p_interval = 'yearly'
     OR p_interval = 'quarterly'
     OR p_interval = 'monthly'
-    OR p_interval  = 'weekly'
+    OR p_interval = 'weekly'
     OR p_interval = 'daily'
     OR p_interval = 'hourly'
     OR p_interval = 'half-hour'

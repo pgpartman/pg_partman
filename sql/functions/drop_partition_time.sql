@@ -12,7 +12,6 @@ v_control                   text;
 v_control_type              text;
 v_count                     int;
 v_datetime_string           text;
-v_drop_cascade_fk           boolean;
 v_drop_count                int := 0;
 v_epoch                     text;
 v_index                     record;
@@ -49,7 +48,7 @@ END IF;
 
 -- Allow override of configuration options
 IF p_retention IS NULL THEN
-    SELECT  
+    SELECT
         partition_type
         , control
         , partition_interval::interval
@@ -57,7 +56,6 @@ IF p_retention IS NULL THEN
         , retention::interval
         , retention_keep_table
         , retention_keep_index
-        , drop_cascade_fk
         , datetime_string
         , retention_schema
         , jobmon
@@ -69,25 +67,23 @@ IF p_retention IS NULL THEN
         , v_retention
         , v_retention_keep_table
         , v_retention_keep_index
-        , v_drop_cascade_fk
         , v_datetime_string
         , v_retention_schema
         , v_jobmon
-    FROM @extschema@.part_config 
-    WHERE parent_table = p_parent_table 
+    FROM @extschema@.part_config
+    WHERE parent_table = p_parent_table
     AND retention IS NOT NULL;
 
     IF v_partition_interval IS NULL THEN
         RAISE EXCEPTION 'Configuration for given parent table with a retention period not found: %', p_parent_table;
     END IF;
 ELSE
-    SELECT  
+    SELECT
         partition_type
         , partition_interval::interval
         , epoch
         , retention_keep_table
         , retention_keep_index
-        , drop_cascade_fk
         , datetime_string
         , retention_schema
         , jobmon
@@ -97,11 +93,10 @@ ELSE
         , v_epoch
         , v_retention_keep_table
         , v_retention_keep_index
-        , v_drop_cascade_fk
         , v_datetime_string
         , v_retention_schema
         , v_jobmon
-    FROM @extschema@.part_config 
+    FROM @extschema@.part_config
     WHERE parent_table = p_parent_table;
     v_retention := p_retention;
 
@@ -111,7 +106,7 @@ ELSE
 END IF;
 
 SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
-IF v_control_type <> 'time' THEN 
+IF v_control_type <> 'time' THEN
     IF (v_control_type = 'id' AND v_epoch = 'none') OR v_control_type <> 'id' THEN
         RAISE EXCEPTION 'Cannot run on partition set without time based control column or epoch flag set with an id column. Found control: %, epoch: %', v_control_type, v_epoch;
     END IF;
@@ -150,7 +145,7 @@ SELECT sub_parent INTO v_sub_parent FROM @extschema@.part_config_sub WHERE sub_p
 
 -- Loop through child tables of the given parent
 -- Must go in ascending order to avoid dropping what may be the "last" partition in the set after dropping tables that match retention period
-FOR v_row IN 
+FOR v_row IN
     SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(p_parent_table, 'ASC')
 LOOP
     -- pull out datetime portion of partition's tablename to make the next one
@@ -180,47 +175,17 @@ LOOP
         END IF;
         IF v_retention_keep_table = true OR v_retention_schema IS NOT NULL THEN
             -- No need to detach partition before dropping since it's going away anyway
+            -- TODO Review this to see how to handle based on recent FK issues
             -- Avoids issue of FKs not allowing detachment (Github Issue #294).
-            IF v_partition_type = 'native' THEN
-                v_sql := format('ALTER TABLE %I.%I DETACH PARTITION %I.%I'
-                    , v_parent_schema
-                    , v_parent_tablename
-                    , v_row.partition_schemaname
-                    , v_row.partition_tablename);
-                EXECUTE v_sql;
-            ELSE
-                EXECUTE format('ALTER TABLE %I.%I NO INHERIT %I.%I'
-                        , v_row.partition_schemaname
-                        , v_row.partition_tablename
-                        , v_parent_schema
-                        , v_parent_tablename);
-            END IF;
-        END IF;
-        IF v_partition_type = 'time-custom' THEN
-            DELETE FROM @extschema@.custom_time_partitions WHERE parent_table = p_parent_table AND child_table = v_row.partition_schemaname||'.'||v_row.partition_tablename;
-        END IF;
-        IF v_jobmon_schema IS NOT NULL THEN
-            PERFORM update_step(v_step_id, 'OK', 'Done');
-        END IF;
+            v_sql := format('ALTER TABLE %I.%I DETACH PARTITION %I.%I'
+                , v_parent_schema
+                , v_parent_tablename
+                , v_row.partition_schemaname
+                , v_row.partition_tablename);
+            EXECUTE v_sql;
 
-        IF v_retention_schema IS NULL THEN
-            IF v_retention_keep_table = false THEN
-                IF v_jobmon_schema IS NOT NULL THEN
-                    v_step_id := add_step(v_job_id, format('Drop table %s.%s', v_row.partition_schemaname, v_row.partition_tablename));
-                END IF;
-                v_sql := 'DROP TABLE %I.%I';
-                IF v_drop_cascade_fk OR v_sub_parent IS NOT NULL THEN
-                    v_sql := v_sql || ' CASCADE';
-                END IF;
-                EXECUTE format(v_sql, v_row.partition_schemaname, v_row.partition_tablename);
-                IF v_jobmon_schema IS NOT NULL THEN
-                    PERFORM update_step(v_step_id, 'OK', 'Done');
-                END IF;
-            ELSIF v_retention_keep_index = false THEN
-                IF v_partition_type = 'partman' OR 
-                       ( v_partition_type = 'native' AND  current_setting('server_version_num')::int < 110000) THEN
-                    -- Cannot drop child indexes on native partition sets in PG11+
-                    FOR v_index IN 
+            IF v_retention_keep_index = false THEN
+                    FOR v_index IN
                         WITH child_info AS (
                             SELECT c1.oid
                             FROM pg_catalog.pg_class c1
@@ -253,8 +218,24 @@ LOOP
                             PERFORM update_step(v_step_id, 'OK', 'Done');
                         END IF;
                     END LOOP;
-                END IF; -- end native/11 check 
             END IF; -- end v_retention_keep_index IF
+        END IF;
+
+        IF v_jobmon_schema IS NOT NULL THEN
+            PERFORM update_step(v_step_id, 'OK', 'Done');
+        END IF;
+
+        IF v_retention_schema IS NULL THEN
+            IF v_retention_keep_table = false THEN
+                IF v_jobmon_schema IS NOT NULL THEN
+                    v_step_id := add_step(v_job_id, format('Drop table %s.%s', v_row.partition_schemaname, v_row.partition_tablename));
+                END IF;
+                v_sql := 'DROP TABLE %I.%I';
+                EXECUTE format(v_sql, v_row.partition_schemaname, v_row.partition_tablename);
+                IF v_jobmon_schema IS NOT NULL THEN
+                    PERFORM update_step(v_step_id, 'OK', 'Done');
+                END IF;
+            END IF;
         ELSE -- Move to new schema
             IF v_jobmon_schema IS NOT NULL THEN
                 v_step_id := add_step(v_job_id, format('Moving table %s.%s to schema %s'
@@ -313,4 +294,3 @@ DETAIL: %
 HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
-
