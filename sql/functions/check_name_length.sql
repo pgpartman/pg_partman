@@ -20,14 +20,14 @@ END IF;
 IF p_table_partition THEN  -- 61 characters to account for _p in partition name
     IF char_length(p_object_name) + char_length(p_suffix) >= 61 THEN
         v_new_length := 61 - char_length(p_suffix);
-        v_new_name := substring(p_object_name from 1 for v_new_length) || '_p' || p_suffix; 
+        v_new_name := substring(p_object_name from 1 for v_new_length) || '_p' || p_suffix;
     ELSE
         v_new_name := p_object_name||'_p'||p_suffix;
     END IF;
 ELSE
     IF char_length(p_object_name) + char_length(COALESCE(p_suffix, '')) >= 63 THEN
         v_new_length := 63 - char_length(COALESCE(p_suffix, ''));
-        v_new_name := substring(p_object_name from 1 for v_new_length) || COALESCE(p_suffix, ''); 
+        v_new_name := substring(p_object_name from 1 for v_new_length) || COALESCE(p_suffix, '');
     ELSE
         v_new_name := p_object_name||COALESCE(p_suffix, '');
     END IF;

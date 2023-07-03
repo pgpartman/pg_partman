@@ -23,8 +23,8 @@ v_sql                           text;
 
 BEGIN
 /*
- * Procedure for reapplying additional constraints managed by pg_partman on child tables. See docs for additional info on this special constraint management. 
- * Procedure can run in two distinct modes: 1) Drop all constraints  2) Apply all constraints. 
+ * Procedure for reapplying additional constraints managed by pg_partman on child tables. See docs for additional info on this special constraint management.
+ * Procedure can run in two distinct modes: 1) Drop all constraints  2) Apply all constraints.
  * If both modes are run in a single call, drop is run before apply.
  * Typical usage would be to run the drop mode, edit the data, then run apply mode to re-create all constraints on a partition set."
  */
@@ -38,7 +38,7 @@ END IF;
 
 SELECT control, premake, optimize_constraint, datetime_string, epoch, partition_interval
 INTO v_control, v_premake, v_optimize_constraint, v_datetime_string, v_epoch, v_partition_interval
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table;
 IF v_premake IS NULL THEN
     RAISE EXCEPTION 'Unable to find given parent in pg_partman config: %. This procedure is only meant to be called on pg_partman managed partition sets.', p_parent_table;
@@ -64,7 +64,7 @@ IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
     v_partition_suffix := to_char(v_last_partition_timestamp - (v_partition_interval::interval * (v_optimize_constraint + v_premake + 1) ), v_datetime_string);
 ELSIF v_control_type = 'id' THEN
     SELECT child_start_id INTO v_last_partition_id FROM @extschema@.show_partition_info(v_parent_schema||'.'||v_last_partition, v_partition_interval, p_parent_table);
-    v_partition_suffix := (v_last_partition_id - (v_partition_interval::bigint * (v_optimize_constraint + v_premake + 1) ))::text; 
+    v_partition_suffix := (v_last_partition_id - (v_partition_interval::bigint * (v_optimize_constraint + v_premake + 1) ))::text;
 END IF;
 
 v_child_stop := @extschema@.check_name_length(v_parent_tablename, v_partition_suffix, TRUE);
@@ -95,7 +95,7 @@ FOR v_row IN EXECUTE v_sql LOOP
     END IF; -- end apply
 
     IF v_row.partition_tablename = v_child_stop THEN
-        RAISE DEBUG 'reapply_constraint: Reached stop at %.%', v_row.partition_schemaname, v_row.partition_tablename; 
+        RAISE DEBUG 'reapply_constraint: Reached stop at %.%', v_row.partition_schemaname, v_row.partition_tablename;
         EXIT; -- stop creating constraints after optimize target is reached
     END IF;
     COMMIT;
