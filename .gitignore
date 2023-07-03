@@ -5,3 +5,4 @@ ignore/*
 *.o
 *.so
 sql/*.sql
+sql/_for_update/5*.sql
