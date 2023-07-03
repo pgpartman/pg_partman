@@ -204,7 +204,6 @@ BEGIN
     RETURN v_result;
 END
 $$;
-
 CREATE TABLE @extschema@.part_config (
     parent_table text NOT NULL
     , control text NOT NULL
@@ -234,10 +233,10 @@ CREATE TABLE @extschema@.part_config (
     , CONSTRAINT part_config_parent_table_pkey PRIMARY KEY (parent_table)
     , CONSTRAINT positive_premake_check CHECK (premake > 0)
 );
-
 CREATE INDEX part_config_type_idx ON @extschema@.part_config (partition_type);
-SELECT pg_catalog.pg_extension_config_dump('@extschema@.part_config'::regclass, '');
+SELECT pg_catalog.pg_extension_config_dump('@extschema@.part_config', '');
 
+-- Ensure the control column cannot be one of the additional constraint columns.
 ALTER TABLE @extschema@.part_config ADD CONSTRAINT control_constraint_col_chk CHECK ((constraint_cols @> ARRAY[control]) <> true);
 ALTER TABLE @extschema@.part_config ADD CONSTRAINT retention_schema_not_empty_chk CHECK (retention_schema <> '');
 
@@ -252,7 +251,7 @@ CHECK (@extschema@.check_epoch_type(epoch));
 ALTER TABLE @extschema@.part_config
 ADD CONSTRAINT part_config_type_check
 CHECK (@extschema@.check_partition_type(partition_type));
-
+-- FK set deferrable because create_parent() & create_sub_parent() inserts to this table before part_config
 CREATE TABLE @extschema@.part_config_sub (
     sub_parent text
     , sub_control text NOT NULL
@@ -280,10 +279,10 @@ CREATE TABLE @extschema@.part_config_sub (
     , CONSTRAINT part_config_sub_sub_parent_fkey FOREIGN KEY (sub_parent) REFERENCES @extschema@.part_config (parent_table) ON DELETE CASCADE ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED
     , CONSTRAINT positive_premake_check CHECK (sub_premake > 0)
 );
-SELECT pg_catalog.pg_extension_config_dump('@extschema@.part_config_sub'::regclass, '');
+SELECT pg_catalog.pg_extension_config_dump('@extschema@.part_config_sub', '');
 
+-- Ensure the control column cannot be one of the additional constraint columns.
 ALTER TABLE @extschema@.part_config_sub ADD CONSTRAINT control_constraint_col_chk CHECK ((sub_constraint_cols @> ARRAY[sub_control]) <> true);
-
 ALTER TABLE @extschema@.part_config_sub ADD CONSTRAINT retention_schema_not_empty_chk CHECK (sub_retention_schema <> '');
 
 ALTER TABLE @extschema@.part_config_sub
@@ -297,7 +296,6 @@ CHECK (@extschema@.check_epoch_type(sub_epoch));
 ALTER TABLE @extschema@.part_config_sub
 ADD CONSTRAINT part_config_sub_type_check
 CHECK (@extschema@.check_partition_type(sub_partition_type));
-
 INSERT INTO @extschema@.part_config (
     parent_table
     , control

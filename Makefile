@@ -36,6 +36,7 @@ sql/$(EXTENSION)--$(EXTVERSION).sql: $(wildcard sql/types/*.sql sql/tables/*.sql
 
 FUNCS_DIR := sql/functions
 PROCS_DIR := sql/procedures
+TABLS_DIR := sql/tables
 INTRM_DIR := sql/_for_update
 
 NEW_FUNCS := calculate_time_partition_info.sql
@@ -94,6 +95,9 @@ PROC_ALL_FILES := $(sort \
 # TEMPORARY: hard to read; required to check existing migration is not touched; later will be simplified.
 updates/$(EXTENSION)--$(PREV_VERSION)--$(EXTVERSION).sql: \
 		$(INTRM_DIR)/01.tables.sql \
+		$(TABLS_DIR)/part_config.sql \
+		$(TABLS_DIR)/part_config_sub.sql \
+		$(INTRM_DIR)/04.tables-copy-back.sql \
 		$(INTRM_DIR)/08.hdr_new_functions.sql \
 		$(addprefix $(FUNCS_DIR)/,$(NEW_FUNCS)) \
 		$(INTRM_DIR)/08.hdr_altr_functions.sql \
