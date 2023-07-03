@@ -298,11 +298,6 @@ ALTER TABLE @extschema@.part_config_sub
 ADD CONSTRAINT part_config_sub_type_check
 CHECK (@extschema@.check_partition_type(sub_partition_type));
 
--- TEMPORARY; it is safe because part_config*_pre_500_data have no constraints
--- and exists only inside the CREATE EXTENSION transaction.
-UPDATE @extschema@.part_config_pre_500_data SET partition_type = 'range' WHERE partition_type = 'native';
-UPDATE @extschema@.part_config_sub_pre_500_data SET sub_partition_type = 'range' WHERE sub_partition_type = 'native';
-
 INSERT INTO @extschema@.part_config (
     parent_table
     , control
@@ -332,7 +327,7 @@ SELECT
     parent_table
     , control
     , partition_interval
-    , partition_type
+    , CASE WHEN partition_type = 'native' THEN 'range' ELSE partition_type END
     , premake
     , automatic_maintenance
     , template_table
@@ -382,7 +377,7 @@ SELECT
     sub_parent
     , sub_control
     , sub_partition_interval
-    , sub_partition_type
+    , CASE WHEN sub_partition_type = 'native' THEN 'range' ELSE sub_partition_type END
     , sub_premake
     , sub_automatic_maintenance
     , sub_template_table
