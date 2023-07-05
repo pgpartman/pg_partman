@@ -3271,7 +3271,7 @@ END IF;
 v_template_schemaname := split_part(v_template_table, '.', 1)::name;
 v_template_tablename :=  split_part(v_template_table, '.', 2)::name;
 
-SELECT c.oid, ts.spcname INTO v_template_oid
+SELECT c.oid INTO v_template_oid
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
 LEFT OUTER JOIN pg_catalog.pg_tablespace ts ON c.reltablespace = ts.oid
