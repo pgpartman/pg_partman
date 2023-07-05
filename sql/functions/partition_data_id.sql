@@ -27,6 +27,7 @@ v_lock_iter                 int := 1;
 v_lock_obtained             boolean := FALSE;
 v_max_partition_id          bigint;
 v_min_partition_id          bigint;
+v_parent_schema             text;
 v_parent_tablename          text;
 v_partition_interval        bigint;
 v_partition_id              bigint[];
@@ -60,6 +61,7 @@ WHERE schemaname = split_part(p_parent_table, '.', 1)::name
 AND tablename = split_part(p_parent_table, '.', 2)::name;
 
 -- Preserve given parent tablename for use below
+v_parent_schema    := v_source_schemaname;
 v_parent_tablename := v_source_tablename;
 
 SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_source_schemaname, v_source_tablename, v_control);

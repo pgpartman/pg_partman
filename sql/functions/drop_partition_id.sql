@@ -193,7 +193,7 @@ LOOP
                         FROM pg_catalog.pg_class c1
                         JOIN pg_catalog.pg_namespace n1 ON c1.relnamespace = n1.oid
                         WHERE c1.relname = v_row.partition_tablename::name
-                        AND n1.nspname = v_row.partition_schema::name
+                        AND n1.nspname = v_row.partition_schemaname::name
                     )
                     SELECT c.relname as name
                         , con.conname

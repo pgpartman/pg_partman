@@ -195,7 +195,7 @@ IF v_recreate_child = false THEN
             , p_control
             , p_interval
             , p_type
-            , p_default_table_
+            , p_default_table
             , p_constraint_cols
             , p_premake
             , 'on'
