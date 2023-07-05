@@ -44,6 +44,7 @@ NEW_FUNCS := calculate_time_partition_info.sql
 REPLACE_FUNCS_FILES := \
 	apply_constraints.sql \
 	check_default.sql \
+	check_name_length.sql \
 	drop_partition_id.sql \
 	drop_partition_time.sql \
 	dump_partitioned_table_definition.sql \
