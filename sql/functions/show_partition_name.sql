@@ -5,7 +5,8 @@ CREATE FUNCTION @extschema@.show_partition_name(
     , OUT suffix_timestamp timestamptz
     , OUT suffix_id bigint
     , OUT table_exists boolean
-) RETURNS record
+)
+    RETURNS record
     LANGUAGE plpgsql STABLE
     AS $$
 DECLARE

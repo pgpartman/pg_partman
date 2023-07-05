@@ -1,4 +1,10 @@
-CREATE FUNCTION @extschema@.apply_cluster(p_parent_schema text, p_parent_tablename text, p_child_schema text, p_child_tablename text) RETURNS void
+CREATE FUNCTION @extschema@.apply_cluster(
+    p_parent_schema text
+    , p_parent_tablename text
+    , p_child_schema text
+    , p_child_tablename text
+)
+    RETURNS void
     LANGUAGE plpgsql
 AS $$
 DECLARE

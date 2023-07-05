@@ -1,7 +1,8 @@
 CREATE FUNCTION @extschema@.run_maintenance(
     p_parent_table text DEFAULT NULL
     , p_analyze boolean DEFAULT false
-    , p_jobmon boolean DEFAULT true)
+    , p_jobmon boolean DEFAULT true
+)
     RETURNS void
     LANGUAGE plpgsql
     AS $$

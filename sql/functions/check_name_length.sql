@@ -1,4 +1,9 @@
-CREATE FUNCTION @extschema@.check_name_length (p_object_name text, p_suffix text DEFAULT NULL, p_table_partition boolean DEFAULT FALSE) RETURNS text
+CREATE FUNCTION @extschema@.check_name_length (
+    p_object_name text
+    , p_suffix text DEFAULT NULL
+    , p_table_partition boolean DEFAULT FALSE
+)
+    RETURNS text
     LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER
     SET search_path TO pg_catalog, pg_temp
     AS $$

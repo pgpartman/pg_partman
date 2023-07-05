@@ -3,8 +3,9 @@ CREATE FUNCTION @extschema@.calculate_time_partition_info(
         , p_start_time timestamptz
         , p_date_trunc_interval text DEFAULT NULL
         , OUT base_timestamp timestamptz
-        , OUT datetime_string text)
-RETURNS record
+        , OUT datetime_string text
+)
+    RETURNS record
     LANGUAGE plpgsql STABLE
     AS $$
 BEGIN

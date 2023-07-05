@@ -11,8 +11,9 @@ CREATE FUNCTION @extschema@.create_parent(
     , p_constraint_cols text[] DEFAULT NULL
     , p_template_table text DEFAULT NULL
     , p_jobmon boolean DEFAULT true
-    , p_date_trunc_interval text DEFAULT NULL)
-RETURNS boolean
+    , p_date_trunc_interval text DEFAULT NULL
+)
+    RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 DECLARE

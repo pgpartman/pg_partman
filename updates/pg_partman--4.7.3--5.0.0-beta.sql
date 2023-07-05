@@ -402,8 +402,9 @@ CREATE FUNCTION @extschema@.calculate_time_partition_info(
         , p_start_time timestamptz
         , p_date_trunc_interval text DEFAULT NULL
         , OUT base_timestamp timestamptz
-        , OUT datetime_string text)
-RETURNS record
+        , OUT datetime_string text
+)
+    RETURNS record
     LANGUAGE plpgsql STABLE
     AS $$
 BEGIN
@@ -475,7 +476,8 @@ CREATE OR REPLACE FUNCTION @extschema@.apply_constraints(
     p_parent_table text
     , p_child_table text DEFAULT NULL
     , p_analyze boolean DEFAULT FALSE
-    , p_job_id bigint DEFAULT NULL)
+    , p_job_id bigint DEFAULT NULL
+)
     RETURNS void
     LANGUAGE plpgsql
     AS $$
@@ -733,7 +735,8 @@ END
 $$;
 
 
-CREATE OR REPLACE FUNCTION @extschema@.check_default(p_exact_count boolean DEFAULT true) RETURNS SETOF @extschema@.check_default_table
+CREATE OR REPLACE FUNCTION @extschema@.check_default(p_exact_count boolean DEFAULT true)
+    RETURNS SETOF @extschema@.check_default_table
     LANGUAGE plpgsql STABLE
     SET search_path = @extschema@,pg_temp
     AS $$
@@ -893,8 +896,9 @@ CREATE FUNCTION @extschema@.create_parent(
     , p_constraint_cols text[] DEFAULT NULL
     , p_template_table text DEFAULT NULL
     , p_jobmon boolean DEFAULT true
-    , p_date_trunc_interval text DEFAULT NULL)
-RETURNS boolean
+    , p_date_trunc_interval text DEFAULT NULL
+)
+    RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -1538,7 +1542,9 @@ $$;
 CREATE FUNCTION @extschema@.create_partition_id(
     p_parent_table text
     , p_partition_ids bigint[]
-    , p_start_partition text DEFAULT NULL) RETURNS boolean
+    , p_start_partition text DEFAULT NULL
+)
+    RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -1836,8 +1842,9 @@ $$;
 CREATE FUNCTION @extschema@.create_partition_time(
     p_parent_table text
     , p_partition_times timestamptz[]
-    , p_start_partition text DEFAULT NULL)
-RETURNS boolean
+    , p_start_partition text DEFAULT NULL
+)
+    RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -2226,8 +2233,9 @@ CREATE FUNCTION @extschema@.create_sub_parent(
     , p_start_partition text DEFAULT NULL
     , p_epoch text DEFAULT 'none'
     , p_jobmon boolean DEFAULT true
-    , p_date_trunc_interval text DEFAULT NULL)
-RETURNS boolean
+    , p_date_trunc_interval text DEFAULT NULL
+)
+    RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -2433,7 +2441,14 @@ END
 $$;
 
 
-CREATE OR REPLACE FUNCTION @extschema@.drop_partition_id(p_parent_table text, p_retention bigint DEFAULT NULL, p_keep_table boolean DEFAULT NULL, p_keep_index boolean DEFAULT NULL, p_retention_schema text DEFAULT NULL) RETURNS int
+CREATE OR REPLACE FUNCTION @extschema@.drop_partition_id(
+    p_parent_table text
+    , p_retention bigint DEFAULT NULL
+    , p_keep_table boolean DEFAULT NULL
+    , p_keep_index boolean DEFAULT NULL
+    , p_retention_schema text DEFAULT NULL
+)
+    RETURNS int
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -2721,7 +2736,15 @@ END
 $$;
 
 
-CREATE OR REPLACE FUNCTION @extschema@.drop_partition_time(p_parent_table text, p_retention interval DEFAULT NULL, p_keep_table boolean DEFAULT NULL, p_keep_index boolean DEFAULT NULL, p_retention_schema text DEFAULT NULL, p_reference_timestamp timestamptz DEFAULT CURRENT_TIMESTAMP) RETURNS int
+CREATE OR REPLACE FUNCTION @extschema@.drop_partition_time(
+    p_parent_table text
+    , p_retention interval DEFAULT NULL
+    , p_keep_table boolean DEFAULT NULL
+    , p_keep_index boolean DEFAULT NULL
+    , p_retention_schema text DEFAULT NULL
+    , p_reference_timestamp timestamptz DEFAULT CURRENT_TIMESTAMP
+)
+    RETURNS int
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -3010,102 +3033,103 @@ $$;
 
 
 CREATE OR REPLACE FUNCTION @extschema@.dump_partitioned_table_definition(
-  p_parent_table text,
-  p_ignore_template_table boolean DEFAULT false
-) RETURNS text
-  LANGUAGE PLPGSQL STABLE
-AS $$
+    p_parent_table text,
+    p_ignore_template_table boolean DEFAULT false
+)
+    RETURNS text
+    LANGUAGE PLPGSQL STABLE
+    AS $$
 DECLARE
-  v_create_parent_definition text;
-  v_update_part_config_definition text;
-  -- Columns from part_config table.
-  v_parent_table text; -- NOT NULL
-  v_control text; -- NOT NULL
-  v_partition_type text; -- NOT NULL
-  v_partition_interval text; -- NOT NULL
-  v_constraint_cols TEXT[];
-  v_premake integer; -- NOT NULL
-  v_optimize_constraint integer; -- NOT NULL
-  v_epoch text; -- NOT NULL
-  v_retention text;
-  v_retention_schema text;
-  v_retention_keep_index boolean;
-  v_retention_keep_table boolean; -- NOT NULL
-  v_infinite_time_partitions boolean; -- NOT NULL
-  v_datetime_string text;
-  v_automatic_maintenance text; -- NOT NULL
-  v_jobmon boolean; -- NOT NULL
-  v_sub_partition_set_full boolean; -- NOT NULL
-  v_template_table text;
-  v_inherit_privileges boolean; -- DEFAULT false
-  v_constraint_valid boolean; -- DEFAULT true NOT NULL
-  v_subscription_refresh TEXT;
-  v_ignore_default_data boolean; -- DEFAULT false NOT NULL
-  v_date_trunc_interval text;
-  v_default_table boolean ;
+    v_create_parent_definition text;
+    v_update_part_config_definition text;
+    -- Columns from part_config table.
+    v_parent_table text; -- NOT NULL
+    v_control text; -- NOT NULL
+    v_partition_type text; -- NOT NULL
+    v_partition_interval text; -- NOT NULL
+    v_constraint_cols TEXT[];
+    v_premake integer; -- NOT NULL
+    v_optimize_constraint integer; -- NOT NULL
+    v_epoch text; -- NOT NULL
+    v_retention text;
+    v_retention_schema text;
+    v_retention_keep_index boolean;
+    v_retention_keep_table boolean; -- NOT NULL
+    v_infinite_time_partitions boolean; -- NOT NULL
+    v_datetime_string text;
+    v_automatic_maintenance text; -- NOT NULL
+    v_jobmon boolean; -- NOT NULL
+    v_sub_partition_set_full boolean; -- NOT NULL
+    v_template_table text;
+    v_inherit_privileges boolean; -- DEFAULT false
+    v_constraint_valid boolean; -- DEFAULT true NOT NULL
+    v_subscription_refresh TEXT;
+    v_ignore_default_data boolean; -- DEFAULT false NOT NULL
+    v_date_trunc_interval text;
+    v_default_table boolean ;
 BEGIN
-  SELECT
-    pc.parent_table,
-    pc.control,
-    pc.partition_type,
-    pc.partition_interval,
-    pc.constraint_cols,
-    pc.premake,
-    pc.optimize_constraint,
-    pc.epoch,
-    pc.retention,
-    pc.retention_schema,
-    pc.retention_keep_index,
-    pc.retention_keep_table,
-    pc.infinite_time_partitions,
-    pc.datetime_string,
-    pc.automatic_maintenance,
-    pc.jobmon,
-    pc.sub_partition_set_full,
-    pc.template_table,
-    pc.inherit_privileges,
-    pc.constraint_valid,
-    pc.subscription_refresh,
-    pc.ignore_default_data,
-    pc.date_trunc_interval,
-    pc.default_table
-  INTO
-    v_parent_table,
-    v_control,
-    v_partition_type,
-    v_partition_interval,
-    v_constraint_cols,
-    v_premake,
-    v_optimize_constraint,
-    v_epoch,
-    v_retention,
-    v_retention_schema,
-    v_retention_keep_index,
-    v_retention_keep_table,
-    v_infinite_time_partitions,
-    v_datetime_string,
-    v_automatic_maintenance,
-    v_jobmon,
-    v_sub_partition_set_full,
-    v_template_table,
-    v_inherit_privileges,
-    v_constraint_valid,
-    v_subscription_refresh,
-    v_ignore_default_data,
-    v_date_trunc_interval,
-    v_default_table
-  FROM @extschema@.part_config pc
-  WHERE pc.parent_table = p_parent_table;
+    SELECT
+        pc.parent_table,
+        pc.control,
+        pc.partition_type,
+        pc.partition_interval,
+        pc.constraint_cols,
+        pc.premake,
+        pc.optimize_constraint,
+        pc.epoch,
+        pc.retention,
+        pc.retention_schema,
+        pc.retention_keep_index,
+        pc.retention_keep_table,
+        pc.infinite_time_partitions,
+        pc.datetime_string,
+        pc.automatic_maintenance,
+        pc.jobmon,
+        pc.sub_partition_set_full,
+        pc.template_table,
+        pc.inherit_privileges,
+        pc.constraint_valid,
+        pc.subscription_refresh,
+        pc.ignore_default_data,
+        pc.date_trunc_interval,
+        pc.default_table
+    INTO
+        v_parent_table,
+        v_control,
+        v_partition_type,
+        v_partition_interval,
+        v_constraint_cols,
+        v_premake,
+        v_optimize_constraint,
+        v_epoch,
+        v_retention,
+        v_retention_schema,
+        v_retention_keep_index,
+        v_retention_keep_table,
+        v_infinite_time_partitions,
+        v_datetime_string,
+        v_automatic_maintenance,
+        v_jobmon,
+        v_sub_partition_set_full,
+        v_template_table,
+        v_inherit_privileges,
+        v_constraint_valid,
+        v_subscription_refresh,
+        v_ignore_default_data,
+        v_date_trunc_interval,
+        v_default_table
+    FROM @extschema@.part_config pc
+    WHERE pc.parent_table = p_parent_table;
 
-  IF v_parent_table IS NULL THEN
-    RAISE EXCEPTION 'Given parent table not found in pg_partman configuration table: %', p_parent_table;
-  END IF;
+    IF v_parent_table IS NULL THEN
+        RAISE EXCEPTION 'Given parent table not found in pg_partman configuration table: %', p_parent_table;
+    END IF;
 
-  IF p_ignore_template_table THEN
-    v_template_table := NULL;
-  END IF;
+    IF p_ignore_template_table THEN
+        v_template_table := NULL;
+    END IF;
 
-  v_create_parent_definition := format(
+    v_create_parent_definition := format(
 E'SELECT @extschema@.create_parent(
 \tp_parent_table := %L,
 \tp_control := %L,
@@ -3120,21 +3144,21 @@ E'SELECT @extschema@.create_parent(
 \tp_jobmon := %L,
 \tp_date_trunc_interval := %L
 );',
-      v_parent_table,
-      v_control,
-      v_partition_interval,
-      v_partition_type,
-      v_epoch,
-      v_premake,
-      v_default_table,
-      v_automatic_maintenance,
-      v_constraint_cols,
-      v_template_table,
-      v_jobmon,
-      v_date_trunc_interval
-    );
+            v_parent_table,
+            v_control,
+            v_partition_interval,
+            v_partition_type,
+            v_epoch,
+            v_premake,
+            v_default_table,
+            v_automatic_maintenance,
+            v_constraint_cols,
+            v_template_table,
+            v_jobmon,
+            v_date_trunc_interval
+        );
 
-  v_update_part_config_definition := format(
+    v_update_part_config_definition := format(
 E'UPDATE @extschema@.part_config SET
 \toptimize_constraint = %s,
 \tretention = %L,
@@ -3149,30 +3173,35 @@ E'UPDATE @extschema@.part_config SET
 \tsubscription_refresh = %L,
 \tignore_default_data = %L
 WHERE parent_table = %L;',
-    v_optimize_constraint,
-    v_retention,
-    v_retention_schema,
-    v_retention_keep_index,
-    v_retention_keep_table,
-    v_infinite_time_partitions,
-    v_datetime_string,
-    v_sub_partition_set_full,
-    v_inherit_privileges,
-    v_constraint_valid,
-    v_subscription_refresh,
-    v_ignore_default_data,
-    v_parent_table
-  );
+        v_optimize_constraint,
+        v_retention,
+        v_retention_schema,
+        v_retention_keep_index,
+        v_retention_keep_table,
+        v_infinite_time_partitions,
+        v_datetime_string,
+        v_sub_partition_set_full,
+        v_inherit_privileges,
+        v_constraint_valid,
+        v_subscription_refresh,
+        v_ignore_default_data,
+        v_parent_table
+    );
 
-  RETURN concat_ws(E'\n',
-    v_create_parent_definition,
-    v_update_part_config_definition
-  );
+    RETURN concat_ws(E'\n',
+        v_create_parent_definition,
+        v_update_part_config_definition
+    );
 END
 $$;
 
 
-CREATE OR REPLACE FUNCTION @extschema@.inherit_template_properties (p_parent_table text, p_child_schema text, p_child_tablename text) RETURNS boolean
+CREATE OR REPLACE FUNCTION @extschema@.inherit_template_properties(
+    p_parent_table text
+    , p_child_schema text
+    , p_child_tablename text
+)
+    RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -3376,17 +3405,19 @@ END
 $$;
 
 
-CREATE OR REPLACE FUNCTION @extschema@.partition_data_id(p_parent_table text
+CREATE OR REPLACE FUNCTION @extschema@.partition_data_id(
+    p_parent_table text
     , p_batch_count int DEFAULT 1
     , p_batch_interval bigint DEFAULT NULL
     , p_lock_wait numeric DEFAULT 0
     , p_order text DEFAULT 'ASC'
     , p_analyze boolean DEFAULT true
     , p_source_table text DEFAULT NULL
-    , p_ignored_columns text[] DEFAULT NULL)
-RETURNS bigint
-LANGUAGE plpgsql
-AS $$
+    , p_ignored_columns text[] DEFAULT NULL
+)
+    RETURNS bigint
+    LANGUAGE plpgsql
+    AS $$
 DECLARE
 
 v_analyze                   boolean := FALSE;
@@ -3644,14 +3675,15 @@ $$;
 
 
 CREATE OR REPLACE FUNCTION @extschema@.partition_data_time(
-        p_parent_table text
-        , p_batch_count int DEFAULT 1
-        , p_batch_interval interval DEFAULT NULL
-        , p_lock_wait numeric DEFAULT 0
-        , p_order text DEFAULT 'ASC'
-        , p_analyze boolean DEFAULT true
-        , p_source_table text DEFAULT NULL
-        , p_ignored_columns text[] DEFAULT NULL)
+    p_parent_table text
+    , p_batch_count int DEFAULT 1
+    , p_batch_interval interval DEFAULT NULL
+    , p_lock_wait numeric DEFAULT 0
+    , p_order text DEFAULT 'ASC'
+    , p_analyze boolean DEFAULT true
+    , p_source_table text DEFAULT NULL
+    , p_ignored_columns text[] DEFAULT NULL
+)
     RETURNS bigint
     LANGUAGE plpgsql
     AS $$
@@ -3955,7 +3987,8 @@ $$;
 CREATE FUNCTION @extschema@.run_maintenance(
     p_parent_table text DEFAULT NULL
     , p_analyze boolean DEFAULT false
-    , p_jobmon boolean DEFAULT true)
+    , p_jobmon boolean DEFAULT true
+)
     RETURNS void
     LANGUAGE plpgsql
     AS $$
@@ -4370,15 +4403,17 @@ END
 $$;
 
 
-CREATE OR REPLACE FUNCTION @extschema@.show_partition_info(p_child_table text
+CREATE OR REPLACE FUNCTION @extschema@.show_partition_info(
+    p_child_table text
     , p_partition_interval text DEFAULT NULL
     , p_parent_table text DEFAULT NULL
     , OUT child_start_time timestamptz
     , OUT child_end_time timestamptz
     , OUT child_start_id bigint
     , OUT child_end_id bigint
-    , OUT suffix text)
-RETURNS record
+    , OUT suffix text
+)
+    RETURNS record
     LANGUAGE plpgsql STABLE
     AS $$
 DECLARE
@@ -4497,7 +4532,8 @@ CREATE OR REPLACE FUNCTION @extschema@.show_partition_name(
     , OUT suffix_timestamp timestamptz
     , OUT suffix_id bigint
     , OUT table_exists boolean
-) RETURNS record
+)
+    RETURNS record
     LANGUAGE plpgsql STABLE
     AS $$
 DECLARE
@@ -4638,7 +4674,8 @@ $$;
 CREATE OR REPLACE FUNCTION @extschema@.show_partitions (
     p_parent_table text
     , p_order text DEFAULT 'ASC'
-    , p_include_default boolean DEFAULT false)
+    , p_include_default boolean DEFAULT false
+)
     RETURNS TABLE (partition_schemaname text, partition_tablename text)
     LANGUAGE plpgsql STABLE
     SET search_path = @extschema@,pg_temp
@@ -4769,7 +4806,8 @@ CREATE FUNCTION @extschema@.undo_partition(
     , p_ignored_columns text[] DEFAULT NULL
     , p_drop_cascade boolean DEFAULT false
     , OUT partitions_undone int
-    , OUT rows_undone bigint)
+    , OUT rows_undone bigint
+)
     RETURNS record
     LANGUAGE plpgsql
     AS $$
@@ -5394,7 +5432,8 @@ CREATE PROCEDURE @extschema@.undo_partition_proc(
     , p_wait int DEFAULT 1
     , p_ignored_columns text[] DEFAULT NULL
     , p_drop_cascade boolean DEFAULT false
-    , p_quiet boolean DEFAULT false)
+    , p_quiet boolean DEFAULT false
+)
     LANGUAGE plpgsql
     AS $$
 DECLARE

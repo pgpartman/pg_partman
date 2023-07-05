@@ -1,7 +1,9 @@
 CREATE FUNCTION @extschema@.create_partition_id(
     p_parent_table text
     , p_partition_ids bigint[]
-    , p_start_partition text DEFAULT NULL) RETURNS boolean
+    , p_start_partition text DEFAULT NULL
+)
+    RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 DECLARE

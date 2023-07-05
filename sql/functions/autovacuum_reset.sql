@@ -1,4 +1,10 @@
-CREATE FUNCTION @extschema@.autovacuum_reset(p_parent_schema text, p_parent_tablename text, p_source_schema text DEFAULT NULL, p_source_tablename text DEFAULT NULL) RETURNS boolean
+CREATE FUNCTION @extschema@.autovacuum_reset(
+    p_parent_schema text
+    , p_parent_tablename text
+    , p_source_schema text DEFAULT NULL
+    , p_source_tablename text DEFAULT NULL
+)
+    RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 DECLARE

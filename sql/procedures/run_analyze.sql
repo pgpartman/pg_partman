@@ -1,4 +1,8 @@
-CREATE PROCEDURE @extschema@.run_analyze(p_skip_locked boolean DEFAULT false, p_quiet boolean DEFAULT false, p_parent_table text DEFAULT NULL)
+CREATE PROCEDURE @extschema@.run_analyze(
+    p_skip_locked boolean DEFAULT false
+    , p_quiet boolean DEFAULT false
+    , p_parent_table text DEFAULT NULL
+)
     LANGUAGE plpgsql
     AS $$
 DECLARE

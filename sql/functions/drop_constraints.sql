@@ -1,7 +1,12 @@
 /*
  * Drop constraints managed by pg_partman
  */
-CREATE FUNCTION @extschema@.drop_constraints(p_parent_table text, p_child_table text, p_debug boolean DEFAULT false) RETURNS void
+CREATE FUNCTION @extschema@.drop_constraints(
+    p_parent_table text
+    , p_child_table text
+    , p_debug boolean DEFAULT false
+)
+    RETURNS void
     LANGUAGE plpgsql
     AS $$
 DECLARE

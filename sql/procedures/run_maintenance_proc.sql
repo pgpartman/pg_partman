@@ -1,4 +1,8 @@
-CREATE PROCEDURE @extschema@.run_maintenance_proc(p_wait int DEFAULT 0, p_analyze boolean DEFAULT NULL, p_jobmon boolean DEFAULT true)
+CREATE PROCEDURE @extschema@.run_maintenance_proc(
+    p_wait int DEFAULT 0
+    , p_analyze boolean DEFAULT NULL
+    , p_jobmon boolean DEFAULT true
+)
     LANGUAGE plpgsql
     AS $$
 DECLARE

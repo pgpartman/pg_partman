@@ -1,14 +1,16 @@
-CREATE FUNCTION @extschema@.partition_data_id(p_parent_table text
+CREATE FUNCTION @extschema@.partition_data_id(
+    p_parent_table text
     , p_batch_count int DEFAULT 1
     , p_batch_interval bigint DEFAULT NULL
     , p_lock_wait numeric DEFAULT 0
     , p_order text DEFAULT 'ASC'
     , p_analyze boolean DEFAULT true
     , p_source_table text DEFAULT NULL
-    , p_ignored_columns text[] DEFAULT NULL)
-RETURNS bigint
-LANGUAGE plpgsql
-AS $$
+    , p_ignored_columns text[] DEFAULT NULL
+)
+    RETURNS bigint
+    LANGUAGE plpgsql
+    AS $$
 DECLARE
 
 v_analyze                   boolean := FALSE;

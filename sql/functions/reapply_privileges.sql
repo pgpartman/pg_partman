@@ -1,4 +1,5 @@
-CREATE FUNCTION @extschema@.reapply_privileges(p_parent_table text) RETURNS void
+CREATE FUNCTION @extschema@.reapply_privileges(p_parent_table text)
+    RETURNS void
     LANGUAGE plpgsql
     AS $$
 DECLARE

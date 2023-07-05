@@ -1,4 +1,5 @@
-CREATE FUNCTION partition_gap_fill(p_parent_table text) RETURNS integer
+CREATE FUNCTION partition_gap_fill(p_parent_table text)
+    RETURNS integer
     LANGUAGE plpgsql
     AS $$
 DECLARE

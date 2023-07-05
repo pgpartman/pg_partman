@@ -2,7 +2,8 @@ CREATE FUNCTION @extschema@.apply_constraints(
     p_parent_table text
     , p_child_table text DEFAULT NULL
     , p_analyze boolean DEFAULT FALSE
-    , p_job_id bigint DEFAULT NULL)
+    , p_job_id bigint DEFAULT NULL
+)
     RETURNS void
     LANGUAGE plpgsql
     AS $$

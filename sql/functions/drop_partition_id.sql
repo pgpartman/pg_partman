@@ -1,4 +1,11 @@
-CREATE FUNCTION @extschema@.drop_partition_id(p_parent_table text, p_retention bigint DEFAULT NULL, p_keep_table boolean DEFAULT NULL, p_keep_index boolean DEFAULT NULL, p_retention_schema text DEFAULT NULL) RETURNS int
+CREATE FUNCTION @extschema@.drop_partition_id(
+    p_parent_table text
+    , p_retention bigint DEFAULT NULL
+    , p_keep_table boolean DEFAULT NULL
+    , p_keep_index boolean DEFAULT NULL
+    , p_retention_schema text DEFAULT NULL
+)
+    RETURNS int
     LANGUAGE plpgsql
     AS $$
 DECLARE

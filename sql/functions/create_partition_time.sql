@@ -1,8 +1,9 @@
 CREATE FUNCTION @extschema@.create_partition_time(
     p_parent_table text
     , p_partition_times timestamptz[]
-    , p_start_partition text DEFAULT NULL)
-RETURNS boolean
+    , p_start_partition text DEFAULT NULL
+)
+    RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 DECLARE

@@ -3,7 +3,8 @@
 /*
  * Check function for config table epoch types
  */
-CREATE FUNCTION @extschema@.check_epoch_type (p_type text) RETURNS boolean
+CREATE FUNCTION @extschema@.check_epoch_type (p_type text)
+    RETURNS boolean
     LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER
     SET search_path TO pg_catalog, pg_temp
     AS $$

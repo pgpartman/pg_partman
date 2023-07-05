@@ -8,7 +8,8 @@ CREATE FUNCTION @extschema@.undo_partition(
     , p_ignored_columns text[] DEFAULT NULL
     , p_drop_cascade boolean DEFAULT false
     , OUT partitions_undone int
-    , OUT rows_undone bigint)
+    , OUT rows_undone bigint
+)
     RETURNS record
     LANGUAGE plpgsql
     AS $$

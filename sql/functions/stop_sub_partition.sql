@@ -1,4 +1,8 @@
-CREATE FUNCTION @extschema@.stop_sub_partition(p_parent_table text, p_jobmon boolean DEFAULT true) RETURNS boolean
+CREATE FUNCTION @extschema@.stop_sub_partition(
+    p_parent_table text
+    , p_jobmon boolean DEFAULT true
+)
+    RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 DECLARE

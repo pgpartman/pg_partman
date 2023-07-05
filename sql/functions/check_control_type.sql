@@ -1,4 +1,9 @@
-CREATE FUNCTION @extschema@.check_control_type(p_parent_schema text, p_parent_tablename text, p_control text) RETURNS TABLE (general_type text, exact_type text)
+CREATE FUNCTION @extschema@.check_control_type(
+    p_parent_schema text
+    , p_parent_tablename text
+    , p_control text) RETURNS TABLE (general_type text
+    , exact_type text
+)
     LANGUAGE sql STABLE
 AS $$
 /*

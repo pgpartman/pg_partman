@@ -10,8 +10,9 @@ CREATE FUNCTION @extschema@.create_sub_parent(
     , p_start_partition text DEFAULT NULL
     , p_epoch text DEFAULT 'none'
     , p_jobmon boolean DEFAULT true
-    , p_date_trunc_interval text DEFAULT NULL)
-RETURNS boolean
+    , p_date_trunc_interval text DEFAULT NULL
+)
+    RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 DECLARE

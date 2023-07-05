@@ -1,7 +1,8 @@
 CREATE FUNCTION @extschema@.show_partitions (
     p_parent_table text
     , p_order text DEFAULT 'ASC'
-    , p_include_default boolean DEFAULT false)
+    , p_include_default boolean DEFAULT false
+)
     RETURNS TABLE (partition_schemaname text, partition_tablename text)
     LANGUAGE plpgsql STABLE
     SET search_path = @extschema@,pg_temp

@@ -1,4 +1,5 @@
-CREATE FUNCTION @extschema@.check_default(p_exact_count boolean DEFAULT true) RETURNS SETOF @extschema@.check_default_table
+CREATE FUNCTION @extschema@.check_default(p_exact_count boolean DEFAULT true)
+    RETURNS SETOF @extschema@.check_default_table
     LANGUAGE plpgsql STABLE
     SET search_path = @extschema@,pg_temp
     AS $$

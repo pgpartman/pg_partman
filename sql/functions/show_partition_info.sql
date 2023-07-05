@@ -1,12 +1,14 @@
-CREATE FUNCTION @extschema@.show_partition_info(p_child_table text
+CREATE FUNCTION @extschema@.show_partition_info(
+    p_child_table text
     , p_partition_interval text DEFAULT NULL
     , p_parent_table text DEFAULT NULL
     , OUT child_start_time timestamptz
     , OUT child_end_time timestamptz
     , OUT child_start_id bigint
     , OUT child_end_id bigint
-    , OUT suffix text)
-RETURNS record
+    , OUT suffix text
+)
+    RETURNS record
     LANGUAGE plpgsql STABLE
     AS $$
 DECLARE

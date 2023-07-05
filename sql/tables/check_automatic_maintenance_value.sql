@@ -4,7 +4,8 @@
  * Check for valid config values for automatic maintenance
  * (not boolean to allow future values)
  */
-CREATE FUNCTION @extschema@.check_automatic_maintenance_value (p_automatic_maintenance text) RETURNS boolean
+CREATE FUNCTION @extschema@.check_automatic_maintenance_value (p_automatic_maintenance text)
+    RETURNS boolean
     LANGUAGE plpgsql IMMUTABLE
     AS $$
 DECLARE

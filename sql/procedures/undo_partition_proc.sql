@@ -9,7 +9,8 @@ CREATE PROCEDURE @extschema@.undo_partition_proc(
     , p_wait int DEFAULT 1
     , p_ignored_columns text[] DEFAULT NULL
     , p_drop_cascade boolean DEFAULT false
-    , p_quiet boolean DEFAULT false)
+    , p_quiet boolean DEFAULT false
+)
     LANGUAGE plpgsql
     AS $$
 DECLARE

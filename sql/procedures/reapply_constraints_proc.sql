@@ -1,4 +1,10 @@
-CREATE PROCEDURE @extschema@.reapply_constraints_proc(p_parent_table text, p_drop_constraints boolean DEFAULT false, p_apply_constraints boolean DEFAULT false, p_wait int DEFAULT 0, p_dryrun boolean DEFAULT false)
+CREATE PROCEDURE @extschema@.reapply_constraints_proc(
+    p_parent_table text
+    , p_drop_constraints boolean DEFAULT false
+    , p_apply_constraints boolean DEFAULT false
+    , p_wait int DEFAULT 0
+    , p_dryrun boolean DEFAULT false
+)
     LANGUAGE plpgsql
     AS $$
 DECLARE
