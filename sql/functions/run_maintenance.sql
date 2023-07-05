@@ -1,5 +1,6 @@
 CREATE FUNCTION @extschema@.run_maintenance(
     p_parent_table text DEFAULT NULL
+    -- If these default chaged reflect them in `run_maintenance_proc`!
     , p_analyze boolean DEFAULT false
     , p_jobmon boolean DEFAULT true
 )

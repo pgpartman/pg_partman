@@ -65,6 +65,7 @@ RENEW_FUNCS_FILES := \
 
 RENEW_PROCS_FILES := \
 	partition_data_proc.sql \
+	run_maintenance_proc.sql \
 	undo_partition_proc.sql
 
 $(INTRM_DIR)/51.%.repl.sql: $(FUNCS_DIR)/%.sql

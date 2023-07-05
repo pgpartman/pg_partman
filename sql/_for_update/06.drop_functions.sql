@@ -16,6 +16,7 @@ DROP FUNCTION @extschema@.create_sub_parent(text, text, text, text, text, text[]
 DROP FUNCTION @extschema@.run_maintenance(text, boolean, boolean);
 DROP FUNCTION @extschema@.undo_partition(text, int, text, boolean, numeric, text, text[], boolean);
 DROP PROCEDURE @extschema@.partition_data_proc (text, text, int, int, text, text, int, int, boolean, text[]);
+DROP PROCEDURE @extschema@.run_maintenance_proc(int, boolean, boolean);
 DROP PROCEDURE @extschema@.undo_partition_proc(text, text, int, int, text, boolean, int, int, boolean, text[], boolean);
 
 
