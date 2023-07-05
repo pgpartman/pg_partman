@@ -42,7 +42,7 @@ BEGIN
  */
 
 SELECT control
-    , partition_interval
+    , partition_interval::bigint -- this shared field also used in partition_time as interval
     , jobmon
     , template_table
     , inherit_privileges

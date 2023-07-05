@@ -49,7 +49,7 @@ BEGIN
  */
 
 SELECT control
-    , partition_interval
+    , partition_interval::interval -- this shared field also used in partition_id as bigint
     , epoch
     , jobmon
     , datetime_string
