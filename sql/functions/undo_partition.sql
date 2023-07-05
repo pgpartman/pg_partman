@@ -25,7 +25,6 @@ v_batch_interval_time           interval;
 v_batch_loop_count              int := 0;
 v_child_loop_total              bigint := 0;
 v_child_table                   text;
-v_col                           text;
 v_column_list                   text;
 v_control                       text;
 v_control_type                  text;
@@ -192,23 +191,16 @@ IF v_jobmon_schema IS NOT NULL THEN
 END IF;
 
 -- Generate column list to use in SELECT/INSERT statements below. Allows for exclusion of GENERATED (or any other desired) columns.
-v_sql := format ('SELECT ''"''||string_agg(attname, ''","'')||''"'' FROM pg_catalog.pg_attribute a
-                    JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
-                    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-                    WHERE n.nspname = %L
-                    AND c.relname = %L
-                    AND a.attnum > 0
-                    AND a.attisdropped = false'
-                  , v_target_schema
-                  , v_target_tablename);
-
-IF p_ignored_columns IS NOT NULL THEN
-    FOREACH v_col IN ARRAY p_ignored_columns LOOP
-        v_sql := v_sql || format(' AND attname != %L ', v_col);
-    END LOOP;
-END IF;
-
-EXECUTE v_sql INTO v_column_list;
+SELECT string_agg(quote_ident(attname), ',')
+INTO v_column_list
+FROM pg_catalog.pg_attribute a
+JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
+JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+WHERE n.nspname = v_target_schema
+AND c.relname = v_target_tablename
+AND a.attnum > 0
+AND a.attisdropped = false
+AND attname <> ALL(COALESCE(p_ignored_columns, ARRAY[]::text[]));
 
 <<outer_child_loop>>
 LOOP

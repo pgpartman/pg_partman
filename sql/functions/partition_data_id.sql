@@ -14,7 +14,6 @@ CREATE FUNCTION @extschema@.partition_data_id(
 DECLARE
 
 v_analyze                   boolean := FALSE;
-v_col                       text;
 v_column_list               text;
 v_control                   text;
 v_control_type              text;
@@ -91,18 +90,16 @@ ELSE
         -- So cannot create the child table when only some of the data has been moved out of the default partition.
         RAISE EXCEPTION 'Custom intervals are not allowed when moving data out of the DEFAULT partition in a native set. Please leave p_interval/p_batch_interval parameters unset or NULL to allow use of partition set''s default partitioning interval.';
     END IF;
+
     -- Set source table to default table if p_source_table is not set, and it exists
     -- Otherwise just return with a DEBUG that no data source exists
-    v_sql := format('SELECT n.nspname::text, c.relname::text FROM
-        pg_catalog.pg_inherits h
-        JOIN pg_catalog.pg_class c ON c.oid = h.inhrelid
-        JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-        WHERE h.inhparent = ''%I.%I''::regclass
-        AND pg_get_expr(relpartbound, c.oid) = ''DEFAULT'''
-        , v_source_schemaname
-        , v_source_tablename);
-
-    EXECUTE v_sql INTO v_default_schemaname, v_default_tablename;
+    SELECT n.nspname::text, c.relname::text
+    INTO v_default_schemaname, v_default_tablename
+    FROM pg_catalog.pg_inherits h
+    JOIN pg_catalog.pg_class c ON c.oid = h.inhrelid
+    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+    WHERE h.inhparent = format('%I.%I', v_source_schemaname, v_source_tablename)::regclass
+    AND pg_get_expr(relpartbound, c.oid) = 'DEFAULT';
 
     IF v_default_tablename IS NOT NULL THEN
         v_source_schemaname := v_default_schemaname;
@@ -122,23 +119,16 @@ IF p_batch_interval IS NULL OR p_batch_interval > v_partition_interval THEN
 END IF;
 
 -- Generate column list to use in SELECT/INSERT statements below. Allows for exclusion of GENERATED (or any other desired) columns.
-v_sql := format ('SELECT ''"''||string_agg(attname, ''","'')||''"'' FROM pg_catalog.pg_attribute a
-                    JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
-                    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-                    WHERE n.nspname = %L
-                    AND c.relname = %L
-                    AND a.attnum > 0
-                    AND a.attisdropped = false'
-                  , v_source_schemaname
-                  , v_source_tablename);
-
-IF p_ignored_columns IS NOT NULL THEN
-    FOREACH v_col IN ARRAY p_ignored_columns LOOP
-        v_sql := v_sql || format(' AND attname != %L ', v_col);
-    END LOOP;
-END IF;
-
-EXECUTE v_sql INTO v_column_list;
+SELECT string_agg(quote_ident(attname), ',')
+INTO v_column_list
+FROM pg_catalog.pg_attribute a
+JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
+JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+WHERE n.nspname = v_source_schemaname
+AND c.relname = v_source_tablename
+AND a.attnum > 0
+AND a.attisdropped = false
+AND attname <> ALL(COALESCE(p_ignored_columns, ARRAY[]::text[]));
 
 FOR i IN 1..p_batch_count LOOP
 
