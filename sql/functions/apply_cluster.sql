@@ -2,7 +2,6 @@ CREATE FUNCTION @extschema@.apply_cluster(p_parent_schema text, p_parent_tablena
     LANGUAGE plpgsql
 AS $$
 DECLARE
-    v_old_search_path   text;
     v_parent_indexdef   text;
     v_relkind           char;
     v_row               record;

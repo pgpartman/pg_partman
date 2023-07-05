@@ -20,8 +20,6 @@ v_control_type                  text;
 v_datetime_string               text;
 v_epoch                         text;
 v_given_timestamp               timestamptz;
-v_max_range                     timestamptz;
-v_min_range                     timestamptz;
 v_parent_schema                 text;
 v_parent_tablename              text;
 v_partition_interval            text;

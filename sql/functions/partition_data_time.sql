@@ -29,12 +29,10 @@ v_lock_obtained             boolean := FALSE;
 v_max_partition_timestamp   timestamptz;
 v_min_partition_timestamp   timestamptz;
 v_parent_tablename          text;
-v_parent_tablename_real     text;
 v_partition_expression      text;
 v_partition_interval        interval;
 v_partition_suffix          text;
 v_partition_timestamp       timestamptz[];
-v_partition_type            text;
 v_source_schemaname         text;
 v_source_tablename          text;
 v_rowcount                  bigint;
@@ -47,13 +45,11 @@ BEGIN
  * Populate the child table(s) of a time-based partition set with old data from the original parent
  */
 
-SELECT partition_type
-    , partition_interval::interval
+SELECT partition_interval::interval
     , control
     , datetime_string
     , epoch
-INTO v_partition_type
-    , v_partition_interval
+INTO v_partition_interval
     , v_control
     , v_datetime_string
     , v_epoch

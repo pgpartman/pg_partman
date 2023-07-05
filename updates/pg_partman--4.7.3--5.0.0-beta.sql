@@ -489,7 +489,6 @@ v_child_exists                  text;
 v_child_tablename               text;
 v_col                           text;
 v_constraint_cols               text[];
-v_constraint_col_type           text;
 v_constraint_name               text;
 v_constraint_valid              boolean;
 v_constraint_values             record;
@@ -504,8 +503,6 @@ v_jobmon_schema                 text;
 v_last_partition                text;
 v_last_partition_id             bigint;
 v_last_partition_timestamp      timestamptz;
-v_max_id                        bigint;
-v_max_timestamp                 timestamptz;
 v_new_search_path               text;
 v_old_search_path               text;
 v_optimize_constraint           int;
@@ -517,7 +514,6 @@ v_partition_suffix              text;
 v_premake                       int;
 v_sql                           text;
 v_step_id                       bigint;
-v_suffix_position               int;
 
 BEGIN
 /*
@@ -925,7 +921,6 @@ v_job_id                        bigint;
 v_jobmon_schema                 text;
 v_last_partition_created        boolean;
 v_max                           bigint;
-v_native_sub_control            text;
 v_notnull                       boolean;
 v_new_search_path               text;
 v_old_search_path               text;
@@ -946,12 +941,10 @@ v_start_time                    timestamptz;
 v_starting_partition_id         bigint;
 v_step_id                       bigint;
 v_step_overflow_id              bigint;
-v_sub_parent                    text;
 v_success                       boolean := false;
 v_template_schema               text;
 v_template_tablename            text;
 v_time_interval                 interval;
-v_top_datetime_string           text;
 v_top_parent_schema             text := split_part(p_parent_table, '.', 1);
 v_top_parent_table              text := split_part(p_parent_table, '.', 2);
 v_unlogged                      char;
@@ -1554,11 +1547,9 @@ ex_context              text;
 ex_detail               text;
 ex_hint                 text;
 ex_message              text;
-v_all                   text[] := ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'];
 v_control               text;
 v_control_type          text;
 v_exists                text;
-v_grantees              text[];
 v_id                    bigint;
 v_inherit_privileges    boolean;
 v_job_id                bigint;
@@ -1566,14 +1557,11 @@ v_jobmon                boolean;
 v_jobmon_schema         text;
 v_new_search_path       text;
 v_old_search_path       text;
-v_parent_grant          record;
 v_parent_schema         text;
 v_parent_tablename      text;
 v_partition_interval    bigint;
 v_partition_created     boolean := false;
 v_partition_name        text;
-v_partition_type        text;
-v_revoke                text;
 v_row                   record;
 v_sql                   text;
 v_step_id               bigint;
@@ -1590,13 +1578,11 @@ BEGIN
 
 SELECT control
     , partition_interval
-    , partition_type
     , jobmon
     , template_table
     , inherit_privileges
 INTO v_control
     , v_partition_interval
-    , v_partition_type
     , v_jobmon
     , v_template_table
     , v_inherit_privileges
@@ -1860,23 +1846,19 @@ ex_context                      text;
 ex_detail                       text;
 ex_hint                         text;
 ex_message                      text;
-v_all                           text[] := ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'];
 v_control                       text;
 v_control_type                  text;
 v_datetime_string               text;
 v_epoch                         text;
 v_exists                        smallint;
-v_grantees                      text[];
 v_inherit_privileges            boolean;
 v_job_id                        bigint;
 v_jobmon                        boolean;
 v_jobmon_schema                 text;
 v_new_search_path               text;
 v_old_search_path               text;
-v_parent_grant                  record;
 v_parent_schema                 text;
 v_parent_tablename              text;
-v_part_col                      text;
 v_partition_created             boolean := false;
 v_partition_name                text;
 v_partition_suffix              text;
@@ -1884,21 +1866,16 @@ v_partition_expression          text;
 v_partition_interval            interval;
 v_partition_timestamp_end       timestamptz;
 v_partition_timestamp_start     timestamptz;
-v_revoke                        text;
 v_row                           record;
 v_sql                           text;
 v_step_id                       bigint;
 v_step_overflow_id              bigint;
 v_sub_control                   text;
-v_sub_parent                    text;
 v_sub_partition_type            text;
 v_sub_timestamp_max             timestamptz;
 v_sub_timestamp_min             timestamptz;
 v_template_table                text;
-v_trunc_value                   text;
 v_time                          timestamptz;
-v_partition_type                          text;
-v_year                          text;
 
 BEGIN
 /*
@@ -1907,7 +1884,6 @@ BEGIN
 
 SELECT control
     , partition_interval
-    , partition_type
     , epoch
     , jobmon
     , datetime_string
@@ -1915,7 +1891,6 @@ SELECT control
     , inherit_privileges
 INTO v_control
     , v_partition_interval
-    , v_partition_type
     , v_epoch
     , v_jobmon
     , v_datetime_string
@@ -2263,10 +2238,8 @@ v_child_start_time      timestamptz;
 v_control               text;
 v_control_parent_type   text;
 v_control_sub_type      text;
-v_last_partition        text;
 v_parent_epoch          text;
 v_parent_interval       text;
-v_parent_relkind        char;
 v_parent_schema         text;
 v_parent_tablename      text;
 v_part_col              text;
@@ -2275,12 +2248,9 @@ v_partition_time_array  timestamptz[];
 v_relkind               char;
 v_recreate_child        boolean := false;
 v_row                   record;
-v_row_last_part         record;
-v_run_maint             boolean;
 v_sql                   text;
 v_success               boolean := false;
 v_template_table        text;
-v_top_type              text;
 
 BEGIN
 /*
@@ -2290,7 +2260,7 @@ BEGIN
  * Uses another config table that allows for turning all future child partitions into a new parent automatically.
  */
 
-SELECT n.nspname, c.relname, c.relkind INTO v_parent_schema, v_parent_tablename, v_parent_relkind
+SELECT n.nspname, c.relname INTO v_parent_schema, v_parent_tablename
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
 WHERE n.nspname = split_part(p_top_parent, '.', 1)::name
@@ -2303,8 +2273,8 @@ IF NOT @extschema@.check_partition_type(p_type) THEN
     RAISE EXCEPTION '% is not a valid partitioning type', p_type;
 END IF;
 
-SELECT partition_interval, control, automatic_maintenance, epoch, template_table
-INTO v_parent_interval, v_control, v_run_maint, v_parent_epoch, v_template_table
+SELECT partition_interval, control, epoch, template_table
+INTO v_parent_interval, v_control, v_parent_epoch, v_template_table
 FROM @extschema@.part_config
 WHERE parent_table = p_top_parent;
 IF v_parent_interval IS NULL THEN
@@ -2488,7 +2458,6 @@ v_parent_schema             text;
 v_parent_tablename          text;
 v_partition_interval        bigint;
 v_partition_id              bigint;
-v_partition_type            text;
 v_retention                 bigint;
 v_retention_keep_index      boolean;
 v_retention_keep_table      boolean;
@@ -2514,7 +2483,6 @@ END IF;
 IF p_retention IS NULL THEN
     SELECT
         partition_interval::bigint
-        , partition_type
         , control
         , retention::bigint
         , retention_keep_table
@@ -2523,7 +2491,6 @@ IF p_retention IS NULL THEN
         , jobmon
     INTO
         v_partition_interval
-        , v_partition_type
         , v_control
         , v_retention
         , v_retention_keep_table
@@ -2540,7 +2507,6 @@ IF p_retention IS NULL THEN
 ELSE -- Allow override of configuration options
      SELECT
         partition_interval::bigint
-        , partition_type
         , control
         , retention_keep_table
         , retention_keep_index
@@ -2548,7 +2514,6 @@ ELSE -- Allow override of configuration options
         , jobmon
     INTO
         v_partition_interval
-        , v_partition_type
         , v_control
         , v_retention_keep_table
         , v_retention_keep_index
@@ -2769,7 +2734,6 @@ v_adv_lock                  boolean;
 v_control                   text;
 v_control_type              text;
 v_count                     int;
-v_datetime_string           text;
 v_drop_count                int := 0;
 v_epoch                     text;
 v_index                     record;
@@ -2782,7 +2746,6 @@ v_parent_schema             text;
 v_parent_tablename          text;
 v_partition_interval        interval;
 v_partition_timestamp       timestamptz;
-v_partition_type            text;
 v_retention                 interval;
 v_retention_keep_index      boolean;
 v_retention_keep_table      boolean;
@@ -2807,25 +2770,21 @@ END IF;
 -- Allow override of configuration options
 IF p_retention IS NULL THEN
     SELECT
-        partition_type
-        , control
+        control
         , partition_interval::interval
         , epoch
         , retention::interval
         , retention_keep_table
         , retention_keep_index
-        , datetime_string
         , retention_schema
         , jobmon
     INTO
-        v_partition_type
-        , v_control
+        v_control
         , v_partition_interval
         , v_epoch
         , v_retention
         , v_retention_keep_table
         , v_retention_keep_index
-        , v_datetime_string
         , v_retention_schema
         , v_jobmon
     FROM @extschema@.part_config
@@ -2837,21 +2796,17 @@ IF p_retention IS NULL THEN
     END IF;
 ELSE
     SELECT
-        partition_type
-        , partition_interval::interval
+        partition_interval::interval
         , epoch
         , retention_keep_table
         , retention_keep_index
-        , datetime_string
         , retention_schema
         , jobmon
     INTO
-        v_partition_type
-        , v_partition_interval
+        v_partition_interval
         , v_epoch
         , v_retention_keep_table
         , v_retention_keep_index
-        , v_datetime_string
         , v_retention_schema
         , v_jobmon
     FROM @extschema@.part_config
@@ -3451,7 +3406,6 @@ v_min_partition_id          bigint;
 v_parent_tablename          text;
 v_partition_interval        bigint;
 v_partition_id              bigint[];
-v_partition_type            text;
 v_rowcount                  bigint;
 v_source_schemaname         text;
 v_source_tablename          text;
@@ -3465,11 +3419,9 @@ BEGIN
      */
 
     SELECT partition_interval::bigint
-    , partition_type
     , control
     , epoch
     INTO v_partition_interval
-    , v_partition_type
     , v_control
     , v_epoch
     FROM @extschema@.part_config
@@ -3722,12 +3674,10 @@ v_lock_obtained             boolean := FALSE;
 v_max_partition_timestamp   timestamptz;
 v_min_partition_timestamp   timestamptz;
 v_parent_tablename          text;
-v_parent_tablename_real     text;
 v_partition_expression      text;
 v_partition_interval        interval;
 v_partition_suffix          text;
 v_partition_timestamp       timestamptz[];
-v_partition_type            text;
 v_source_schemaname         text;
 v_source_tablename          text;
 v_rowcount                  bigint;
@@ -3740,13 +3690,11 @@ BEGIN
  * Populate the child table(s) of a time-based partition set with old data from the original parent
  */
 
-SELECT partition_type
-    , partition_interval::interval
+SELECT partition_interval::interval
     , control
     , datetime_string
     , epoch
-INTO v_partition_type
-    , v_partition_interval
+INTO v_partition_interval
     , v_control
     , v_datetime_string
     , v_epoch
@@ -4022,14 +3970,12 @@ v_analyze                       boolean := FALSE;
 v_check_subpart                 int;
 v_control_type                  text;
 v_create_count                  int := 0;
-v_current_partition             text;
 v_current_partition_id          bigint;
 v_current_partition_timestamp   timestamptz;
 v_default_tablename             text;
 v_drop_count                    int := 0;
 v_is_default                    text;
 v_job_id                        bigint;
-v_jobmon                        boolean;
 v_jobmon_schema                 text;
 v_last_partition                text;
 v_last_partition_created        boolean;
@@ -4047,14 +3993,9 @@ v_parent_schema                 text;
 v_parent_tablename              text;
 v_partition_expression          text;
 v_premade_count                 int;
-v_premake_id_max                bigint;
-v_premake_id_min                bigint;
-v_premake_timestamp_min         timestamptz;
-v_premake_timestamp_max         timestamptz;
 v_row                           record;
 v_row_max_id                    record;
 v_row_max_time                  record;
-v_row_sub                       record;
 v_sql                           text;
 v_step_id                       bigint;
 v_step_overflow_id              bigint;
@@ -4066,7 +4007,6 @@ v_sub_refresh_done              text[];
 v_sub_timestamp_max             timestamptz;
 v_sub_timestamp_max_suffix      timestamptz;
 v_sub_timestamp_min             timestamptz;
-v_tablename                     text;
 v_tables_list_sql               text;
 
 BEGIN
@@ -4447,14 +4387,10 @@ v_child_schema          text;
 v_child_tablename       text;
 v_control               text;
 v_control_type          text;
-v_datetime_string       text;
 v_epoch                 text;
 v_parent_table          text;
 v_partition_interval    text;
-v_partition_type        text;
 v_start_string          text;
-v_start_time_epoch      double precision;
-v_year                  text;
 
 BEGIN
 /*
@@ -4484,13 +4420,13 @@ ELSE
 END IF;
 
 IF p_partition_interval IS NULL THEN
-    SELECT control, partition_interval, partition_type, datetime_string, epoch
-    INTO v_control, v_partition_interval, v_partition_type, v_datetime_string, v_epoch
+    SELECT control, partition_interval, epoch
+    INTO v_control, v_partition_interval, v_epoch
     FROM @extschema@.part_config WHERE parent_table = v_parent_table;
 ELSE
     v_partition_interval := p_partition_interval;
-    SELECT control, partition_type, datetime_string, epoch
-    INTO v_control, v_partition_type, v_datetime_string, v_epoch
+    SELECT control, epoch
+    INTO v_control, v_epoch
     FROM @extschema@.part_config WHERE parent_table = v_parent_table;
 END IF;
 
@@ -4576,8 +4512,6 @@ v_control_type                  text;
 v_datetime_string               text;
 v_epoch                         text;
 v_given_timestamp               timestamptz;
-v_max_range                     timestamptz;
-v_min_range                     timestamptz;
 v_parent_schema                 text;
 v_parent_tablename              text;
 v_partition_interval            text;
@@ -4719,7 +4653,6 @@ v_epoch                 text;
 v_epoch_divisor         bigint;
 v_parent_schema         text;
 v_parent_tablename      text;
-v_partition_interval    text;
 v_partition_type        text;
 v_sql                   text;
 
@@ -4735,12 +4668,10 @@ IF upper(p_order) NOT IN ('ASC', 'DESC') THEN
 END IF;
 
 SELECT partition_type
-    , partition_interval
     , datetime_string
     , control
     , epoch
 INTO v_partition_type
-    , v_partition_interval
     , v_datetime_string
     , v_control
     , v_epoch
@@ -4874,8 +4805,6 @@ v_parent_schema                 text;
 v_parent_tablename              text;
 v_partition_expression          text;
 v_partition_interval            text;
-v_partition_type                text;
-v_relkind                       char;
 v_row                           record;
 v_rowcount                      bigint;
 v_sql                           text;
@@ -4909,13 +4838,11 @@ IF p_parent_table = p_target_table THEN
 END IF;
 
 SELECT partition_interval::text
-    , partition_type
     , control
     , jobmon
     , epoch
     , template_table
 INTO v_partition_interval
-    , v_partition_type
     , v_control
     , v_jobmon
     , v_epoch
@@ -4931,8 +4858,8 @@ IF p_target_table IS NULL THEN
     RAISE EXCEPTION 'Natively partitioned tables require setting the p_target_table option';
 END IF;
 
-SELECT n.nspname, c.relname, c.relkind
-INTO v_parent_schema, v_parent_tablename, v_relkind
+SELECT n.nspname, c.relname
+INTO v_parent_schema, v_parent_tablename
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
 WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
@@ -5321,7 +5248,6 @@ v_lockwait_count    int := 0;
 v_loop_count        int := 0;
 v_parent_schema     text;
 v_parent_tablename  text;
-v_row               record;
 v_rows_moved        bigint;
 v_source_schema     text;
 v_source_tablename  text;
@@ -5482,7 +5408,6 @@ v_parent_tablename          text;
 v_partition_type            text;
 v_partitions_undone         int;
 v_partitions_undone_total   int := 0;
-v_row                       record;
 v_rows_undone               bigint;
 v_target_schema             text;
 v_target_tablename          text;

@@ -23,7 +23,6 @@ v_lockwait_count    int := 0;
 v_loop_count        int := 0;
 v_parent_schema     text;
 v_parent_tablename  text;
-v_row               record;
 v_rows_moved        bigint;
 v_source_schema     text;
 v_source_tablename  text;

@@ -23,7 +23,6 @@ v_parent_tablename          text;
 v_partition_type            text;
 v_partitions_undone         int;
 v_partitions_undone_total   int := 0;
-v_row                       record;
 v_rows_undone               bigint;
 v_target_schema             text;
 v_target_tablename          text;

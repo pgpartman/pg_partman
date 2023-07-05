@@ -15,14 +15,10 @@ v_child_schema          text;
 v_child_tablename       text;
 v_control               text;
 v_control_type          text;
-v_datetime_string       text;
 v_epoch                 text;
 v_parent_table          text;
 v_partition_interval    text;
-v_partition_type        text;
 v_start_string          text;
-v_start_time_epoch      double precision;
-v_year                  text;
 
 BEGIN
 /*
@@ -52,13 +48,13 @@ ELSE
 END IF;
 
 IF p_partition_interval IS NULL THEN
-    SELECT control, partition_interval, partition_type, datetime_string, epoch
-    INTO v_control, v_partition_interval, v_partition_type, v_datetime_string, v_epoch
+    SELECT control, partition_interval, epoch
+    INTO v_control, v_partition_interval, v_epoch
     FROM @extschema@.part_config WHERE parent_table = v_parent_table;
 ELSE
     v_partition_interval := p_partition_interval;
-    SELECT control, partition_type, datetime_string, epoch
-    INTO v_control, v_partition_type, v_datetime_string, v_epoch
+    SELECT control, epoch
+    INTO v_control, v_epoch
     FROM @extschema@.part_config WHERE parent_table = v_parent_table;
 END IF;
 

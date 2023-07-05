@@ -44,8 +44,6 @@ v_parent_schema                 text;
 v_parent_tablename              text;
 v_partition_expression          text;
 v_partition_interval            text;
-v_partition_type                text;
-v_relkind                       char;
 v_row                           record;
 v_rowcount                      bigint;
 v_sql                           text;
@@ -79,13 +77,11 @@ IF p_parent_table = p_target_table THEN
 END IF;
 
 SELECT partition_interval::text
-    , partition_type
     , control
     , jobmon
     , epoch
     , template_table
 INTO v_partition_interval
-    , v_partition_type
     , v_control
     , v_jobmon
     , v_epoch
@@ -101,8 +97,8 @@ IF p_target_table IS NULL THEN
     RAISE EXCEPTION 'Natively partitioned tables require setting the p_target_table option';
 END IF;
 
-SELECT n.nspname, c.relname, c.relkind
-INTO v_parent_schema, v_parent_tablename, v_relkind
+SELECT n.nspname, c.relname
+INTO v_parent_schema, v_parent_tablename
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
 WHERE n.nspname = split_part(p_parent_table, '.', 1)::name

@@ -23,7 +23,6 @@ v_parent_schema             text;
 v_parent_tablename          text;
 v_partition_interval        bigint;
 v_partition_id              bigint;
-v_partition_type            text;
 v_retention                 bigint;
 v_retention_keep_index      boolean;
 v_retention_keep_table      boolean;
@@ -49,7 +48,6 @@ END IF;
 IF p_retention IS NULL THEN
     SELECT
         partition_interval::bigint
-        , partition_type
         , control
         , retention::bigint
         , retention_keep_table
@@ -58,7 +56,6 @@ IF p_retention IS NULL THEN
         , jobmon
     INTO
         v_partition_interval
-        , v_partition_type
         , v_control
         , v_retention
         , v_retention_keep_table
@@ -75,7 +72,6 @@ IF p_retention IS NULL THEN
 ELSE -- Allow override of configuration options
      SELECT
         partition_interval::bigint
-        , partition_type
         , control
         , retention_keep_table
         , retention_keep_index
@@ -83,7 +79,6 @@ ELSE -- Allow override of configuration options
         , jobmon
     INTO
         v_partition_interval
-        , v_partition_type
         , v_control
         , v_retention_keep_table
         , v_retention_keep_index

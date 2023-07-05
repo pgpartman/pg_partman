@@ -11,7 +11,6 @@ v_adv_lock                  boolean;
 v_control                   text;
 v_control_type              text;
 v_count                     int;
-v_datetime_string           text;
 v_drop_count                int := 0;
 v_epoch                     text;
 v_index                     record;
@@ -24,7 +23,6 @@ v_parent_schema             text;
 v_parent_tablename          text;
 v_partition_interval        interval;
 v_partition_timestamp       timestamptz;
-v_partition_type            text;
 v_retention                 interval;
 v_retention_keep_index      boolean;
 v_retention_keep_table      boolean;
@@ -49,25 +47,21 @@ END IF;
 -- Allow override of configuration options
 IF p_retention IS NULL THEN
     SELECT
-        partition_type
-        , control
+        control
         , partition_interval::interval
         , epoch
         , retention::interval
         , retention_keep_table
         , retention_keep_index
-        , datetime_string
         , retention_schema
         , jobmon
     INTO
-        v_partition_type
-        , v_control
+        v_control
         , v_partition_interval
         , v_epoch
         , v_retention
         , v_retention_keep_table
         , v_retention_keep_index
-        , v_datetime_string
         , v_retention_schema
         , v_jobmon
     FROM @extschema@.part_config
@@ -79,21 +73,17 @@ IF p_retention IS NULL THEN
     END IF;
 ELSE
     SELECT
-        partition_type
-        , partition_interval::interval
+        partition_interval::interval
         , epoch
         , retention_keep_table
         , retention_keep_index
-        , datetime_string
         , retention_schema
         , jobmon
     INTO
-        v_partition_type
-        , v_partition_interval
+        v_partition_interval
         , v_epoch
         , v_retention_keep_table
         , v_retention_keep_index
-        , v_datetime_string
         , v_retention_schema
         , v_jobmon
     FROM @extschema@.part_config

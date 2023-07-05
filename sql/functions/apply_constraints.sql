@@ -16,7 +16,6 @@ v_child_exists                  text;
 v_child_tablename               text;
 v_col                           text;
 v_constraint_cols               text[];
-v_constraint_col_type           text;
 v_constraint_name               text;
 v_constraint_valid              boolean;
 v_constraint_values             record;
@@ -31,8 +30,6 @@ v_jobmon_schema                 text;
 v_last_partition                text;
 v_last_partition_id             bigint;
 v_last_partition_timestamp      timestamptz;
-v_max_id                        bigint;
-v_max_timestamp                 timestamptz;
 v_new_search_path               text;
 v_old_search_path               text;
 v_optimize_constraint           int;
@@ -44,7 +41,6 @@ v_partition_suffix              text;
 v_premake                       int;
 v_sql                           text;
 v_step_id                       bigint;
-v_suffix_position               int;
 
 BEGIN
 /*

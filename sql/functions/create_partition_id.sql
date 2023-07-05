@@ -10,11 +10,9 @@ ex_context              text;
 ex_detail               text;
 ex_hint                 text;
 ex_message              text;
-v_all                   text[] := ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'];
 v_control               text;
 v_control_type          text;
 v_exists                text;
-v_grantees              text[];
 v_id                    bigint;
 v_inherit_privileges    boolean;
 v_job_id                bigint;
@@ -22,14 +20,11 @@ v_jobmon                boolean;
 v_jobmon_schema         text;
 v_new_search_path       text;
 v_old_search_path       text;
-v_parent_grant          record;
 v_parent_schema         text;
 v_parent_tablename      text;
 v_partition_interval    bigint;
 v_partition_created     boolean := false;
 v_partition_name        text;
-v_partition_type        text;
-v_revoke                text;
 v_row                   record;
 v_sql                   text;
 v_step_id               bigint;
@@ -46,13 +41,11 @@ BEGIN
 
 SELECT control
     , partition_interval
-    , partition_type
     , jobmon
     , template_table
     , inherit_privileges
 INTO v_control
     , v_partition_interval
-    , v_partition_type
     , v_jobmon
     , v_template_table
     , v_inherit_privileges

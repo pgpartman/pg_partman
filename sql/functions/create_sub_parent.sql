@@ -22,10 +22,8 @@ v_child_start_time      timestamptz;
 v_control               text;
 v_control_parent_type   text;
 v_control_sub_type      text;
-v_last_partition        text;
 v_parent_epoch          text;
 v_parent_interval       text;
-v_parent_relkind        char;
 v_parent_schema         text;
 v_parent_tablename      text;
 v_part_col              text;
@@ -34,12 +32,9 @@ v_partition_time_array  timestamptz[];
 v_relkind               char;
 v_recreate_child        boolean := false;
 v_row                   record;
-v_row_last_part         record;
-v_run_maint             boolean;
 v_sql                   text;
 v_success               boolean := false;
 v_template_table        text;
-v_top_type              text;
 
 BEGIN
 /*
@@ -49,7 +44,7 @@ BEGIN
  * Uses another config table that allows for turning all future child partitions into a new parent automatically.
  */
 
-SELECT n.nspname, c.relname, c.relkind INTO v_parent_schema, v_parent_tablename, v_parent_relkind
+SELECT n.nspname, c.relname INTO v_parent_schema, v_parent_tablename
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
 WHERE n.nspname = split_part(p_top_parent, '.', 1)::name
@@ -62,8 +57,8 @@ IF NOT @extschema@.check_partition_type(p_type) THEN
     RAISE EXCEPTION '% is not a valid partitioning type', p_type;
 END IF;
 
-SELECT partition_interval, control, automatic_maintenance, epoch, template_table
-INTO v_parent_interval, v_control, v_run_maint, v_parent_epoch, v_template_table
+SELECT partition_interval, control, epoch, template_table
+INTO v_parent_interval, v_control, v_parent_epoch, v_template_table
 FROM @extschema@.part_config
 WHERE parent_table = p_top_parent;
 IF v_parent_interval IS NULL THEN

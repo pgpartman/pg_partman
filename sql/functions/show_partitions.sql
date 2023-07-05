@@ -16,7 +16,6 @@ v_epoch                 text;
 v_epoch_divisor         bigint;
 v_parent_schema         text;
 v_parent_tablename      text;
-v_partition_interval    text;
 v_partition_type        text;
 v_sql                   text;
 
@@ -32,12 +31,10 @@ IF upper(p_order) NOT IN ('ASC', 'DESC') THEN
 END IF;
 
 SELECT partition_type
-    , partition_interval
     , datetime_string
     , control
     , epoch
 INTO v_partition_type
-    , v_partition_interval
     , v_datetime_string
     , v_control
     , v_epoch

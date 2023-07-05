@@ -28,7 +28,6 @@ v_min_partition_id          bigint;
 v_parent_tablename          text;
 v_partition_interval        bigint;
 v_partition_id              bigint[];
-v_partition_type            text;
 v_rowcount                  bigint;
 v_source_schemaname         text;
 v_source_tablename          text;
@@ -42,11 +41,9 @@ BEGIN
      */
 
     SELECT partition_interval::bigint
-    , partition_type
     , control
     , epoch
     INTO v_partition_interval
-    , v_partition_type
     , v_control
     , v_epoch
     FROM @extschema@.part_config
