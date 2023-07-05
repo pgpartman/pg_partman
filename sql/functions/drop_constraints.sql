@@ -13,7 +13,7 @@ ex_message                      text;
 v_child_schemaname              text;
 v_child_tablename               text;
 v_col                           text;
-v_constraint_cols               text[]; 
+v_constraint_cols               text[];
 v_existing_constraint_name      text;
 v_exists                        boolean := FALSE;
 v_job_id                        bigint;
@@ -26,18 +26,18 @@ v_step_id                       bigint;
 
 BEGIN
 
-SELECT constraint_cols 
+SELECT constraint_cols
     , jobmon
-INTO v_constraint_cols 
+INTO v_constraint_cols
     , v_jobmon
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table;
 
 IF v_constraint_cols IS NULL THEN
     RAISE EXCEPTION 'Given parent table (%) not set up for constraint management (constraint_cols is NULL)', p_parent_table;
 END IF;
 
-IF v_jobmon THEN 
+IF v_jobmon THEN
     SELECT nspname INTO v_jobmon_schema FROM pg_catalog.pg_namespace n, pg_catalog.pg_extension e WHERE e.extname = 'pg_jobmon' AND e.extnamespace = n.oid;
     IF v_jobmon_schema IS NOT NULL THEN
         SELECT current_setting('search_path') INTO v_old_search_path;
@@ -73,11 +73,11 @@ LOOP
     FROM pg_catalog.pg_constraint con
     JOIN pg_class c ON c.oid = con.conrelid
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-    JOIN pg_catalog.pg_attribute a ON con.conrelid = a.attrelid 
+    JOIN pg_catalog.pg_attribute a ON con.conrelid = a.attrelid
     WHERE c.relname = v_child_tablename
         AND n.nspname = v_child_schemaname
         AND con.conname LIKE 'partmanconstr_%'
-        AND con.contype = 'c' 
+        AND con.contype = 'c'
         AND a.attname = v_col
         AND ARRAY[a.attnum] OPERATOR(pg_catalog.<@) con.conkey
         AND a.attisdropped = false;
