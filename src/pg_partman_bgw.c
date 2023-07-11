@@ -28,10 +28,7 @@
 #include "utils/snapmgr.h"
 #include "tcop/utility.h"
 #include "commands/async.h"
-
-#if (PG_VERSION_NUM >= 100000)
 #include "utils/varlena.h"
-#endif
 
 
 PG_MODULE_MAGIC;

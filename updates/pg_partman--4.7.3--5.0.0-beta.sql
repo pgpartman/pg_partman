@@ -4381,7 +4381,7 @@ LOOP
             v_sql := format('ALTER SUBSCRIPTION %I REFRESH PUBLICATION', v_row.subscription_refresh);
             RAISE DEBUG '%', v_sql;
             EXECUTE v_sql;
-            PERFORM array_append(v_sub_refresh_done, v_row.subscription_refresh);
+            v_sub_refresh_done := array_append(v_sub_refresh_done, v_row.subscription_refresh);
         END IF;
     END IF;
 
@@ -4475,7 +4475,11 @@ WHERE n.nspname = split_part(p_child_table, '.', 1)::name
 AND c.relname = split_part(p_child_table, '.', 2)::name;
 
 IF v_child_tablename IS NULL THEN
-    RAISE EXCEPTION 'Child table given does not exist (%)', p_child_table;
+    IF p_parent_table IS NOT NULL THEN
+        RAISE EXCEPTION 'Child table given does not exist (%) for given parent table (%)', p_child_table, p_parent_table;
+    ELSE
+        RAISE EXCEPTION 'Child table given does not exist (%)', p_child_table;
+    END IF;
 END IF;
 
 IF p_parent_table IS NULL THEN
@@ -5489,7 +5493,6 @@ v_partitions_undone         int;
 v_partitions_undone_total   int := 0;
 v_row                       record;
 v_rows_undone               bigint;
-v_target_schema             text;
 v_target_tablename          text;
 v_sql                       text;
 v_total                     bigint := 0;
@@ -5524,7 +5527,7 @@ AND c.relname = split_part(p_parent_table, '.', 2)::name;
     END IF;
 
 IF p_target_table IS NOT NULL THEN
-    SELECT n.nspname, c.relname INTO v_target_schema, v_target_tablename
+    SELECT c.relname INTO v_target_tablename
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
     WHERE n.nspname = split_part(p_target_table, '.', 1)::name
