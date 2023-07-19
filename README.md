@@ -91,7 +91,7 @@ For setting up native partitioning with pg_partman on a brand new table, or to m
 
 For migrating a trigger-based partitioned table to native partitioning using pg_partman, see [migrate_to_native.md](doc/migrate_to_native.md).
 
-Other HowTo documents are also available in the documents folder.
+Other HowTo documents are available in the [doc](doc) folder.
 
 See the [pg_partman.md file](doc/pg_partman.md) in the doc folder for full details on all commands and options for pg_partman.
 
