@@ -11,13 +11,13 @@ Optional retention policy can automatically drop partitions no longer needed for
 
 A background worker (BGW) process is included to automatically run partition maintenance without the need of an external scheduler (cron, etc) in most cases.
 
-Bug reports & feature requests can be directed to the Issues section on Github - https://github.com/pgpartman/pg_partman/issues
+Bug reports & feature requests can be directed to the Issues section on Github - <https://github.com/pgpartman/pg_partman/issues>
 
-For questions, comments, or if you're just not sure where to post, please use the Discussions section on Github. Feel free to post here no matter how minor you may feel your issue or question may be - https://github.com/pgpartman/pg_partman/discussions
+For questions, comments, or if you're just not sure where to post, please use the Discussions section on Github. Feel free to post here no matter how minor you may feel your issue or question may be - <https://github.com/pgpartman/pg_partman/discussions>
 
 If you're looking for a partitioning system that handles any range type beyond just time & serial, the new native partitioning features in PostgreSQL 10+ are likely the best method for the foreseeable future. If this is something critical to your environment, start planning your upgrades now!
 
-If you're still trying to evaluate whether partitioning is a good choice for your environment, keep an eye on the HypoPG project. Version 2 will have a hypothetical partitioning feature that will let you evaluate different partitioning schemes without requiring you to actually partition your data. I may see about integrating this feature into pg_partman once it is available. - https://hypopg.readthedocs.io
+If you're still trying to evaluate whether partitioning is a good choice for your environment, keep an eye on the HypoPG project. Version 2 will have a hypothetical partitioning feature that will let you evaluate different partitioning schemes without requiring you to actually partition your data. I may see about integrating this feature into pg_partman once it is available. - <https://hypopg.readthedocs.io>
 
 INSTALLATION
 ------------
@@ -28,8 +28,7 @@ Requirement:
 Recommended: 
 
  * Native partitioning is highly recommended over trigger-based and PG11+ is HIGHLY recommended over PG10.
- * pg_jobmon (>=v1.4.0). PG Job Monitor will automatically be used if it is installed and setup properly.
-https://github.com/omniti-labs/pg_jobmon
+ * [pg_jobmon](https://github.com/omniti-labs/pg_jobmon) (>=v1.4.0). PG Job Monitor will automatically be used if it is installed and setup properly.
 
 In the directory where you downloaded pg_partman, run
 
@@ -70,7 +69,7 @@ If you need the role to also be able to create schemas, you will need to grant c
 
 I've received many requests for being able to install this extension on Amazon RDS. As of PostgreSQL 12.5, RDS has made the pg_partman extension available. Many thanks to the RDS team for including this extension in their environment!
 
-https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/PostgreSQL_Partitions.html
+<https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/PostgreSQL_Partitions.html>
 
 UPGRADE
 -------
@@ -81,7 +80,7 @@ Run "make install" same as above to put the script files and libraries in place.
 
 If you are doing a pg_dump/restore and you've upgraded pg_partman in place from previous versions, it is recommended you use the --column-inserts option when dumping and/or restoring pg_partman's configuration tables. This is due to ordering of the configuration columns possibly being different (upgrades just add the columns onto the end, whereas the default of a new install may be different).
 
-If upgrading between any major versions of pg_partman (2.x -> 3.x, etc), please carefully read all intervening version notes in the CHANGELOG, especially those notes for the major version. There are often additional instructions (Ex. updating trigger functions) and other important considerations for the updates.
+If upgrading between any major versions of pg_partman (2.x -> 3.x, etc), please carefully read all intervening version notes in the [CHANGELOG](CHANGELOG.txt), especially those notes for the major version. There are often additional instructions (Ex. updating trigger functions) and other important considerations for the updates.
 
 IMPORTANT NOTE: Some updates to pg_partman must drop and recreate its own database objects. If you are revoking PUBLIC privileges from functions/procedures, that can be added back to objects that are recreated as part of an update. If restrictions from PUBLIC use are desired for pg_partman, it is recommended to install it into its own schema as shown above and the revoke undesired access to that schema. Otherwise you may have to add an additional step to your extension upgrade procedures to revoke PUBLIC access again.
 
