@@ -98,6 +98,6 @@ See the [pg_partman.md file](doc/pg_partman.md) in the doc folder for full detai
 
 TESTING
 -------
-This extension can use the pgTAP unit testing suite to evalutate if it is working properly (http://www.pgtap.org).
+This extension can use the pgTAP unit testing suite to evaluate if it is working properly (http://www.pgtap.org).
 WARNING: You MUST increase max_locks_per_transaction above the default value of 64. For me, 128 has worked well so far. This is due to the sub-partitioning tests that create/destroy several hundred tables in a single transaction. If you don't do this, you risk a cluster crash when running subpartitioning tests.
 
