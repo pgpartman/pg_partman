@@ -93,7 +93,7 @@ For migrating a trigger-based partitioned table to native partitioning using pg_
 
 Other HowTo documents are available in the [doc](doc) folder.
 
-See the [pg_partman.md file](doc/pg_partman.md) in the doc folder for full details on all commands and options for pg_partman.
+See [pg_partman.md file](doc/pg_partman.md) in the [doc](doc) folder for full details on all commands and options for pg_partman.
 
 
 TESTING
