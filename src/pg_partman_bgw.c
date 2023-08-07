@@ -29,6 +29,8 @@
 #include "tcop/utility.h"
 #include "commands/async.h"
 #include "utils/varlena.h"
+#include "tcop/pquery.h"
+#include "utils/memutils.h"
 
 
 PG_MODULE_MAGIC;
@@ -43,6 +45,7 @@ static volatile sig_atomic_t got_sigterm = false;
 
 /* GUC variables */
 static int pg_partman_bgw_interval = 3600; // Default hourly
+static int pg_partman_bgw_maintenance_wait = 0; // Default no wait
 static char *pg_partman_bgw_role = "postgres"; // Default to postgres role
 
 // Do not analyze by default
@@ -101,6 +104,19 @@ _PG_init(void)
                             &pg_partman_bgw_interval,
                             3600,
                             1,
+                            INT_MAX,
+                            PGC_SIGHUP,
+                            0,
+                            NULL,
+                            NULL,
+                            NULL);
+
+    DefineCustomIntVariable("pg_partman_bgw.maintenance_wait",
+                            "How long to wait between each partition set when running maintenance (in seconds).",
+                            NULL,
+                            &pg_partman_bgw_maintenance_wait,
+                            0,
+                            0,
                             INT_MAX,
                             PGC_SIGHUP,
                             0,
@@ -350,6 +366,9 @@ void pg_partman_bgw_run_maint(Datum arg) {
     List                *elemlist;
     int                 ret;
     StringInfoData      buf;
+    SPIExecuteOptions   spi_exec_opts;
+    Portal              portal = ActivePortal;
+    bool                portal_created = false;
 
     /* Establish signal handlers before unblocking signals. */
     pqsignal(SIGHUP, pg_partman_bgw_sighup);
@@ -388,9 +407,19 @@ void pg_partman_bgw_run_maint(Datum arg) {
     initStringInfo(&buf);
 
     SetCurrentStatementStartTimestamp();
-    StartTransactionCommand();
-    SPI_connect();
-    PushActiveSnapshot(GetTransactionSnapshot());
+
+    SPI_connect_ext(SPI_OPT_NONATOMIC);
+    if (!PortalIsValid(portal)) {
+        portal_created = true;
+        portal = CreateNewPortal();
+        portal->visible = false;
+        portal->resowner = CurrentResourceOwner;
+        ActivePortal = portal;
+        PortalContext = portal->portalContext;
+        StartTransactionCommand();
+        EnsurePortalSnapshotExists();
+    }
+
     pgstat_report_appname("pg_partman dynamic background worker");
 
     // First determine if pg_partman is even installed in this database
@@ -438,6 +467,8 @@ void pg_partman_bgw_run_maint(Datum arg) {
                 , 1
                 , &isnull));
 
+        elog(DEBUG1, "pg_partman_bgw: pg_partman schema: %s.", partman_schema);
+
         if (isnull)
             elog(FATAL, "Query to determine pg_partman schema returned NULL.");
 
@@ -456,14 +487,18 @@ void pg_partman_bgw_run_maint(Datum arg) {
     } else {
         jobmon = "false";
     }
-    appendStringInfo(&buf, "SELECT \"%s\".run_maintenance(p_analyze := %s, p_jobmon := %s)", partman_schema, analyze, jobmon);
+    appendStringInfo(&buf, "CALL \"%s\".run_maintenance_proc(p_wait => %d, p_analyze => %s, p_jobmon => %s)", partman_schema, pg_partman_bgw_maintenance_wait, analyze, jobmon);
 
     pgstat_report_activity(STATE_RUNNING, buf.data);
 
-    ret = SPI_execute(buf.data, false, 0);
 
-    if (ret != SPI_OK_SELECT)
-        elog(FATAL, "Cannot call pg_partman run_maintenance() function: error code %d", ret);
+    // Call refresh_metric_views procedure non-atomically
+    memset(&spi_exec_opts, 0, sizeof(spi_exec_opts));
+    spi_exec_opts.allow_nonatomic = true;
+    ret = SPI_execute_extended(buf.data, &spi_exec_opts);
+
+    if (ret != SPI_OK_UTILITY)
+        elog(FATAL, "Cannot call pg_partman run_maintenance_proc() procedure: error code %d", ret);
 
     elog(LOG, "%s: %s called by role %s on database %s"
             , MyBgworkerEntry->bgw_name
@@ -472,8 +507,16 @@ void pg_partman_bgw_run_maint(Datum arg) {
             , dbname);
 
     SPI_finish();
-    PopActiveSnapshot();
-    CommitTransactionCommand();
+
+    if (portal_created) {
+        if (ActiveSnapshotSet())
+            PopActiveSnapshot();
+        CommitTransactionCommand();
+        PortalDrop(portal, false);
+        ActivePortal = NULL;
+        PortalContext = NULL;
+    }
+
     #if (PG_VERSION_NUM < 150000)
     ProcessCompletedNotifies();
     #endif
