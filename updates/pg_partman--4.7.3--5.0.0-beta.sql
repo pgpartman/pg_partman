@@ -4024,7 +4024,7 @@ $$;
 
 CREATE FUNCTION @extschema@.run_maintenance(
     p_parent_table text DEFAULT NULL
-    -- If these default chaged reflect them in `run_maintenance_proc`!
+    -- If these default changed reflect them in `run_maintenance_proc`!
     , p_analyze boolean DEFAULT false
     , p_jobmon boolean DEFAULT true
 )
@@ -5463,7 +5463,7 @@ CREATE PROCEDURE @extschema@.run_maintenance_proc(
 DECLARE
 
 v_adv_lock              boolean;
-p_parent_table          text;
+v_parent_table          text;
 
 BEGIN
 
@@ -5473,7 +5473,7 @@ IF v_adv_lock = false THEN
     RETURN;
 END IF;
 
-FOR p_parent_table IN
+FOR v_parent_table IN
     SELECT parent_table
     FROM @extschema@.part_config
     WHERE undo_in_progress = false
