@@ -5469,6 +5469,7 @@ DECLARE
 
 v_adv_lock              boolean;
 v_parent_table          text;
+v_sql                   text;
 
 BEGIN
 
