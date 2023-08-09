@@ -3,9 +3,13 @@ EXTVERSION = $(shell grep default_version $(EXTENSION).control | \
                sed -e "s/default_version[[:space:]]*=[[:space:]]*'\([^']*\)'/\1/")
 
 PG_CONFIG = pg_config
-PG14 = $(shell $(PG_CONFIG) --version | egrep " 13\." > /dev/null && echo no || echo yes)
+PG_VER = $(shell $(PG_CONFIG) --version | sed "s/^[^ ]* \([0-9]*\).*$$/\1/" 2>/dev/null)
 
-ifeq ($(PG14),yes)
+PG_VER_min = 14
+
+ifeq ($(shell expr "$(PG_VER_min)" \<=  "$(PG_VER)"), 0)
+$(error Minimum version of PostgreSQL required is $(PG_VER_min) (but have $(PG_VER)))
+endif
 
 DOCS = $(wildcard doc/*.md)
 MODULES = src/pg_partman_bgw
@@ -15,20 +19,16 @@ ifneq ($(NO_BGW),)
 	MODULES=
 endif
 
+.PHONY: all
 all: sql/$(EXTENSION)--$(EXTVERSION).sql
 
 SCRIPTS = bin/common/*.py
 
-sql/$(EXTENSION)--$(EXTVERSION).sql: $(sort $(wildcard sql/types/*.sql)) $(sort $(wildcard sql/tables/*.sql)) $(sort $(wildcard sql/functions/*.sql)) $(sort $(wildcard sql/procedures/*.sql))
+sql/$(EXTENSION)--$(EXTVERSION).sql: $(wildcard sql/types/*.sql sql/tables/*.sql sql/functions/*.sql sql/procedures/*.sql)
 	cat $^ > $@
 
 DATA = $(wildcard updates/*--*.sql) sql/$(EXTENSION)--$(EXTVERSION).sql
 EXTRA_CLEAN = sql/$(EXTENSION)--$(EXTVERSION).sql
-else
-$(error Minimum version of PostgreSQL required is 9.4.0)
-
-# end PG14 if
-endif
 
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)

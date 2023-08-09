@@ -1,5 +1,5 @@
 -- ########## ID 10 TESTS ##########
--- Additional tests: 
+-- Additional tests:
     -- turn off pg_jobmon logging
     -- UNLOGGED
     -- PUBLIC role
@@ -30,7 +30,7 @@ CREATE UNLOGGED TABLE partman_test.id_taptest_table
         , col2 text not null default 'stuff'
         , col3 timestamptz DEFAULT now()
         , col4 text
-        , CONSTRAINT test_native_fk FOREIGN KEY (col2) REFERENCES partman_test.fk_test_reference(col2) ) 
+        , CONSTRAINT test_native_fk FOREIGN KEY (col2) REFERENCES partman_test.fk_test_reference(col2) )
     PARTITION BY RANGE (col1);
 CREATE TABLE partman_test.undo_taptest (LIKE partman_test.id_taptest_table INCLUDING ALL);
 GRANT SELECT,INSERT,UPDATE ON partman_test.id_taptest_table TO partman_basic, PUBLIC;

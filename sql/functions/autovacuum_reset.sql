@@ -18,7 +18,7 @@ BEGIN
         EXECUTE v_sql;
     END IF;
 
-    FOR v_row IN 
+    FOR v_row IN
         SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(p_parent_schema||'.'||p_parent_tablename, 'ASC')
     LOOP
         v_sql = format('ALTER TABLE %I.%I RESET (autovacuum_enabled, toast.autovacuum_enabled)', v_row.partition_schemaname, v_row.partition_tablename);

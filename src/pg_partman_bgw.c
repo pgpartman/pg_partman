@@ -230,7 +230,7 @@ void pg_partman_bgw_main(Datum main_arg) {
         char                    *rawstring;
         int                     dbcounter;
         int                     rc;
-        int                     full_string_length;
+        size_t                  full_string_length;
         List                    *elemlist;
         ListCell                *l;
         pid_t                   pid;
@@ -451,7 +451,7 @@ void pg_partman_bgw_run_maint(Datum arg) {
             , dbname);
 
     resetStringInfo(&buf);
-    appendStringInfo(&buf, "SELECT n.nspname FROM pg_catalog.pg_extension e JOIN pg_catalog.pg_namespace n ON e.extnamespace = n.oid WHERE extname = 'pg_partman'");
+    appendStringInfo(&buf, "SELECT pg_catalog.quote_ident(n.nspname) FROM pg_catalog.pg_extension e JOIN pg_catalog.pg_namespace n ON e.extnamespace = n.oid WHERE e.extname = 'pg_partman'");
     pgstat_report_activity(STATE_RUNNING, buf.data);
     ret = SPI_execute(buf.data, true, 1);
 
@@ -487,6 +487,7 @@ void pg_partman_bgw_run_maint(Datum arg) {
     } else {
         jobmon = "false";
     }
+
     appendStringInfo(&buf, "CALL \"%s\".run_maintenance_proc(p_wait => %d, p_analyze => %s, p_jobmon => %s)", partman_schema, pg_partman_bgw_maintenance_wait, analyze, jobmon);
 
     pgstat_report_activity(STATE_RUNNING, buf.data);

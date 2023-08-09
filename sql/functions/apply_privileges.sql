@@ -1,5 +1,5 @@
 CREATE FUNCTION @extschema@.apply_privileges(p_parent_schema text, p_parent_tablename text, p_child_schema text, p_child_tablename text, p_job_id bigint DEFAULT NULL) RETURNS void
-    LANGUAGE plpgsql 
+    LANGUAGE plpgsql
     AS $$
 DECLARE
 
@@ -32,10 +32,10 @@ IF v_jobmon IS NULL THEN
     RAISE EXCEPTION 'Given table is not managed by this extention: %.%', p_parent_schema, p_parent_tablename;
 END IF;
 
-SELECT pg_get_userbyid(c.relowner) INTO v_parent_owner 
+SELECT pg_get_userbyid(c.relowner) INTO v_parent_owner
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-WHERE n.nspname = p_parent_schema::name 
+WHERE n.nspname = p_parent_schema::name
 AND c.relname = p_parent_tablename::name;
 
 SELECT pg_get_userbyid(c.relowner) INTO v_child_owner
@@ -76,22 +76,22 @@ IF v_jobmon_schema IS NOT NULL THEN
             );
 END IF;
 
-FOR v_parent_grant IN 
+FOR v_parent_grant IN
     SELECT array_agg(DISTINCT privilege_type::text ORDER BY privilege_type::text) AS types
             , grantee
     FROM @extschema@.table_privs
     WHERE table_schema = p_parent_schema::name AND table_name = p_parent_tablename::name
-    GROUP BY grantee 
+    GROUP BY grantee
 LOOP
     -- Compare parent & child grants. Don't re-apply if it already exists
     v_match := false;
     v_sql := NULL;
-    FOR v_child_grant IN 
+    FOR v_child_grant IN
         SELECT array_agg(DISTINCT privilege_type::text ORDER BY privilege_type::text) AS types
                 , grantee
-        FROM @extschema@.table_privs 
+        FROM @extschema@.table_privs
         WHERE table_schema = p_child_schema::name AND table_name = p_child_tablename::name
-        GROUP BY grantee 
+        GROUP BY grantee
     LOOP
         IF v_parent_grant.types = v_child_grant.types AND v_parent_grant.grantee = v_child_grant.grantee THEN
             v_match := true;
@@ -132,7 +132,7 @@ END LOOP;
 
 -- Revoke all privileges from roles that have none on the parent
 IF v_grantees IS NOT NULL THEN
-    FOR v_row_revoke IN 
+    FOR v_row_revoke IN
         SELECT role FROM (
             SELECT DISTINCT grantee::text AS role FROM @extschema@.table_privs WHERE table_schema = p_child_schema::name AND table_name = p_child_tablename::name
             EXCEPT
