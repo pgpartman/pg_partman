@@ -5486,13 +5486,21 @@ FOR v_parent_table IN
 LOOP
 /*
  * Run maintenance with a commit between each partition set
- * TODO - Once PG11 is more mainstream, see about more full conversion of run_maintenance function as well as turning
- *        create_partition* functions into procedures to commit after every child table is made. May need to wait
- *        for more PROCEDURE features as well (return values, search_path, etc).
- *      - Also see about swapping names so this is the main object to call for maintenance instead of a function.
+ * TODO - Convert this to the main maintenance function and get rid of standalone function.
+ *          See if there's any issues with search_path or needing return values
  */
-    RAISE DEBUG 'run_maintenance_proc for table: %', p_parent_table;
-    PERFORM @extschema@.run_maintenance(p_parent_table, p_jobmon => p_jobmon, p_analyze => p_analyze);
+    v_sql := format('SELECT %I.run_maintenance(%L, p_jobmon := %L',
+        '@extschema@', v_row.parent_table, p_jobmon);
+
+    IF p_analyze IS NOT NULL THEN
+        v_sql := v_sql || format(', p_analyze := %L', p_analyze);
+    END IF;
+
+    v_sql := v_sql || ')';
+
+    RAISE DEBUG 'v_sql run_maintenance_proc: %', v_sql;
+
+    EXECUTE v_sql;
     COMMIT;
 
     PERFORM pg_sleep(p_wait);
@@ -5502,7 +5510,6 @@ END LOOP;
 PERFORM pg_advisory_unlock(hashtext('pg_partman run_maintenance'));
 END
 $$;
-
 
 
 CREATE PROCEDURE @extschema@.undo_partition_proc(
