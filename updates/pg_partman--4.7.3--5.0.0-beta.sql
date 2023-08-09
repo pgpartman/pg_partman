@@ -5491,7 +5491,7 @@ LOOP
  *          See if there's any issues with search_path or needing return values
  */
     v_sql := format('SELECT %I.run_maintenance(%L, p_jobmon := %L',
-        '@extschema@', v_row.parent_table, p_jobmon);
+        '@extschema@', v_parent_table, p_jobmon);
 
     IF p_analyze IS NOT NULL THEN
         v_sql := v_sql || format(', p_analyze := %L', p_analyze);
