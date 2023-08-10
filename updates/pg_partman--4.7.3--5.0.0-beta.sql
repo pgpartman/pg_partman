@@ -32,7 +32,7 @@
 
 -- Edge case with infinite_time_partitions fixed. If set to true and data far ahead of "now" was inserted, no new child tables would be created based on the premake.
 
--- Many thanks to all the people that have help with testing and code review during 5.x development.
+-- Many thanks to all the people that have help with testing and code review during 5.x development. In particular...
     -- Leigh Downs w/ Crunchy Data for extensive testing
     -- vitaly-burovoy on Github for some amazing optimizations and code review
     -- andyatkinson on Github for documentation review and pointing out my antiquated usage of the term "native" now that there's only one partitioning method supported
