@@ -3,11 +3,11 @@
 PG Partition Manager
 ====================
 
-pg_partman is an extension to create and manage both time-based and number-based table partition sets. As of version 5.0.0, only native, declarative partition is supported and the older trigger-based methods have been dropped.
+pg_partman is an extension to create and manage both time-based and number-based table partition sets. As of version 5.0.0, only built-in, declarative partition is supported and the older trigger-based methods have been dropped.
 
 Child table creation is all managed by the extension itself. For an existing table that needs partitioning, the creation of a new partitioned parent must be done first and the data migrated over after setup is complete.
 
-Optional retention policy can automatically drop partitions no longer needed for both native and non-native partitioning.
+Optional retention policy can automatically drop partitions no longer needed.
 
 A background worker (BGW) process is included to automatically run partition maintenance without the need of an external scheduler (cron, etc) in most cases.
 
@@ -17,6 +17,20 @@ For questions, comments, or if you're just not sure where to post, please use th
 
 If you're still trying to evaluate whether partitioning is a good choice for your environment, keep an eye on the HypoPG project. Version 2 will have a hypothetical partitioning feature that will let you evaluate different partitioning schemes without requiring you to actually partition your data. I may see about integrating this feature into pg_partman once it is available. - <https://hypopg.readthedocs.io>
 
+DOCUMENTATION
+-------------
+
+The following list of files is found in the [doc](doc) of the pg_partman github repository. For [installation instructions](#INSTALLATION), please see the next section of this README.
+
+| File                                                              | Description                                                                   |
+|-------------------------------------------------------------------|-------------------------------------------------------------------------------|
+| [fix_missing_procedures.md](doc/fix_missing_procedures.md)        | If pg_partman has been installed since prior to PostgreSQL 11 and upgraded since then, it may be missing procedures. This document outlines how to restore those procedures a preserve the current configration.                                  |
+| [migrate_to_declarative.md](doc/migrate_to_declarative.md)        | How to migrate from trigger-based partitioning to declarative partitioning.   |
+| [migrate_to_partman.md](doc/migrate_to_partman.md)                | How to migrate existing partition sets to being managed by pg_partman.        |
+| [pg_partman_5.0.0_upgrade.md](doc/pg_partman_5.0.0_upgrade.md)    | If pg_partman is being upgraded to version 5.x from any prior version, special considerations may need to be made. Please carefully review this document to before performing any upgrades to 5.x or higher.                                      |
+| [pg_partman_howto.md](doc/pg_partman_howto.md)                    | A How-To guide for general usage of pg_partman. Covers setting up new partition sets and migrating existing tables to partitioned tables.                                                                                                    |
+| [pg_partman.md](doc/pg_partman.md)                                | Main reference documentation for pg_partman.                                  |
+
 INSTALLATION
 ------------
 Requirement: 
@@ -25,7 +39,6 @@ Requirement:
 
 Recommended: 
 
-<<<<<<< HEAD
  * [pg_jobmon](https://github.com/omniti-labs/pg_jobmon) (>=v1.4.0). PG Job Monitor will automatically be used if it is installed and setup properly.
 
 ### From Source
@@ -97,18 +110,16 @@ ALTER EXTENSION pg_partman UPDATE TO '<latest version>';
 
 If you are doing a `pg_dump`/`pg_restore` and you've upgraded pg_partman in place from previous versions, it is recommended you use the `--column-inserts` option when dumping and/or restoring pg_partman's configuration tables. This is due to ordering of the configuration columns possibly being different (upgrades just add the columns onto the end, whereas the default of a new install may be different).
 
-<<<<<<< HEAD
-If upgrading between any major versions of pg_partman (4.x -> 5.x, etc), please carefully read all intervening version notes in the [CHANGELOG](CHANGELOG.txt), especially those notes for the major version. There are often additional instructions and other important considerations for the updates.
+If upgrading between any major versions of pg_partman (4.x -> 5.x, etc), please carefully read all intervening version notes in the [CHANGELOG](CHANGELOG.txt), especially those notes for the major version. There are often additional instructions and other important considerations for the updates. Extra special considerations are needed if you are upgrading to 5+ from any version less than 5.0.0. Please see [pg_partman_5.0.0_upgrade.md](doc/pg_partman_5.0.0_upgrade.md).
 
 IMPORTANT NOTE: Some updates to pg_partman must drop and recreate its own database objects. If you are revoking PUBLIC privileges from functions/procedures, that can be added back to objects that are recreated as part of an update. If restrictions from PUBLIC use are desired for pg_partman, it is recommended to install it into its own schema as shown above and the revoke undesired access to that schema. Otherwise you may have to add an additional step to your extension upgrade procedures to revoke PUBLIC access again.
 
-Special considerations are needed if you are upgrading to 5+ from any version less than 5.0.0. Please see [pg_partman_5.0.0_upgrade.md](doc/pg_partman_5.0.0_upgrade.md).
 
 EXAMPLES
 --------
-For setting up native partitioning with pg_partman on a brand new table, or to migrate an existing normal table to native partitioning, see [pg_partman_howto.md](doc/pg_partman_howto.md).
+For setting up partitioning with pg_partman on a brand new table, or to migrate an existing normal table to partitioning, see [pg_partman_howto.md](doc/pg_partman_howto.md).
 
-For migrating a trigger-based partitioned table to native partitioning using pg_partman, see [migrate_to_native.md](doc/migrate_to_native.md). Note that if you plan to migrate to pg_partman, you will first have to migrate to a natively partitioned table before it can be managed by pg_partman.
+For migrating a trigger-based partitioned table to declarative partitioning using pg_partman, see [migrate_to_declarative.md](doc/migrate_to_declarative.md). Note that if you plan to migrate to pg_partman, you will first have to migrate to a declarative partitioned table before it can be managed by pg_partman.
 
 Other documents are also available in the [doc](doc) folder.
 
@@ -118,6 +129,7 @@ See the [pg_partman.md reference file](doc/pg_partman.md) in the [doc](doc) fold
 TESTING
 -------
 This extension can use the pgTAP unit testing suite to evalutate if it is working properly - [http://www.pgtap.org](http://www.pgtap.org).
-=======
-WARNING: You MUST increase max_locks_per_transaction above the default value of 64. For me, 128 has worked well so far. This is due to the sub-partitioning tests that create/destroy several hundred tables in a single transaction. If you don't do this, you risk a cluster crash when running subpartitioning tests.
 
+***WARNING: You MUST increase max_locks_per_transaction above the default value of 64. A value of 128 as worked well so far with existing tests. This is due to the sub-partitioning tests that create/destroy several hundred tables in a single transaction. If you don't do this, you risk a cluster crash when running subpartitioning tests.***
+
+See the [README file](test/README_test.md) contained in the test folder for more information on testing.

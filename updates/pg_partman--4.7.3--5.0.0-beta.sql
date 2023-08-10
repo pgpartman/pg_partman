@@ -1,7 +1,9 @@
 -- IMPORTANT NOTE: It is recommended that you take a backup of the part_config and part_config_sub tables before upgrading just to ensure they can be restored in case there are any issues. These tables are recreated as part of the upgrade.
     -- If you see any errors about the following tables existing during an upgrade attempt, please review their content and ensure you do not need any of the backed up pre-5.x configuration data they contain. Drop them if not needed and try the upgrade again: part_config_pre_500_data, part_config_sub_pre_500_data
 
--- (Breaking Change) Removed trigger-based partitioning support. All partitioning is now done using built-in (native) declarative partitioning. The partitioning 'type' in pg_partman will now refer to the types of delcarative partitioning that are supported. As of 5.0.0, only 'range' is supported, but others are in development.
+-- Changed usage of the term "native" to "declarative" to better match upstream PostgreSQL terminology for built-in partitioning.
+
+-- (Breaking Change) Removed trigger-based partitioning support. All partitioning is now done using built-in declarative partitioning. The partitioning 'type' in pg_partman will now refer to the types of delcarative partitioning that are supported. As of 5.0.0, only 'range' is supported, but others are in development.
 
 -- (Breaking Change) Many functions have had their parameters altered, renamed, rearranged or removed. These should be more consistent across the code-base now. Please review ALL calls to pg_partman functions to ensure that your parameter names and values have been updated to match the changes.
 
@@ -21,7 +23,7 @@
 -- By default, data in the default partition is now ignored when calculating new child partitions to create. If a new child table's boundaries would include data that exists in the default, this will cause an error during maintenance and must be manually resolved by either removing that data from the default or partitioning it out to the proper child table using the partition_data function/procedure.
     -- A flag is available to take default data into consideration, but this should only be used in rare circumstances to correct maintenance issues and should not be left permanently enabled.
 
--- As of PostgreSQL 13, newly created child tables in a partition set that is part of a logical repication PUBLICATION are automatically added to that PUBLICATION. Therefore the "publications" array configuration in the pg_partman configuration tables was removed. Simply make sure the parent table is a part of the necessary publications and it will be natively handled from now on.
+-- As of PostgreSQL 13, newly created child tables in a partition set that is part of a logical repication PUBLICATION are automatically added to that PUBLICATION. Therefore the "publications" array configuration in the pg_partman configuration tables was removed. Simply make sure the parent table is a part of the necessary publications and it will be automatically handled by core PostgreSQL from now on.
     -- Note The SUBSCRIPTION does not automatically get refreshed to account for new tables added to a published partition set. If pg_partman is also managing your partition set on the SUBSCRIPTION side, ensure the "subscription_refresh" flag in the configuration table is set to true so that maintenance will automatically run to add the new tables to the subscription.
 
 -- Added support for dropping indexes for partitions moved to another schema as part of retention
@@ -30,7 +32,10 @@
 
 -- Edge case with infinite_time_partitions fixed. If set to true and data far ahead of "now" was inserted, no new child tables would be created based on the premake.
 
--- Many thanks to Leigh Downs w/ Crunchy Data for the extensive testing done during the 5.x development cycle!
+-- Many thanks to all the people that have help with testing and code review during 5.x development.
+    -- Leigh Downs w/ Crunchy Data for extensive testing
+    -- vitaly-burovoy on Github for some amazing optimizations and code review
+    -- andyatkinson on Github for documentation review and pointing out my antiquated usage of the term "native" now that there's only one partitioning method supported
 
 -- #### Ugrade exceptions ####
 DO $upgrade_partman$
@@ -39,7 +44,7 @@ v_count     int;
 BEGIN
     SELECT count(*) INTO v_count FROM @extschema@.part_config WHERE partition_type = 'partman';
     IF v_count > 0 THEN
-      RAISE EXCEPTION 'One or more partition sets are configured for trigger-based partitioning which is not supported in version 5.0.0 or greater. See documentation for migrating to native partitioning before upgrading.';
+      RAISE EXCEPTION 'One or more partition sets are configured for trigger-based partitioning which is not supported in version 5.0.0 or greater. See documentation for migrating to declarative partitioning before upgrading.';
     END IF;
 END
 $upgrade_partman$;
@@ -50,7 +55,7 @@ v_count     int;
 BEGIN
     SELECT count(*) INTO v_count FROM @extschema@.part_config WHERE datetime_string IN ('YYYY"q"Q', 'IYYY"w"IW');
     IF v_count > 0 THEN
-      RAISE WARNING 'One or more partition sets are configured for quarterly or ISO weekly partitioning which is not supported in version 5.0.0 or greater. See documentation for migrating to native intervals. This migration can and should be done after upgrading to ensure new partition suffixes are used.';
+      RAISE WARNING 'One or more partition sets are configured for quarterly or ISO weekly partitioning which is not supported in version 5.0.0 or greater. See documentation for migrating to standard intervals. This migration can and should be done after upgrading to ensure new partition suffixes are used.';
     END IF;
 END
 $upgrade_datetime_string$;
@@ -1048,7 +1053,7 @@ JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
 WHERE c.relname = v_parent_tablename::name
 AND n.nspname = v_parent_schema::name
 AND a.attname = p_control::name;
-    IF p_type <> 'native' AND (v_notnull = false OR v_notnull IS NULL) THEN
+    IF (v_notnull = false OR v_notnull IS NULL) THEN
         RAISE EXCEPTION 'Control column given (%) for parent table (%) does not exist or must be set to NOT NULL', p_control, p_parent_table;
     END IF;
 
@@ -1106,7 +1111,7 @@ IF v_control_type NOT IN ('time', 'id') THEN
     RAISE EXCEPTION 'Only date/time or integer types are allowed for the control column.';
 END IF;
 
--- Table to handle properties not natively inherited yet
+-- Table to handle properties not managed by core PostgreSQL yet
 IF p_template_table IS NULL THEN
     v_template_schema := '@extschema@';
     v_template_tablename := @extschema@.check_name_length('template_'||v_parent_schema||'_'||v_parent_tablename);
@@ -1532,7 +1537,7 @@ IF p_default_table THEN
     v_default_partition := @extschema@.check_name_length(v_parent_tablename, '_default', FALSE);
     v_sql := 'CREATE';
 
-    -- Left this here as reminder to revisit once native figures out how it is handling changing unlogged stats
+    -- Left this here as reminder to revisit once core PG figures out how it is handling changing unlogged stats
     -- Currently handed via template table below
     /*
     IF v_unlogged = 'u' THEN
@@ -1711,7 +1716,7 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
         v_step_id := add_step(v_job_id, 'Creating new partition '||v_partition_name||' with interval from '||v_id||' to '||(v_id + v_partition_interval)-1);
     END IF;
 
-    -- Close parentheses on LIKE are below due to differing requirements of native subpartitioning
+    -- Close parentheses on LIKE are below due to differing requirements of subpartitioning
     -- Same INCLUDING list is used in create_parent()
     v_sql := format('CREATE TABLE %I.%I (LIKE %I.%I INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING STORAGE INCLUDING COMMENTS INCLUDING GENERATED '
             , v_parent_schema
@@ -1744,7 +1749,7 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
         , v_id + v_partition_interval);
 
 
-    -- NOTE: Privileges not automatically inherited for native partitioning. Only do so if config flag is set
+    -- NOTE: Privileges not automatically inherited. Only do so if config flag is set
     IF v_inherit_privileges = TRUE THEN
         PERFORM @extschema@.apply_privileges(v_parent_schema, v_parent_tablename, v_parent_schema, v_partition_name, v_job_id);
     END IF;
@@ -2057,8 +2062,8 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
     v_sql := 'CREATE';
 
     /*
-    -- As of PG12, the unlogged/logged status of a native parent table cannot be changed via an ALTER TABLE in order to affect its children.
-    -- As of v4.2x, the unlogged state will be managed via the template table
+    -- As of PG12, the unlogged/logged status of a parent table cannot be changed via an ALTER TABLE in order to affect its children.
+    -- As of partman v4.2x, the unlogged state will be managed via the template table
     -- TODO Test UNLOGGED status in PG16 to see if this can be done without template yet. Add to create_partition_id then as well.
     SELECT relpersistence INTO v_unlogged
     FROM pg_catalog.pg_class c
@@ -2071,7 +2076,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
     END IF;
     */
 
-    -- Close parentheses on LIKE are below due to differing requirements of native subpartitioning
+    -- Close parentheses on LIKE are below due to differing requirements of subpartitioning
     -- Same INCLUDING list is used in create_parent()
     v_sql := v_sql || format(' TABLE %I.%I (LIKE %I.%I INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING STORAGE INCLUDING COMMENTS INCLUDING GENERATED '
                                 , v_parent_schema
@@ -2096,7 +2101,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
     END IF;
 
     IF v_epoch = 'none' THEN
-        -- Attach with normal, time-based values for native constraint
+        -- Attach with normal, time-based values for built-in constraint
         EXECUTE format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I FOR VALUES FROM (%L) TO (%L)'
             , v_parent_schema
             , v_parent_tablename
@@ -2105,7 +2110,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             , v_partition_timestamp_start
             , v_partition_timestamp_end);
     ELSE
-        -- Must attach with integer based values for native constraint and epoch
+        -- Must attach with integer based values for built-in constraint and epoch
         IF v_epoch = 'seconds' THEN
             EXECUTE format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I FOR VALUES FROM (%L) TO (%L)'
                 , v_parent_schema
@@ -2131,7 +2136,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
                 , EXTRACT('epoch' FROM v_partition_timestamp_start)::bigint * 1000000000
                 , EXTRACT('epoch' FROM v_partition_timestamp_end)::bigint * 1000000000);
         END IF;
-        -- Create secondary, time-based constraint since native's constraint is already integer based
+        -- Create secondary, time-based constraint since built-in's constraint is already integer based
         EXECUTE format('ALTER TABLE %I.%I ADD CONSTRAINT %I CHECK (%s >= %L AND %4$s < %6$L)'
             , v_parent_schema
             , v_partition_name
@@ -2141,7 +2146,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             , v_partition_timestamp_end);
     END IF;
 
-    -- NOTE: Privileges not automatically inherited for native partitioning. Only do so if config flag is set
+    -- NOTE: Privileges not automatically inherited. Only do so if config flag is set
     IF v_inherit_privileges = TRUE THEN
         PERFORM @extschema@.apply_privileges(v_parent_schema, v_parent_tablename, v_parent_schema, v_partition_name, v_job_id);
     END IF;
@@ -2282,7 +2287,7 @@ CREATE FUNCTION @extschema@.create_sub_parent(
     , p_interval text
     , p_type text DEFAULT 'range'
     , p_default_table boolean DEFAULT true
-    , p_native_check text DEFAULT NULL
+    , p_declarative_check text DEFAULT NULL
     , p_constraint_cols text[] DEFAULT NULL
     , p_premake int DEFAULT 4
     , p_start_partition text DEFAULT NULL
@@ -2344,14 +2349,14 @@ IF v_parent_interval IS NULL THEN
     RAISE EXCEPTION 'Cannot subpartition a table that is not managed by pg_partman already. Given top parent table not found in @extschema@.part_config: %', p_top_parent;
 END IF;
 
-IF (lower(p_native_check) <> 'yes' OR p_native_check IS NULL) THEN
-    RAISE EXCEPTION 'The sub-partitioning of a natively partitioned table is a DESTRUCTIVE process unless all child tables are already natively subpartitioned. All child tables, and therefore ALL DATA, may be destroyed since the parent table must be declared as partitioned on first creation and cannot be altered later. See docs for more info. Set p_native_check parameter to "yes" if you are sure this is ok.';
+IF (lower(p_declarative_check) <> 'yes' OR p_declarative_check IS NULL) THEN
+    RAISE EXCEPTION 'Subpartitioning is a DESTRUCTIVE process unless all child tables are already themselves subpartitioned. All child tables, and therefore ALL DATA, may be destroyed since the parent table must be declared as partitioned on first creation and cannot be altered later. See docs for more info. Set p_declarative_check parameter to "yes" if you are sure this is ok.';
 END IF;
 
 SELECT general_type INTO v_control_parent_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
 
 -- Add the given parameters to the part_config_sub table first in case create_partition_* functions are called below
--- All sub-partition parents must use the same template table for native partitioning, so ensure the one from the given parent is obtained and used.
+-- All sub-partition parents must use the same template table, so ensure the one from the given parent is obtained and used.
 INSERT INTO @extschema@.part_config_sub (
     sub_parent
     , sub_control
@@ -2416,8 +2421,8 @@ LOOP
     END IF;
 
     IF v_relkind <> 'p' THEN
-        -- Not natively partitioned already. Drop it and recreate as such.
-        RAISE WARNING 'Child table % is not natively partitioned. Dropping and recreating with native partitioning'
+        -- Not partitioned already. Drop it and recreate as such.
+        RAISE WARNING 'Child table % is not partitioned. Dropping and recreating with partitioning'
                         , v_row.child_schema||'.'||v_row.child_tablename;
         SELECT child_start_time, child_start_id INTO v_child_start_time, v_child_start_id
         FROM @extschema@.show_partition_info(v_row.child_schema||'.'||v_row.child_tablename
@@ -2444,8 +2449,8 @@ LOOP
         AND attnum IN (SELECT unnest(partattrs) FROM pg_partitioned_table p WHERE a.attrelid = p.partrelid);
 
         IF p_control <> v_part_col THEN
-            RAISE EXCEPTION 'Attempted to natively sub-partition an existing table that has the partition column (%) defined differently than the control column given (%)', v_part_col, p_control;
-        ELSE -- Child table is already natively subpartitioned properly. Skip the rest.
+            RAISE EXCEPTION 'Attempted to sub-partition an existing table that has the partition column (%) defined differently than the control column given (%)', v_part_col, p_control;
+        ELSE -- Child table is already subpartitioned properly. Skip the rest.
             CONTINUE;
         END IF;
     END IF; -- end 'p' relkind check
@@ -3417,7 +3422,7 @@ LOOP
 END LOOP;
 -- End index creation
 
--- UNLOGGED status. Currently waiting on final stance of how native will handle this property being changed for its children.
+-- UNLOGGED status. Currently waiting on final stance of how upstream will handle this property being changed for its children.
 -- See release notes for v4.2.0
 SELECT relpersistence INTO v_template_unlogged
 FROM pg_catalog.pg_class c
@@ -3550,7 +3555,7 @@ ELSE
     IF p_batch_interval IS NOT NULL AND p_batch_interval != v_partition_interval THEN
         -- This is true because all data for a given child table must be moved out of the default partition before the child table can be created.
         -- So cannot create the child table when only some of the data has been moved out of the default partition.
-        RAISE EXCEPTION 'Custom intervals are not allowed when moving data out of the DEFAULT partition in a native set. Please leave p_interval/p_batch_interval parameters unset or NULL to allow use of partition set''s default partitioning interval.';
+        RAISE EXCEPTION 'Custom intervals are not allowed when moving data out of the DEFAULT partition. Please leave p_interval/p_batch_interval parameters unset or NULL to allow use of partition set''s default partitioning interval.';
     END IF;
 
     -- Set source table to default table if p_source_table is not set, and it exists
@@ -3657,7 +3662,7 @@ v_current_partition_name := @extschema@.check_name_length(COALESCE(v_parent_tabl
 
 IF v_default_exists THEN
 
-    -- Child tables cannot be created in native partitioning if data that belongs to it exists in the default
+    -- Child tables cannot be created if data that belongs to it exists in the default
     -- Have to move data out to temporary location, create child table, then move it back
 
     -- Temp table created above to avoid excessive temp creation in loop
@@ -3820,7 +3825,7 @@ ELSE
     IF p_batch_interval IS NOT NULL AND p_batch_interval != v_partition_interval THEN
         -- This is true because all data for a given child table must be moved out of the default partition before the child table can be created.
         -- So cannot create the child table when only some of the data has been moved out of the default partition.
-        RAISE EXCEPTION 'Custom intervals are not allowed when moving data out of the DEFAULT partition in a native set. Please leave p_interval/p_batch_interval parameters unset or NULL to allow use of partition set''s default partitioning interval.';
+        RAISE EXCEPTION 'Custom intervals are not allowed when moving data out of the DEFAULT partition. Please leave p_interval/p_batch_interval parameters unset or NULL to allow use of partition set''s default partitioning interval.';
     END IF;
 
     -- Set source table to default table if p_source_table is not set, and it exists
@@ -3960,7 +3965,7 @@ FOR i IN 1..p_batch_count LOOP
     v_current_partition_name := @extschema@.check_name_length(v_parent_tablename, v_partition_suffix, TRUE);
 
     IF v_default_exists THEN
-        -- Child tables cannot be created in native partitioning if data that belongs to it exists in the default
+        -- Child tables cannot be created if data that belongs to it exists in the default
         -- Have to move data out to temporary location, create child table, then move it back
 
         -- Temp table created above to avoid excessive temp creation in loop
@@ -4189,7 +4194,7 @@ LOOP
     AND c.relname = v_default_tablename;
 
     IF v_is_default != 'DEFAULT' THEN
-        -- Parent table will never have data in native partition set, but allows code below to "just work"
+        -- Parent table will never have data, but allows code below to "just work"
         v_default_tablename := v_parent_tablename;
     END IF;
 
@@ -4936,7 +4941,7 @@ IF v_control IS NULL THEN
 END IF;
 
 IF p_target_table IS NULL THEN
-    RAISE EXCEPTION 'Natively partitioned tables require setting the p_target_table option';
+    RAISE EXCEPTION 'The p_target_table option must be set when undoing a partitioned table';
 END IF;
 
 SELECT n.nspname, c.relname
@@ -5048,7 +5053,7 @@ AND attname <> ALL(COALESCE(p_ignored_columns, ARRAY[]::text[]));
 LOOP
     -- Get ordered list of child table in set. Store in variable one at a time per loop until none are left or batch count is reached.
     -- This easily allows it to loop over same child table until empty or move onto next child table after it's dropped
-    -- Include the native default table to ensure all data there is removed as well
+    -- Include the default table to ensure all data there is removed as well
     SELECT partition_tablename INTO v_child_table FROM @extschema@.show_partitions(p_parent_table, 'ASC', p_include_default := TRUE) LIMIT 1;
 
     EXIT outer_child_loop WHEN v_child_table IS NULL;
@@ -5560,8 +5565,8 @@ IF NOT FOUND THEN
     RAISE EXCEPTION 'ERROR: No entry in part_config found for given table: %', p_parent_table;
 END IF;
 
-IF v_partition_type = 'native' AND p_target_table IS NULL THEN
-    RAISE EXCEPTION 'Natively partitioned table sets require setting the p_target_table parameter to undo partitioning.';
+IF p_target_table IS NULL THEN
+    RAISE EXCEPTION 'The p_target_table option must be set when undoing a partitioned table';
 END IF;
 
 SELECT n.nspname, c.relname INTO v_parent_schema, v_parent_tablename
