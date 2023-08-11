@@ -1,9 +1,9 @@
 [![PGXN version](https://badge.fury.io/pg/pg_partman.svg)](https://badge.fury.io/pg/pg_partman)
 
-PG Partition Manager
+PostgreSQL Partition Manager
 ====================
 
-pg_partman is an extension to create and manage both time-based and number-based table partition sets. As of version 5.0.0, only built-in, declarative partitioning is supported and the older trigger-based methods have been dropped.
+pg_partman is an extension to create and manage both time-based and number-based table partition sets. As of version 5.0.0, only built-in, declarative partitioning is supported and the older trigger-based methods have been deprecated.
 
 Child table creation is all managed by the extension itself. For an existing table that needs partitioning, the creation of a new partitioned parent must be done first and the data migrated over after setup is complete.
 
@@ -28,8 +28,8 @@ The following list of files is found in the [doc](doc) folder of the pg_partman 
 | [pg_partman_howto.md](doc/pg_partman_howto.md)                    | A How-To guide for general usage of pg_partman. Provides examples for setting up new partition sets and migrating existing tables to partitioned tables.                                                                                                    |
 | [migrate_to_partman.md](doc/migrate_to_partman.md)                | How to migrate existing partition sets to being managed by pg_partman.        |
 | [migrate_to_declarative.md](doc/migrate_to_declarative.md)        | How to migrate from trigger-based partitioning to declarative partitioning.   |
-| [pg_partman_5.0.0_upgrade.md](doc/pg_partman_5.0.0_upgrade.md)    | If pg_partman is being upgraded to version 5.x from any prior version, special considerations may need to be made. Please carefully review this document to before performing any upgrades to 5.x or higher.                                      |
-| [fix_missing_procedures.md](doc/fix_missing_procedures.md)        | If pg_partman has been installed since prior to PostgreSQL 11 and upgraded since then, it may be missing procedures. This document outlines how to restore those procedures a preserve the current configration.                                  |
+| [pg_partman_5.0.0_upgrade.md](doc/pg_partman_5.0.0_upgrade.md)    | If pg_partman is being upgraded to version 5.x from any prior version, special considerations may need to be made. Please carefully review this document before performing any upgrades to 5.x or higher.                                      |
+| [fix_missing_procedures.md](doc/fix_missing_procedures.md)        | If pg_partman had been installed prior to PostgreSQL 11 and upgraded since then, it may be missing procedures. This document outlines how to restore those procedures and preserve the current configration.                                  |
 
 INSTALLATION
 ------------
@@ -128,8 +128,8 @@ See the [pg_partman.md reference file](doc/pg_partman.md) in the [doc](doc) fold
 
 TESTING
 -------
-This extension can use the pgTAP unit testing suite to evalutate if it is working properly - [http://www.pgtap.org](http://www.pgtap.org).
+This extension can use the pgTAP unit testing suite to evaluate if it is working properly - [http://www.pgtap.org](http://www.pgtap.org).
 
-***WARNING: You MUST increase max_locks_per_transaction above the default value of 64. A value of 128 as worked well so far with existing tests. This is due to the sub-partitioning tests that create/destroy several hundred tables in a single transaction. If you don't do this, you risk a cluster crash when running subpartitioning tests.***
+***WARNING: You MUST increase max_locks_per_transaction above the default value of 64. A value of 128 has worked well so far with existing tests. This is due to the sub-partitioning tests that create/destroy several hundred tables in a single transaction. If you don't do this, you risk a cluster crash when running subpartitioning tests.***
 
 See the [README file](test/README_test.md) contained in the test folder for more information on testing.
