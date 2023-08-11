@@ -23,6 +23,8 @@
 -- By default, data in the default partition is now ignored when calculating new child partitions to create. If a new child table's boundaries would include data that exists in the default, this will cause an error during maintenance and must be manually resolved by either removing that data from the default or partitioning it out to the proper child table using the partition_data function/procedure.
     -- A flag is available to take default data into consideration, but this should only be used in rare circumstances to correct maintenance issues and should not be left permanently enabled.
 
+-- Added option to make default table optional during partition creation (p_default_table).
+
 -- As of PostgreSQL 13, newly created child tables in a partition set that is part of a logical repication PUBLICATION are automatically added to that PUBLICATION. Therefore the "publications" array configuration in the pg_partman configuration tables was removed. Simply make sure the parent table is a part of the necessary publications and it will be automatically handled by core PostgreSQL from now on.
     -- Note The SUBSCRIPTION does not automatically get refreshed to account for new tables added to a published partition set. If pg_partman is also managing your partition set on the SUBSCRIPTION side, ensure the "subscription_refresh" flag in the configuration table is set to true so that maintenance will automatically run to add the new tables to the subscription.
 
@@ -1033,7 +1035,7 @@ IF p_interval = 'yearly'
     OR p_interval = 'half-hour'
     OR p_interval = 'quarter-hour'
 THEN
-    RAISE EXCEPTION 'Partition interval values from old pg_partman versions are no longer accepted. Use a real interval time value';
+    RAISE EXCEPTION 'Special partition interval values from old pg_partman versions (%) are no longer supported. Please use a supported interval time value from core PostgreSQL (https://www.postgresql.org/docs/current/datatype-datetime.html#DATATYPE-INTERVAL-INPUT)', p_interval;
 END IF;
 
 SELECT n.nspname, c.relname, c.relpersistence
