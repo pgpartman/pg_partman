@@ -76,22 +76,22 @@ CREATE SCHEMA partman;
 CREATE EXTENSION pg_partman SCHEMA partman;
 ```
 
-pg_partman does not require a superuser to run, but currently still requires it to be installed. If not using a superuser, it is recommended that a dedicated role is created for running pg_partman functions and to be the owner of all partition sets that pg_partman maintains. At a minimum this role will need the following privileges (assuming pg_partman is installed to the "partman" schema and that dedicated role is called "partman"):
+pg_partman does not require a superuser to run, but currently still requires it to be installed. If not using a superuser, it is recommended that a dedicated role is created for running pg_partman functions and to be the owner of all partition sets that pg_partman maintains. At a minimum this role will need the following privileges (assuming pg_partman is installed to the `partman` schema and that dedicated role is called `partman_user`):
 
 ```sql
-CREATE ROLE partman WITH LOGIN;
-GRANT ALL ON SCHEMA partman TO partman;
-GRANT ALL ON ALL TABLES IN SCHEMA partman TO partman;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA partman TO partman;
-GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA partman TO partman;  -- PG11+ only
-GRANT ALL ON SCHEMA my_partition_schema TO partman;
-GRANT TEMPORARY ON DATABASE mydb to partman; -- allow creation of temp tables to move data out of default 
+CREATE ROLE partman_user WITH LOGIN;
+GRANT ALL ON SCHEMA partman TO partman_user;
+GRANT ALL ON ALL TABLES IN SCHEMA partman TO partman_user;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA partman TO partman_user;
+GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA partman TO partman_user;
+GRANT ALL ON SCHEMA my_partition_schema TO partman_user;
+GRANT TEMPORARY ON DATABASE mydb to partman_user; -- allow creation of temp tables to move data out of default
 ```
 
 If you need the role to also be able to create schemas, you will need to grant create on the database as well. In general this shouldn't be required as long as you give the above role CREATE privileges on any pre-existing schemas that will contain partition sets.
 
 ```sql
-GRANT CREATE ON DATABASE mydb TO partman;
+GRANT CREATE ON DATABASE mydb TO partman_user;
 ```
 
 I've received many requests for being able to install this extension on Amazon RDS. As of PostgreSQL 12.5, RDS has made the pg_partman extension available. Many thanks to the RDS team for including this extension in their environment!
