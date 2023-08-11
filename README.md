@@ -5,17 +5,13 @@ PostgreSQL Partition Manager
 
 pg_partman is an extension to create and manage both time-based and number-based table partition sets. As of version 5.0.0, only built-in, declarative partitioning is supported and the older trigger-based methods have been deprecated.
 
-Child table creation is all managed by the extension itself. For an existing table that needs partitioning, the creation of a new partitioned parent must be done first and the data migrated over after setup is complete.
-
-Optional retention policy can automatically drop partitions no longer needed.
+The declarative partitioning built into PostgreSQL provides the commands to create a partitioned table and its children, but it does not provide a means of automating that child table maintenance over time (Ex. adding new children, dropping old ones based on a retention policy). It also does not provide a means to easily turn an existing table into a partitioned table or vice versa. pg_partman aims to use the built-in declarative features that PostgreSQL provides, but build upon them to provide those missing features as well as many others to help make managing partitions easier.
 
 A background worker (BGW) process is included to automatically run partition maintenance without the need of an external scheduler (cron, etc) in most cases.
 
 Bug reports & feature requests can be directed to the Issues section on Github - <https://github.com/pgpartman/pg_partman/issues>
 
 For questions, comments, or if you're just not sure where to post, please use the Discussions section on Github. Feel free to post here no matter how minor you may feel your issue or question may be - <https://github.com/pgpartman/pg_partman/discussions>
-
-If you're still trying to evaluate whether partitioning is a good choice for your environment, keep an eye on the HypoPG project. Version 2 will have a hypothetical partitioning feature that will let you evaluate different partitioning schemes without requiring you to actually partition your data. I may see about integrating this feature into pg_partman once it is available. - <https://hypopg.readthedocs.io>
 
 DOCUMENTATION
 -------------
