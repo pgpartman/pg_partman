@@ -5,7 +5,7 @@ PostgreSQL Partition Manager
 
 pg_partman is an extension to create and manage both time-based and number-based table partition sets. As of version 5.0.0, only built-in, declarative partitioning is supported and the older trigger-based methods have been deprecated.
 
-The declarative partitioning built into PostgreSQL provides the commands to create a partitioned table and its children, but it does not provide a means of automating that child table maintenance over time (Ex. adding new children, dropping old ones based on a retention policy). It also does not provide a means to easily turn an existing table into a partitioned table or vice versa. pg_partman aims to use the built-in declarative features that PostgreSQL provides, but build upon them to provide those missing features as well as many others to help make managing partitions easier.
+The declarative partitioning built into PostgreSQL provides the commands to create a partitioned table and its children. pg_partman uses the built-in declarative features that PostgreSQL provides and builds upon those with additional features and enhancements to make managing partitions easier. One key way that pg_partman extends partitioning in Postgres is by providing a means to automate the child table maintenance over time (Ex. adding new children, dropping old ones based on a retention policy). pg_partman also has features to turn an existing table into a partitioned table or vice versa.
 
 A background worker (BGW) process is included to automatically run partition maintenance without the need of an external scheduler (cron, etc) in most cases.
 
@@ -126,6 +126,6 @@ TESTING
 -------
 This extension can use the pgTAP unit testing suite to evaluate if it is working properly - [http://www.pgtap.org](http://www.pgtap.org).
 
-***WARNING: You MUST increase max_locks_per_transaction above the default value of 64. A value of 128 has worked well so far with existing tests. This is due to the sub-partitioning tests that create/destroy several hundred tables in a single transaction. If you don't do this, you risk a cluster crash when running subpartitioning tests.***
+***WARNING: You MUST increase max_locks_per_transaction above the default value of 64. A value of 128 has worked well so far with existing tests. This is due to the subpartitioning tests that create/destroy several hundred tables in a single transaction. If you don't do this, you risk a cluster crash when running subpartitioning tests.***
 
 See the [README file](test/README_test.md) contained in the test folder for more information on testing.

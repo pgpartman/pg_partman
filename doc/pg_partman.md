@@ -11,7 +11,7 @@ A default partition to catch data outside the existing child boundaries is autom
 
 Note that future child table creation is based on the data currently in the partition set and, by default, ignores data in the default. It is recommended that you set the `premake` value high enough to encompass your expected data range being inserted. See below for further explanations on these configuration values.
 
-If you have an existing partition set and you'd like to migrate it to pg_partman, please see the migrate_to_partman.md file in the doc folder.
+If you have an existing partition set and you'd like to migrate it to pg_partman, please see the [migrate_to_partman.md](migrate_to_partman.md) file in the doc folder.
 
 ### Child Table Property Inheritance
 
@@ -34,23 +34,23 @@ If you are using the IDENTITY feature for sequences, the automatic generation of
 
 IMPORTANT NOTES: 
 
- * The template table feature in use to handle certain features is only a temporary solution to help speed up declarative partitioning adoption. As things are handled better in core, the use of the template table will be phased out quickly from pg_partman. If a feature that was managed by the template is supported in core in the future, it will eventually be removed from template management in pg_partman, so please plan ahead for that during major version upgrading if it applies to you.
+ * The template table feature is only a temporary solution to help speed up declarative partitioning adoption. As things are handled better in core, the use of the template table will be phased out quickly from pg_partman. If a feature that was managed by the template is supported in core in the future, it will eventually be removed from template management in pg_partman, so please plan ahead for that during major version upgrading if it applies to you.
 
- * The UNLOGGED status is managed via pg_partman's template due to an inconsistency in the way the property is handled when either enabling or disabling UNLOGGED on the parent table of a partition set. That property does not actually change when the ALTER command is written so new child tables will continue to use the property that existed before. So if you wanted to change a partition set from UNLOGGED to LOGGED for all future children, it does not work. With the property now being managed on the template table, changing it there will allow the change to propagate to newly created children. Pre-existing child tables will have to be changed manually, but that has always been the case. See reported bug at https://www.postgresql.org/message-id/flat/15954-b61523bed4b110c4%40postgresql.org
+ * The UNLOGGED status is managed via pg_partman's template due to an inconsistency in the way the property is handled when either enabling or disabling UNLOGGED on the parent table of a partition set. That property does not actually change on the parent table when the ALTER command is written so new child tables will continue to use the property that existed before. So if you wanted to change a partition set from UNLOGGED to LOGGED for all future children, it does not work. With the property now being managed on the template table, changing it there will allow the change to propagate to newly created children. Pre-existing child tables will have to be changed manually, but that has always been the case. See reported bug at https://www.postgresql.org/message-id/flat/15954-b61523bed4b110c4%40postgresql.org
 
 ### Time Zones
 
 It is important to ensure that the time zones for all systems that will be running pg_partman maintenance operations are consistent, especially when running time-based partitioning. The calls to pg_partman functions will use the time zone that is set by the client at the time the functions are called. This is consistent with the way libpq clients work in general.
 
-It is highly recommended to run your database system in UTC time to overcome issues that are currently not possible to solve due to Daylight Saving Time (DST) changes. Then also ensure the client that will be creating partition sets and running the maintenance calls is also set to UTC. For example, trying to partition hourly will either break when the time changes or skip creating a child table.
+In general, it is highly recommended to always run your database system in UTC time. It makes handling any time-related issues tremendously eaiser and especially to overcome issues that are currently not possible to solve due to Daylight Saving Time (DST) changes. In addition to this, also ensure the client that will be creating partition sets and running the maintenance calls is also set to UTC. For example, trying to partition hourly will either break when the time changes or skip creating a child table.
 
-### Sub-partitioning
+### Subpartitioning
 
-Sub-partitioning with multiple levels is supported, but it is of very limited use in PostgreSQL and provides next to NO PERFORMANCE BENEFIT outside of extremely large data in a single partition set (100s of terabytes, petabytes). If you're looking for performance benefits, adjust your partition interval before considering sub-partitioning. It's main use is in data organization and retention management.
+Subpartitioning with multiple levels is supported, but it is of very limited use in PostgreSQL and provides next to NO PERFORMANCE BENEFIT outside of extremely large data in a single partition set (100s of terabytes, petabytes). If you're looking for performance benefits, adjust your partition interval before considering subpartitioning. It's main use is in data organization and retention management.
 
 You can do time->time, id->id, time->id and id->time. There is no set limit on the level of subpartitioning you can do, but be sensible and keep in mind performance considerations on managing many tables in a single inheritance set. Also, if the number of tables in a single partition set gets very high, you may have to adjust the `max_locks_per_transaction` postgresql.conf setting above the default of 64. Otherwise you may run into shared memory issues or even crash the cluster. If you have contention issues when `run_maintenance()` is called for general maintenance of all partition sets, you can set the **`automatic_maintenance`** column in the **`part_config`** table to false if you do not want that general call to manage your subpartition set. But you must then call `run_maintenance(parent_table)` directly, and often enough, to have to future partitions made. You can use the run_maintenance_proc() procedure instead of the base function to cause less contention issues since it automatically commits after each partition set's maintenance.
 
-PUBLICATION/SUBSCRIPTION for logical replication is NOT supported with sub-partitioning.
+PUBLICATION/SUBSCRIPTION for logical replication is NOT supported with subpartitioning.
 
 See the `create_sub_parent()` & `run_maintenance()` functions below for more information.
 
@@ -65,7 +65,7 @@ One of the big advantages of partitioning is a feature called **constraint exclu
 
 Adding these constraints could potentially cause contention with the data contained in those tables and also make pg_partman maintenance take a long time to run. There is a "constraint_valid" column in the part_config(_sub) table to set whether these constraints should be set NOT VALID on creation. While this can make the creation of the constraint(s) nearly instantaneous, constraint exclusion cannot be used until it is validated. This is why constraints are added as valid by default.
 
-NOTE: This may not work with sub-partitioning. It will work on the first level of partitioning, but is not guaranteed to work properly on further sub-partition sets depending on the interval combinations and the optimize_constraint value. Ex: Weekly -> Daily with a daily optimize_constraint of 7 won't work as expected. Weekly constraints will get created but daily sub-partition ones likely will not.
+NOTE: This may not work with subpartitioning. It will work on the first level of partitioning, but is not guaranteed to work properly on further subpartition sets depending on the interval combinations and the optimize_constraint value. Ex: Weekly -> Daily with a daily optimize_constraint of 7 won't work as expected. Weekly constraints will get created but daily subpartition ones likely will not.
 
 ### Custom Time Interval Considerations
 
@@ -148,7 +148,7 @@ RETURNS boolean
  * `p_type` - the type of partitioning to be done. Currently only **range** is supported.
  * `p_epoch` - tells `pg_partman` that the control column is an integer type, but actually represents and epoch time value. Valid values for this option are: 'seconds', 'milliseconds', 'nanoseconds', and 'none'. The default is 'none'. All table names will be time-based. In addition to a normal index on the control column, be sure you create a functional, time-based index on the control column (to_timestamp(controlcolumn)) as well so this works efficiently.
  * `p_premake` - is how many additional partitions to always stay ahead of the current partition. Default value is 4. This will keep at minimum 5 partitions made, including the current one. For example, if today was Sept 6th, and `premake` was set to 4 for a daily partition, then partitions would be made for the 6th as well as the 7th, 8th, 9th and 10th. Note some intervals may occasionally cause an extra partition to be premade or one to be missed due to leap years, differing month lengths, etc. This usually won't hurt anything and should self-correct (see **About** section concerning timezones and non-UTC). If partitioning ever falls behind the `premake` value, normal running of `run_maintenance()` and data insertion should automatically catch things up.
- * `p_start_partition` - allows the first partition of a set to be specified instead of it being automatically determined. Must be a valid timestamp (for time-based) or positive integer (for id-based) value. Be aware, though, the actual parameter data type is text. For time-based partitioning, all partitions starting with the given timestamp up to CURRENT_TIMESTAMP (plus `premake`) will be created. For id-based partitioning, only the partition starting at the given value (plus `premake`) will be made. Note that for sub-partitioning, this only applies during initial setup and not during ongoing maintenance.
+ * `p_start_partition` - allows the first partition of a set to be specified instead of it being automatically determined. Must be a valid timestamp (for time-based) or positive integer (for id-based) value. Be aware, though, the actual parameter data type is text. For time-based partitioning, all partitions starting with the given timestamp up to CURRENT_TIMESTAMP (plus `premake`) will be created. For id-based partitioning, only the partition starting at the given value (plus `premake`) will be made. Note that for subpartitioning, this only applies during initial setup and not during ongoing maintenance.
  * `p_default_table - boolean flag to determine whether a default table is created. Defaults to true.
  * `p_automatic_maintenance` - parameter to set whether maintenance is managed automatically when `run_maintenance()` is called without a table parameter or by the background worker process. Current valid values are "on" and "off". Default is "on". When set to off, `run_maintenance()` can still be called on an individual partition set by passing it as a parameter to the function.  See **run_maintenance** in Maintenance Functions section below for more info.
  * `p_constraint_cols` - an optional array parameter to set the columns that will have additional constraints set. See the **About** section above for more information on how this works and the **apply_constraints()** function for how this is used.
@@ -176,7 +176,7 @@ RETURNS boolean
 
  * Create a subpartition set of an already existing partitioned set. See important notes about Subpartitioning in **About** section. 
  * `p_top_parent` - This parameter is the parent table of an already existing partition set. It tells `pg_partman` to turn all child tables of the given partition set into their own parent tables of their own partition sets using the rest of the parameters for this function.
- * `p_declarative_check` - Turning an existing partition set into a sub-partitioned set is a **destructive** process. A table must be declared partitioned at creation time and cannot be altered later. Therefore existing child tables must be dropped and recreated as partitioned parent tables. This flag is here to help ensure this function is not run without prior consent that all data in the partition set will be destroyed as part of the creation process. It must be set to "yes" to proceed with sub-partitioning.
+ * `p_declarative_check` - Turning an existing partition set into a subpartitioned set is a **destructive** process. A table must be declared partitioned at creation time and cannot be altered later. Therefore existing child tables must be dropped and recreated as partitioned parent tables. This flag is here to help ensure this function is not run without prior consent that all data in the partition set will be destroyed as part of the creation process. It must be set to "yes" to proceed with subpartitioning.
  * All other parameters to this function have the same exact purpose as those of `create_parent()`, but instead are used to tell `pg_partman` how each child table shall itself be partitioned.
  * For example if you have an existing partition set done by year and you then want to partition each of the year partitions by day, you would use this function.
  * It is advised that you keep table names short for subpartition sets if you plan on relying on the table names for organization. The suffix added on to the end of a table name is always guaranteed to be there for whatever partition type is active for that set. Longer table names may cause the original parent table names to be truncated and possibly cut off the top level partitioning suffix. This cannot be controlled and ensures the lowest level partitioning suffix survives.
@@ -201,7 +201,7 @@ RETURNS bigint
  * This function is used to partition data that may have existed prior to setting up the parent table as a time-based partition set. It also fixes data that gets inserted into the default table.
  * If the needed partition does not exist, it will automatically be created. If the needed partition already exists, the data will be moved there.
  * If you are trying to partition a large amount of data automatically, it is recommended to use the `partition_data_proc` procedure to commit data in smaller batches.  This will greatly reduce issues caused by long running transactions and data contention.
- * For sub-partitioned sets, you must start partitioning data at the highest level and work your way down each level. This means you must first run this function before running create_sub_parent() to create the additional partitioning levels. Then continue running this function again on each new sub-parent once they're created. See the  pg_partman_howto.md document for a full example. IMPORTANT NOTE: Be VERY cautious with sub-partition sets and using this function since sub-partitioning can be a destructive operation. See create_sub_parent().
+ * For subpartitioned sets, you must start partitioning data at the highest level and work your way down each level. This means you must first run this function before running create_sub_parent() to create the additional partitioning levels. Then continue running this function again on each new sub-parent once they're created. See the  pg_partman_howto.md document for a full example. IMPORTANT NOTE: Be VERY cautious with subpartition sets and using this function since subpartitioning can be a destructive operation. See create_sub_parent().
  * `p_parent_table` - the existing parent table. MUST be schema qualified, even if in public schema.
  * `p_batch_count` - optional argument, how many times to run the `batch_interval` in a single call of this function. Default value is 1. Currently sets how many child tables will be processed in a single run, but when p_batch_interval is working again will refer explicitly to how many batches to run.
  * `p_batch_interval` - optional argument, sets the interval of data to be moved in each batch. Defaults to the configured partition interval if not given or if you give an interval larger than the partition interval. IMPORTANT NOTE: This cannot be set smaller than the partition interval if moving data out of the default table. Work is being done to allow this, but with some limitations. If you are moving data from a source table that is not the partition set's default table, you can set this interval smaller than the partitioning interval to help avoid moving large amounts of data in long running transactions.
@@ -229,7 +229,7 @@ RETURNS bigint
  * This function is used to partition data that may have existed prior to setting up the parent table as a number-based partition set. It also fixes data that gets inserted into the default.
  * If the needed partition does not exist, it will automatically be created. If the needed partition already exists, the data will be moved there.
  * If you are trying to partition a large amount of data automatically, it is recommended to use the `partition_data_proc` procedure to commit data in smaller batches.  This will greatly reduce issues caused by long running transactions and data contention.
- * For sub-partitioned sets, you must start partitioning data at the highest level and work your way down each level. This means you must first run this function before running create_sub_parent() to create the additional partitioning levels. Then continue running this function again on each new sub-parent once they're created. See the  pg_partman_howto.md document for a full example. IMPORTANT NOTE: Be VERY cautious with sub-partition sets and using this function since sub-partitioning can be a destructive operation. See create_sub_parent().
+ * For subpartitioned sets, you must start partitioning data at the highest level and work your way down each level. This means you must first run this function before running create_sub_parent() to create the additional partitioning levels. Then continue running this function again on each new sub-parent once they're created. See the  pg_partman_howto.md document for a full example. IMPORTANT NOTE: Be VERY cautious with subpartition sets and using this function since subpartitioning can be a destructive operation. See create_sub_parent().
  * `p_parent_table` - the existing parent table. MUST be schema qualified, even if in public schema.
  * `p_batch_count` - optional argument, how many times to run the `batch_interval` in a single call of this function. Default value is 1. This sets how many child tables will be processed in a single run.
  * `p_batch_interval` - optional argument, sets the interval of data to be moved in each batch. Defaults to the configured partition interval if not given or if you give an interval larger than the partition interval. IMPORTANT NOTE: This cannot be set smaller than the partition interval if moving data out of the default table. Work is being done to allow this, but with some limitations. If you are moving data from a source table that is not the partition set's default table, you can set this interval smaller than the partitioning interval to help avoid moving large amounts of data in long running transactions.
@@ -283,7 +283,7 @@ RETURNS boolean
  * Normally this function is never called manually since partition creation is managed by run_maintenance(). But if you need to force the creation of specific child tables outside of normal maintenance, this function makes it easier.
  * `p_parent_table` - parent table to create new child table(s) in.
  * `p_partition_times` - An array of timestamptz values to create children for. If the child table does not exist, it will be created. If it does exist, that one will be used and the function will still exit cleanly. Be aware that the value given will be used as the lower boundary for the child table and also influence the name given to the child table. So ensure the timestamp value given is consistent with other children or you may encounter a gap in value coverage.
- * `p_start_partition` - When using sub-partitioning, allows passing along the start partition value for the sub-partition child tables.
+ * `p_start_partition` - When using subpartitioning, allows passing along the start partition value for the subpartition child tables.
  * Returns TRUE if any child tables were created for the given timestamptz values. Returns false if no child tables were created.
 
 
@@ -300,7 +300,7 @@ RETURNS boolean
  * Normally this function is never called manually since partition creation is managed by run_maintenance(). But if you need to force the creation of specific child tables outside of normal maintenance, this function can make it easier.
  * `p_parent_table` - parent table to create new child table(s) in.
  * `p_partition_ids` - An array of integer values to create children for. If the child table does not exist, it will be created. If it does exist, that one will be used and the function will still exit cleanly. Be aware that the value given will be used as the lower boundary for the child table and also influence the name given to the child table. So ensure the integer value given is consistent with other children or you may encounter a gap in value coverage.
- * `p_start_partition` - When using sub-partitioning, allows passing along the start partition value for the sub-partition child tables.
+ * `p_start_partition` - When using subpartitioning, allows passing along the start partition value for the subpartition child tables.
  * Returns TRUE if any child tables were created for the given integer values. Returns false if no child tables were created.
 
 
@@ -422,7 +422,7 @@ RETURNS text
 
   * Function to return the necessary commands to recreate a partition set in pg_partman for the given parent table (p_parent_table).
   * Returns both the `create_parent()` call as well as an UPDATE statement to set additional parameters stored in part_config.
-  * NOTE: This currently only works with single level partition sets. Looking for contributions to add support for sub-partition sets
+  * NOTE: This currently only works with single level partition sets. Looking for contributions to add support for subpartition sets
   * `p_ignore_template` - The template table needs to be created before the SQL generated by this function will work properly. If you haven't modified the template table at all then it's safe to pass TRUE here to have the generated SQL tell partman to generate a new template table. But for safety it's preferred to use pg_dump to dump the template tables and restore them prior to using the generated SQL so that you can maintain any template overrides.
 
 
@@ -551,7 +551,7 @@ RETURNS record
  * `p_keep_table` - an optional argument, setting this to false will cause the old child table to be dropped instead of deattached after all of its data has been moved. Note that it takes at least two batches to actually drop a table from the set.
  * `p_lock_wait` - optional argument, sets how long in seconds to wait for either the table or a row to be unlocked before timing out. Default is to wait forever.
  * `p_ignored_columns` - This option allows for filtering out specific columns when moving data from the child tables to the target table. This is generally only required when using columns with a GENERATED ALWAYS value since directly inserting a value would fail when moving the data. Value is a text array of column names.
- * `p_drop_cascade` - Allow undoing sub-partition sets from parent tables higher in the inheritance tree. Only applies when `p_keep_tables` is set to false. Note this causes all child tables below a sub-partition parent to be dropped when that parent is dropped.
+ * `p_drop_cascade` - Allow undoing subpartition sets from parent tables higher in the inheritance tree. Only applies when `p_keep_tables` is set to false. Note this causes all child tables below a subpartition parent to be dropped when that parent is dropped.
  * Returns the number of partitions undone and the number of rows moved to the parent table. The partitions undone value returns -1 if a problem is encountered.
 
 
@@ -583,7 +583,7 @@ undo_partition_proc(
  * `p_lock_wait_tries` - Parameter to set how many times the procedure will attempt waiting the amount of time set for p_lock_wait. Default is 10 tries.
  * `p_wait` - Cause the procedure to pause for a given number of seconds between commits (batches) to reduce write load
  * `p_ignored_columns` - This option allows for filtering out specific columns when moving data from the child tables to the target table. This is generally only required when using columns with a GENERATED ALWAYS value since directly inserting a value would fail when moving the data. Value is a text array of column names.
- * `p_drop_cascade` - Allow undoing sub-partition sets from parent tables higher in the inheritance tree. Only applies when `p_keep_tables` is set to false. Note this causes all child tables below a sub-partition parent to be dropped when that parent is dropped.
+ * `p_drop_cascade` - Allow undoing subpartition sets from parent tables higher in the inheritance tree. Only applies when `p_keep_tables` is set to false. Note this causes all child tables below a subpartition parent to be dropped when that parent is dropped.
  * `p_quiet` - Procedures cannot return values, so by default it emits NOTICE's to show progress. Set this option to silence these notices.
 
 
@@ -705,7 +705,7 @@ Stores all configuration data for partition sets mananged by the extension.
  - `jobmon`
     - Boolean value to determine whether the `pg_jobmon` extension is used to log/monitor partition maintenance. Defaults to true.
  - `sub_partition_set_full`
-    - Boolean value to denote that the final partition for a sub-partition set has been created. Allows run_maintenance() to run more efficiently when there are large numbers of subpartition sets.
+    - Boolean value to denote that the final partition for a subpartition set has been created. Allows run_maintenance() to run more efficiently when there are large numbers of subpartition sets.
  - `undo_in_progress`
     - Set by the undo_partition functions whenever they are run. If true, this causes all partition creation and retention management by the `run_maintenance()` function to stop. Default is false.
  - `inherit_privileges`
@@ -717,7 +717,7 @@ Stores all configuration data for partition sets mananged by the extension.
 
 **`part_config_sub`**
 
- * Stores all configuration data for sub-partitioned sets managed by `pg_partman`.
+ * Stores all configuration data for subpartitioned sets managed by `pg_partman`.
  * The **`sub_parent`** column is the parent table of the subpartition set and all other columns govern how that parent's children are subpartitioned.
  * All other columns work the same exact way as their counterparts in either the **`part_config`** table or as the parameters passed to `create_parent()`.
 

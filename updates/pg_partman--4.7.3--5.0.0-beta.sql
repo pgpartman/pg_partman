@@ -38,6 +38,7 @@
     -- Leigh Downs w/ Crunchy Data for extensive testing
     -- vitaly-burovoy on Github for some amazing optimizations and code review
     -- andyatkinson on Github for documentation review and pointing out my antiquated usage of the term "native" now that there's only one partitioning method supported
+    -- And as always to [pgTAP](https://pgtap.org/) for making testing so much easier
 
 -- #### Ugrade exceptions ####
 DO $upgrade_partman$
@@ -4822,13 +4823,15 @@ ELSIF v_control_type = 'id' AND v_epoch <> 'none' THEN
         v_epoch_divisor := 1000000000;
     END IF;
 
+    -- Have to do a trim here because of inconsistency in quoting different integer types. Ex: bigint boundary values are quoted but int values are not
     v_sql := v_sql || format('
-        ORDER BY to_timestamp( (regexp_match(pg_get_expr(c.relpartbound, c.oid, true), $REGEX$\(([^)]+)\) TO \(([^)]+)\)$REGEX$))[1]::bigint / %s ) %s '
+        ORDER BY to_timestamp(trim( BOTH $QUOTE$''$QUOTE$ from (regexp_match(pg_get_expr(c.relpartbound, c.oid, true), $REGEX$\(([^)]+)\) TO \(([^)]+)\)$REGEX$))[1]::text )::bigint /%s ) %s '
         , v_epoch_divisor
         , p_order);
 
 ELSIF v_control_type = 'id' THEN
 
+    -- Have to do a trim here because of inconsistency in quoting different integer types. Ex: bigint boundary values are quoted but int values are not
     v_sql := v_sql || format('
         ORDER BY trim( BOTH $QUOTE$''$QUOTE$ from (regexp_match(pg_get_expr(c.relpartbound, c.oid, true), $REGEX$\(([^)]+)\) TO \(([^)]+)\)$REGEX$))[1]::text )::bigint %s '
         , p_order);
