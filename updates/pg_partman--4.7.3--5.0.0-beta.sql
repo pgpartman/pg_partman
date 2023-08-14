@@ -40,6 +40,10 @@
     -- andyatkinson on Github for documentation review and pointing out my antiquated usage of the term "native" now that there's only one partitioning method supported
     -- And as always to [pgTAP](https://pgtap.org/) for making testing so much easier
 
+-- TESTING TODO:
+    -- more partition_data testing
+    -- make a unit test that does an online partitioning conversion (would cover testing partition_data testing).
+
 -- #### Ugrade exceptions ####
 DO $upgrade_partman$
 DECLARE
