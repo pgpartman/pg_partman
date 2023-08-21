@@ -51,19 +51,19 @@ CREATE TABLE public.declarative_objects(
   t TEXT,
   created_at TIMESTAMP NOT NULL
 ) PARTITION BY RANGE (created_at);
-SELECT partman.create_parent('public.declarative_objects', 'created_at', '1 week', p_premake := 2, p_start_partition := (NOW() - '4 weeks'::INTERVAL)::TEXT);
+SELECT create_parent('public.declarative_objects', 'created_at', '1 week', p_premake := 2, p_start_partition := (NOW() - '4 weeks'::INTERVAL)::TEXT);
 -- Update config options you can't set at initial creation.
-UPDATE partman.part_config
+UPDATE part_config
 SET retention='5 weeks', retention_keep_table = 'f', infinite_time_partitions = 't', constraint_valid = 'f', inherit_privileges = 't'
 WHERE parent_table = 'public.declarative_objects';
 
 -- Test output "visually" (with p_ignore_template_table = true).
-SELECT partman.dump_partitioned_table_definition('public.declarative_objects', p_ignore_template_table := true);
+SELECT dump_partitioned_table_definition('public.declarative_objects', p_ignore_template_table := true);
 --
 -- -- Test output "visually" (with default p_ignore_template_table = false).
 -- -- Note that spaces before each line are literal tabs (\t), not spaces
 SELECT is(
-  (SELECT partman.dump_partitioned_table_definition('public.declarative_objects')),
+  (SELECT dump_partitioned_table_definition('public.declarative_objects')),
 E'SELECT partman.create_parent(
 	p_parent_table := ''public.declarative_objects'',
 	p_control := ''created_at'',
@@ -96,13 +96,13 @@ WHERE parent_table = ''public.declarative_objects'';'
 
 -- Test end to end (with p_ignore_template_table = true):
 -- 1. Capture the current config.
-SELECT part_config AS declarative_objects_part_config FROM partman.part_config WHERE parent_table = 'public.declarative_objects'
+SELECT part_config AS declarative_objects_part_config FROM part_config WHERE parent_table = 'public.declarative_objects'
 \gset
-SELECT partman.dump_partitioned_table_definition('public.declarative_objects', p_ignore_template_table := true) AS var_sql
+SELECT dump_partitioned_table_definition('public.declarative_objects', p_ignore_template_table := true) AS var_sql
 \gset
 -- 2. Remove partitioning and recreate table.
 CREATE TABLE public.old_declarative_objects(id SERIAL, t TEXT, created_at TIMESTAMP NOT NULL);
-SELECT partman.undo_partition('public.declarative_objects', p_target_table := 'public.old_declarative_objects', p_keep_table := false);
+SELECT undo_partition('public.declarative_objects', p_target_table := 'public.old_declarative_objects', p_keep_table := false);
 DROP TABLE public.declarative_objects;
 CREATE TABLE public.declarative_objects(
   id SERIAL,
@@ -114,18 +114,18 @@ SELECT :'var_sql'
 \gexec
 -- 4. Check the current config (it should match step 1).
 SELECT row_eq(
-  'SELECT * FROM partman.part_config WHERE parent_table = ''public.declarative_objects''',
-  (:'declarative_objects_part_config')::partman.part_config
+  'SELECT * FROM part_config WHERE parent_table = ''public.declarative_objects''',
+  (:'declarative_objects_part_config')::part_config
 );
 
 -- Test end to end (with default p_ignore_template_table = false):
 -- 1. Capture the current config.
-SELECT part_config AS declarative_objects_part_config FROM partman.part_config WHERE parent_table = 'public.declarative_objects'
+SELECT part_config AS declarative_objects_part_config FROM part_config WHERE parent_table = 'public.declarative_objects'
 \gset
-SELECT partman.dump_partitioned_table_definition('public.declarative_objects') AS var_sql
+SELECT dump_partitioned_table_definition('public.declarative_objects') AS var_sql
 \gset
 -- 2. Remove partitioning and recreate table.
-SELECT partman.undo_partition('public.declarative_objects', p_target_table := 'public.old_declarative_objects', p_keep_table := false);
+SELECT undo_partition('public.declarative_objects', p_target_table := 'public.old_declarative_objects', p_keep_table := false);
 DROP TABLE public.declarative_objects;
 CREATE TABLE public.declarative_objects(
   id SERIAL,
@@ -133,7 +133,7 @@ CREATE TABLE public.declarative_objects(
   created_at TIMESTAMP NOT NULL
 ) PARTITION BY RANGE (created_at);
 -- 3. Run dumped config (after creating template table).
-CREATE TABLE partman.template_public_declarative_objects(
+CREATE TABLE template_public_declarative_objects(
   id SERIAL,
   t TEXT,
   created_at TIMESTAMP NOT NULL
@@ -142,8 +142,8 @@ SELECT :'var_sql'
 \gexec
 -- 4. Check the current config (it should match step 1).
 SELECT row_eq(
-  'SELECT * FROM partman.part_config WHERE parent_table = ''public.declarative_objects''',
-  (:'declarative_objects_part_config')::partman.part_config
+  'SELECT * FROM part_config WHERE parent_table = ''public.declarative_objects''',
+  (:'declarative_objects_part_config')::part_config
 );
 
 SELECT * FROM finish();

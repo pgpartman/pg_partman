@@ -31,7 +31,7 @@ ALTER TABLE partman_test.template_id_taptest_table ADD PRIMARY KEY (col1);
 CREATE INDEX ON partman_test.id_taptest_table (col3);
 ALTER TABLE partman_test.id_taptest_table ADD FOREIGN KEY (col2) REFERENCES partman_test.fk_test_reference(col2);
 
-SELECT partman.create_parent('partman_test.id_taptest_table', 'col1', '10', p_constraint_cols =>'{"col3"}', p_jobmon => false, p_template_table => 'partman_test.template_id_taptest_table');
+SELECT create_parent('partman_test.id_taptest_table', 'col1', '10', p_constraint_cols =>'{"col3"}', p_jobmon => false, p_template_table => 'partman_test.template_id_taptest_table');
 INSERT INTO partman_test.id_taptest_table (col1) VALUES (generate_series(1,9));
 
 SELECT is_partitioned('partman_test', 'id_taptest_table', 'Check that id_taptest_table is natively partitioned');
@@ -63,7 +63,7 @@ SELECT is_empty('SELECT * FROM ONLY partman_test.id_taptest_table_default', 'Che
 SELECT results_eq('SELECT count(*)::int FROM partman_test.id_taptest_table_p0', ARRAY[9], 'Check count from id_taptest_table_p0');
 
 -- Create subpartition (start sub partitions 2 days before premake value)
-SELECT partman.create_sub_parent('partman_test.id_taptest_table', p_native_check => 'yes', p_control => 'col3', p_interval => '1 day', p_start_partition => (CURRENT_TIMESTAMP - '6 days'::interval)::text );
+SELECT create_sub_parent('partman_test.id_taptest_table', p_declarative_check => 'yes', p_control => 'col3', p_interval => '1 day', p_start_partition => (CURRENT_TIMESTAMP - '6 days'::interval)::text );
 --Reinsert data due to child table destruction
 INSERT INTO partman_test.id_taptest_table (col1) VALUES (generate_series(1,9));
 

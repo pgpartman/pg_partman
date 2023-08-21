@@ -37,8 +37,8 @@ SELECT table_owner_is ('partman', 'template_Partman_Test_Time_Taptest_Table', 'P
     'Check that template table ownership is set properly');
 
 -- Add inheritable stuff to template table
-ALTER TABLE partman."template_Partman_Test_Time_Taptest_Table" ADD PRIMARY KEY ("Col1");
-ALTER TABLE partman."template_Partman_Test_Time_Taptest_Table" ADD FOREIGN KEY ("Col2") REFERENCES "Partman_Test"."FK_Test_Reference"("Col2");
+ALTER TABLE "template_Partman_Test_Time_Taptest_Table" ADD PRIMARY KEY ("Col1");
+ALTER TABLE "template_Partman_Test_Time_Taptest_Table" ADD FOREIGN KEY ("Col2") REFERENCES "Partman_Test"."FK_Test_Reference"("Col2");
 
 INSERT INTO "Partman_Test"."Time_Taptest_Table" ("Col1", "Col3") VALUES (generate_series(1,10), CURRENT_TIMESTAMP);
 

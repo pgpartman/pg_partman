@@ -90,7 +90,7 @@ SELECT hasnt_table('partman_test', 'id_taptest_table_p3000000040', 'Check id_tap
 SELECT hasnt_table('partman_test', 'id_taptest_table_p3000000050', 'Check id_taptest_table_p3000000050 was dropped');
 SELECT hasnt_table('partman_test', 'id_taptest_table_p3000000060', 'Check id_taptest_table_p3000000060 was dropped');
 
-SELECT partman.partition_gap_fill('partman_test.id_taptest_table');
+SELECT partition_gap_fill('partman_test.id_taptest_table');
 
 SELECT has_table('partman_test', 'id_taptest_table_p3000000020', 'Check id_taptest_table_p3000000020 was recreated');
 SELECT has_table('partman_test', 'id_taptest_table_p3000000040', 'Check id_taptest_table_p3000000040 was recreated');

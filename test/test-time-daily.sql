@@ -43,7 +43,7 @@ SELECT table_owner_is ('partman', 'template_partman_test_time_taptest_table', 'p
     'Check that template table ownership is set properly');
 
 -- Add inheritable stuff to template table
-ALTER TABLE partman.template_partman_test_time_taptest_table ADD PRIMARY KEY (col1);
+ALTER TABLE template_partman_test_time_taptest_table ADD PRIMARY KEY (col1);
 
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(1,10), CURRENT_TIMESTAMP);
 

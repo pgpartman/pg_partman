@@ -20,7 +20,7 @@ SELECT is_partitioned('partman_test', 'time_taptest_table', 'Check that time_tap
 SELECT has_table('partman', 'template_partman_test_time_taptest_table', 'Check that default template table was created');
 
 -- Add inheritable stuff to template table
-ALTER TABLE partman.template_partman_test_time_taptest_table ADD PRIMARY KEY (col1);
+ALTER TABLE template_partman_test_time_taptest_table ADD PRIMARY KEY (col1);
 
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(1,10), CURRENT_TIMESTAMP);
 
@@ -191,7 +191,7 @@ SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMES
 SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'11 days'::interval, 'YYYYMMDD'), 
     'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'11 days'::interval, 'YYYYMMDD')||' was dropped');
 
-SELECT partman.partition_gap_fill('partman_test.time_taptest_table');
+SELECT partition_gap_fill('partman_test.time_taptest_table');
 
 SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'2 days'::interval, 'YYYYMMDD'), 
     'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'2 days'::interval, 'YYYYMMDD')||' exists');

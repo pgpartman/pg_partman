@@ -26,7 +26,7 @@ SELECT is_partitioned('partman_test', 'time_taptest_table', 'Check that time_tap
 SELECT has_table('partman', 'template_partman_test_time_taptest_table', 'Check that default template table was created');
 
 -- Add inheritable stuff to template table
-ALTER TABLE partman.template_partman_test_time_taptest_table ADD PRIMARY KEY (col1);
+ALTER TABLE template_partman_test_time_taptest_table ADD PRIMARY KEY (col1);
 
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(1,10), CURRENT_TIMESTAMP);
 
@@ -173,7 +173,7 @@ SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table_def
 SELECT results_eq('SELECT col4::int FROM partman_test.time_taptest_table_default', 
     ARRAY[12000,12100,12200,12300,12400,12500], 'Check generated values from time_taptest_table_default');
 
-SELECT partman.partition_data_time('partman_test.time_taptest_table', 10, p_ignored_columns := ARRAY['col4']);
+SELECT partition_data_time('partman_test.time_taptest_table', 10, p_ignored_columns := ARRAY['col4']);
 
 SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'11 days'::interval, 'YYYYMMDD'), 
     'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'11 days'::interval, 'YYYYMMDD')||' was created by partition_data_time');

@@ -10,7 +10,7 @@
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true
 
---BEGIN;
+BEGIN;
 SELECT set_config('search_path','partman, public',false);
 
 SELECT plan(122);
@@ -40,8 +40,8 @@ SELECT results_eq('SELECT create_parent(''partman_test.id_taptest_table'', ''col
 
 INSERT INTO partman_test.id_taptest_table (col1) VALUES (generate_series(1,9));
 
-UPDATE partman.part_config SET inherit_privileges = true WHERE parent_table = 'partman_test.id_taptest_table';
-SELECT partman.reapply_privileges('partman_test.id_taptest_table');
+UPDATE part_config SET inherit_privileges = true WHERE parent_table = 'partman_test.id_taptest_table';
+SELECT reapply_privileges('partman_test.id_taptest_table');
 
 SELECT has_table('partman_test', 'id_taptest_table_p0', 'Check id_taptest_table_p0 exists');
 SELECT has_table('partman_test', 'id_taptest_table_p10', 'Check id_taptest_table_p10 exists');
@@ -210,4 +210,4 @@ SELECT hasnt_role('partman_revoke', 'Ensure partman_revoke role has been dropped
 SELECT hasnt_role('partman_owner', 'Ensure partman_owner role has been dropped');
 
 SELECT * FROM finish();
---ROLLBACK;
+ROLLBACK;

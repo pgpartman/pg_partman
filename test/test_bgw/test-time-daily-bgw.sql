@@ -37,8 +37,8 @@ SELECT create_parent('partman_test.time_taptest_table', 'col3', '1 day', p_templ
 
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(1,10), CURRENT_TIMESTAMP);
 
-UPDATE partman.part_config SET inherit_privileges = true WHERE parent_table = 'partman_test.time_taptest_table';
-SELECT partman.reapply_privileges('partman_test.time_taptest_table');
+UPDATE part_config SET inherit_privileges = true WHERE parent_table = 'partman_test.time_taptest_table';
+SELECT reapply_privileges('partman_test.time_taptest_table');
 
 SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'), 'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD')||' exists');
 SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'1 day'::interval, 'YYYYMMDD'),

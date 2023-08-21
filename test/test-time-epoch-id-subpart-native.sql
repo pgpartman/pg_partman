@@ -75,7 +75,7 @@ SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table_p'|
     ARRAY[10], 'Check count from time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'));
 -- Create subpartition
 
-SELECT partman.create_sub_parent('partman_test.time_taptest_table', 'col1', '20', p_declarative_check := 'yes');
+SELECT create_sub_parent('partman_test.time_taptest_table', 'col1', '20', p_declarative_check := 'yes');
 --Reinsert data due to child table destruction
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(1,10), extract('epoch' from CURRENT_TIMESTAMP)::int);
 

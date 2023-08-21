@@ -451,7 +451,7 @@ void pg_partman_bgw_run_maint(Datum arg) {
             , dbname);
 
     resetStringInfo(&buf);
-    appendStringInfo(&buf, "SELECT pg_catalog.quote_ident(n.nspname) FROM pg_catalog.pg_extension e JOIN pg_catalog.pg_namespace n ON e.extnamespace = n.oid WHERE e.extname = 'pg_partman'");
+    appendStringInfo(&buf, "SELECT n.nspname FROM pg_catalog.pg_extension e JOIN pg_catalog.pg_namespace n ON e.extnamespace = n.oid WHERE e.extname = 'pg_partman'");
     pgstat_report_activity(STATE_RUNNING, buf.data);
     ret = SPI_execute(buf.data, true, 1);
 
