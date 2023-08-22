@@ -451,7 +451,7 @@ void pg_partman_bgw_run_maint(Datum arg) {
             , dbname);
 
     resetStringInfo(&buf);
-    appendStringInfo(&buf, "SELECT n.nspname FROM pg_catalog.pg_extension e JOIN pg_catalog.pg_namespace n ON e.extnamespace = n.oid WHERE e.extname = 'pg_partman'");
+    appendStringInfo(&buf, "SELECT pg_catalog.quote_ident(n.nspname) FROM pg_catalog.pg_extension e JOIN pg_catalog.pg_namespace n ON e.extnamespace = n.oid WHERE e.extname = 'pg_partman'");
     pgstat_report_activity(STATE_RUNNING, buf.data);
     ret = SPI_execute(buf.data, true, 1);
 
@@ -462,7 +462,7 @@ void pg_partman_bgw_run_maint(Datum arg) {
     if (SPI_processed > 0) {
         bool isnull;
 
-        partman_schema = DatumGetCString(SPI_getbinval(SPI_tuptable->vals[0]
+        partman_schema = TextDatumGetCString(SPI_getbinval(SPI_tuptable->vals[0]
                 , SPI_tuptable->tupdesc
                 , 1
                 , &isnull));
@@ -488,7 +488,7 @@ void pg_partman_bgw_run_maint(Datum arg) {
         jobmon = "false";
     }
 
-    appendStringInfo(&buf, "CALL \"%s\".run_maintenance_proc(p_wait => %d, p_analyze => %s, p_jobmon => %s)", partman_schema, pg_partman_bgw_maintenance_wait, analyze, jobmon);
+    appendStringInfo(&buf, "CALL %s.run_maintenance_proc(p_wait => %d, p_analyze => %s, p_jobmon => %s)", partman_schema, pg_partman_bgw_maintenance_wait, analyze, jobmon);
 
     pgstat_report_activity(STATE_RUNNING, buf.data);
 

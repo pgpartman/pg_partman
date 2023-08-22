@@ -6,6 +6,9 @@
     -- fk reference
 -- Set the pg_partman_bgw.interval setting in postgresql.conf to 10 seconds (or less) in order for this test suite to pass successfully.
 
+-- This requires installing pg_partman to the mixed case schema "PartMan"
+--      CREATE EXTENSION pg_partman SCHEMA "PartMan";
+
 -- ########### WARNING WARNING WARNING ##############
 -- Cannot run this test inside a transaction since then the BGW would not see this partition set exists
 -- ########### WARNING WARNING WARNING ##############
@@ -14,7 +17,7 @@
 \set ON_ERROR_STOP true
 
 --BEGIN;
-SELECT set_config('search_path','partman, public',false);
+SELECT set_config('search_path','"PartMan", public',false);
 
 SELECT plan(122);
 CREATE SCHEMA partman_test;

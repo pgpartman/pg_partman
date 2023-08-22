@@ -1130,7 +1130,7 @@ IF p_template_table IS NULL THEN
     WHERE n.nspname = v_parent_schema::name
     AND c.relname = v_parent_tablename::name;
 
-    EXECUTE format('ALTER TABLE %I.%I OWNER TO %I'
+    EXECUTE format('ALTER TABLE %s.%I OWNER TO %I'
             , '@extschema@'
             , v_template_tablename
             , v_parent_owner);
@@ -5394,7 +5394,7 @@ IF p_autovacuum_on = false THEN         -- Add this parameter back to definition
 END IF;
 */
 
-v_sql := format('SELECT %I.partition_data_%s (p_parent_table := %L, p_lock_wait := %L, p_order := %L, p_analyze := false'
+v_sql := format('SELECT %s.partition_data_%s (p_parent_table := %L, p_lock_wait := %L, p_order := %L, p_analyze := false'
         , '@extschema@', v_control_type, p_parent_table, p_lock_wait, p_order);
 IF p_interval IS NOT NULL THEN
     v_sql := v_sql || format(', p_batch_interval := %L', p_interval);
@@ -5501,10 +5501,8 @@ FOR v_parent_table IN
 LOOP
 /*
  * Run maintenance with a commit between each partition set
- * TODO - Convert this to the main maintenance function and get rid of standalone function.
- *          See if there's any issues with search_path or needing return values
  */
-    v_sql := format('SELECT %I.run_maintenance(%L, p_jobmon := %L',
+    v_sql := format('SELECT %s.run_maintenance(%L, p_jobmon := %L',
         '@extschema@', v_parent_table, p_jobmon);
 
     IF p_analyze IS NOT NULL THEN
@@ -5608,7 +5606,7 @@ IF p_autovacuum_on = false THEN         -- Add this parameter back to definition
 END IF;
 */
 
-v_sql := format('SELECT partitions_undone, rows_undone FROM %I.undo_partition (%L, p_keep_table := %L, p_lock_wait := %L'
+v_sql := format('SELECT partitions_undone, rows_undone FROM %s.undo_partition (%L, p_keep_table := %L, p_lock_wait := %L'
         , '@extschema@'
         , p_parent_table
         , p_keep_table
