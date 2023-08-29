@@ -6,9 +6,9 @@ IMPORTANT NOTE: This document assumes all partition sets are native partition se
 ## Deprecated Partitioning Methods
 There are several partitioning schemes that pg_partman supported prior to version 5.0.0 that are no longer supported, namely ISO weekly and Quarterly. Note that is still possible to partition with these intervals in version 5 and above using the intervals "1 week" or "3 months". It's just the specialized versions of this partitioning that were done before are no longer supported.
 
-Previously weekly partitioning could be done using the ISO week format `IYYYwIW` which would result in partitioning suffixes like 2021w44 or 1994w32 where the number after the `w` was the numbered week of that year and the year would always be sure to be aligned with an ISO week. Also supported was a quarterly partitioning method with the suffix `YYYYq#` where # was one of the 4 standard quarters in a year starting with January 1st. The quarterly method was particularly problematic to support since not all the time-based functions supported it properly. 
+Previously weekly partitioning could be done using the ISO week format `IYYYwIW` which would result in partitioning suffixes like 2021w44 or 1994w32 where the number after the `w` was the numbered week of that year and the year would always be sure to be aligned with an ISO week. Also supported was a quarterly partitioning method with the suffix `YYYYq#` where # was one of the 4 standard quarters in a year starting with January 1st. The quarterly method was particularly problematic to support since not all the time-based functions supported it properly.
 
-So while quarterly was problematic to maintain, weekly did work well for the most part. But after reviewing the code to maintain all the different specialized suffixes (8 in total), it was decided to simplify the suffixes that would be supported. Now there are only two possiblities: 
+So while quarterly was problematic to maintain, weekly did work well for the most part. But after reviewing the code to maintain all the different specialized suffixes (8 in total), it was decided to simplify the suffixes that would be supported. Now there are only two possibilities:
 
  * `YYYYMMDD` for intervals greater than or equal to 1 day
  * `YYYYMMDD_HH24MISS` for intervals less than 1 day (supported down to 1 second)
@@ -17,19 +17,19 @@ Custom interval support had always been possible with pg_partman, especially wit
 
 Note that previously `hourly` partitioning did not have seconds in the suffix, but any new partition sets made with that interval will. There is no hard requirement to migrate like there is for weekly and quarterly, but there will be an inconsistency in child table naming with any existing partition sets from before 5.x. A migration similar to the below examples can be done if consistency is desired.
 
-The migration is simply a renaming of the child tables and an update to the partman configuration table(s) so it should be a relatively smooth process with little downtime. 
+The migration is simply a renaming of the child tables and an update to the partman configuration table(s) so it should be a relatively smooth process with little downtime.
 
 ### Weekly Migration
 
-Here is an example weekly partition set created with pg_partman version 4.7.3. 
+Here is an example weekly partition set created with pg_partman version 4.7.3.
 ```
  \d+ partman_test.time_taptest_table
                                                        Partitioned table "partman_test.time_taptest_table"
- Column |           Type           | Collation | Nullable |                    Default                     | Storage  | Compression | Stats target | Description 
+ Column |           Type           | Collation | Nullable |                    Default                     | Storage  | Compression | Stats target | Description
 --------+--------------------------+-----------+----------+------------------------------------------------+----------+-------------+--------------+-------------
- col1   | timestamp with time zone |           |          |                                                | plain    |             |              | 
- col2   | text                     |           |          |                                                | extended |             |              | 
- col3   | integer                  |           | not null | EXTRACT(epoch FROM CURRENT_TIMESTAMP)::integer | plain    |             |              | 
+ col1   | timestamp with time zone |           |          |                                                | plain    |             |              |
+ col2   | text                     |           |          |                                                | extended |             |              |
+ col3   | integer                  |           | not null | EXTRACT(epoch FROM CURRENT_TIMESTAMP)::integer | plain    |             |              |
 Partition key: RANGE (col1)
 Partitions: partman_test.time_taptest_table_p2023w05 FOR VALUES FROM ('2023-01-30 00:00:00-05') TO ('2023-02-06 00:00:00-05'),
             partman_test.time_taptest_table_p2023w06 FOR VALUES FROM ('2023-02-06 00:00:00-05') TO ('2023-02-13 00:00:00-05'),
@@ -56,14 +56,14 @@ parent_table               | partman_test.time_taptest_table
 control                    | col1
 partition_type             | native
 partition_interval         | 7 days
-constraint_cols            | 
+constraint_cols            |
 premake                    | 4
 optimize_trigger           | 4
 optimize_constraint        | 30
 epoch                      | none
 inherit_fk                 | t
-retention                  | 
-retention_schema           | 
+retention                  |
+retention_schema           |
 retention_keep_table       | t
 retention_keep_index       | t
 infinite_time_partitions   | f
@@ -73,13 +73,13 @@ jobmon                     | t
 sub_partition_set_full     | f
 undo_in_progress           | f
 trigger_exception_handling | f
-upsert                     | 
+upsert                     |
 trigger_return_null        | t
 template_table             | partman.template_partman_test_time_taptest_table
-publications               | 
+publications               |
 inherit_privileges         | f
 constraint_valid           | t
-subscription_refresh       | 
+subscription_refresh       |
 drop_cascade_fk            | f
 ignore_default_data        | f
 ```
@@ -99,7 +99,7 @@ WHERE h.inhparent::regclass = 'partman_test.time_taptest_table'::regclass
 AND c.relname NOT LIKE '%_default'
 ORDER BY c.relname;
 
-                                           ?column?                                           
+                                           ?column?  
 ----------------------------------------------------------------------------------------------
  ALTER TABLE partman_test.time_taptest_table_p2023w05 RENAME TO time_taptest_table_p20230130;
  ALTER TABLE partman_test.time_taptest_table_p2023w06 RENAME TO time_taptest_table_p20230206;
@@ -133,11 +133,11 @@ SELECT partman.run_maintenance('partman_test.time_taptest_table');
 ```
 keith=# \d+ partman_test.time_taptest_table
                                                        Partitioned table "partman_test.time_taptest_table"
- Column |           Type           | Collation | Nullable |                    Default                     | Storage  | Compression | Stats target | Description 
+ Column |           Type           | Collation | Nullable |                    Default                     | Storage  | Compression | Stats target | Description
 --------+--------------------------+-----------+----------+------------------------------------------------+----------+-------------+--------------+-------------
- col1   | timestamp with time zone |           |          |                                                | plain    |             |              | 
- col2   | text                     |           |          |                                                | extended |             |              | 
- col3   | integer                  |           | not null | EXTRACT(epoch FROM CURRENT_TIMESTAMP)::integer | plain    |             |              | 
+ col1   | timestamp with time zone |           |          |                                                | plain    |             |              |
+ col2   | text                     |           |          |                                                | extended |             |              |
+ col3   | integer                  |           | not null | EXTRACT(epoch FROM CURRENT_TIMESTAMP)::integer | plain    |             |              |
 Partition key: RANGE (col1)
 Partitions: partman_test.time_taptest_table_p20230130 FOR VALUES FROM ('2023-01-30 00:00:00-05') TO ('2023-02-06 00:00:00-05'),
             partman_test.time_taptest_table_p20230206 FOR VALUES FROM ('2023-02-06 00:00:00-05') TO ('2023-02-13 00:00:00-05'),
@@ -160,17 +160,53 @@ You can see that maintenance has created new partitions with our new naming patt
 
 If all is well, you can return your `premake` and `infinite_time_partitions` values back to their previous values if needed.
 
+If you want to ensure any weekly partitioned tables start on a Monday when you create them, you can use the `date_trunc()` function in the `p_start_partition` parameter to `create_parent()` to do that. The following example shows doing this on a Tuesday. Without setting a specific starting partition like this, the partition set would have started on Tues, Aug 29 2023 and every future partition would have been based on a week starting on Tuesday.
+
+```
+SELECT CURRENT_TIMESTAMP;
+       current_timestamp  
+-------------------------------
+ 2023-08-29 13:22:08.190552-04
+
+
+CREATE TABLE public.time_table (
+    col1 int,
+    col2 text,
+    col3 timestamp with time zone NOT NULL DEFAULT CURRENT_TIMESTAMP)
+PARTITION BY RANGE (col3);
+
+
+SELECT partman.create_parent('public.time_table', 'col3', '1 week', p_start_partition := to_char(date_trunc('week',CURRENT_TIMESTAMP), 'YYYY-MM-DD HH24:MI:SS'));
+```
+```
+\d+ public.time_table
+                                               Partitioned table "public.time_table"
+ Column |           Type           | Collation | Nullable |      Default      | Storage  | Compression | Stats target | Description
+--------+--------------------------+-----------+----------+-------------------+----------+-------------+--------------+-------------
+ col1   | integer                  |           |          |                   | plain    |             |              |
+ col2   | text                     |           |          |                   | extended |             |              |
+ col3   | timestamp with time zone |           | not null | CURRENT_TIMESTAMP | plain    |             |              |
+Partition key: RANGE (col3)
+Partitions: time_table_p20230828 FOR VALUES FROM ('2023-08-28 00:00:00-04') TO ('2023-09-04 00:00:00-04'),
+            time_table_p20230904 FOR VALUES FROM ('2023-09-04 00:00:00-04') TO ('2023-09-11 00:00:00-04'),
+            time_table_p20230911 FOR VALUES FROM ('2023-09-11 00:00:00-04') TO ('2023-09-18 00:00:00-04'),
+            time_table_p20230918 FOR VALUES FROM ('2023-09-18 00:00:00-04') TO ('2023-09-25 00:00:00-04'),
+            time_table_p20230925 FOR VALUES FROM ('2023-09-25 00:00:00-04') TO ('2023-10-02 00:00:00-04'),
+            time_table_default DEFAULT
+
+```
+
 ### Quarterly Partitioning
 
 Similar to weekly, the names of the child tables just need to be renamed and the partman config updated with the new datetime_string. Below is the table as it was with the original quarterly names
 ```
 \d+ partman_test.time_taptest_table
                                    Partitioned table "partman_test.time_taptest_table"
- Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description 
+ Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description
 --------+--------------------------+-----------+----------+---------+----------+-------------+--------------+-------------
- col1   | integer                  |           |          |         | plain    |             |              | 
- col2   | text                     |           |          |         | extended |             |              | 
- col3   | timestamp with time zone |           | not null | now()   | plain    |             |              | 
+ col1   | integer                  |           |          |         | plain    |             |              |
+ col2   | text                     |           |          |         | extended |             |              |
+ col3   | timestamp with time zone |           | not null | now()   | plain    |             |              |
 Partition key: RANGE (col3)
 Partitions: partman_test.time_taptest_table_p2022q1 FOR VALUES FROM ('2022-01-01 00:00:00-05') TO ('2022-04-01 00:00:00-04'),
             partman_test.time_taptest_table_p2022q2 FOR VALUES FROM ('2022-04-01 00:00:00-04') TO ('2022-07-01 00:00:00-04'),
@@ -189,7 +225,7 @@ Note you will have to adjust the substring in the generation of the ALTER TABLE 
 
 ```
 DO $rename$
-DECLARE 
+DECLARE
     v_child_start_time      timestamptz;
     v_row                   record;
     v_quarter               text;
@@ -229,8 +265,8 @@ LOOP
     END CASE;
 
     -- Build the sql statement to rename the child table
-    v_sql := format('ALTER TABLE %I.%I RENAME TO %I' 
-            , v_row.child_schema 
+    v_sql := format('ALTER TABLE %I.%I RENAME TO %I'
+            , v_row.child_schema
             , v_row.child_table
             , substring(v_row.child_table from 1 for 20)||to_char(v_child_start_time, 'YYYYMMDD'))||';';
 
@@ -254,11 +290,11 @@ You should see at least one more additional child table now
 ```
 \d+ partman_test.time_taptest_table
                                    Partitioned table "partman_test.time_taptest_table"
- Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description 
+ Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description
 --------+--------------------------+-----------+----------+---------+----------+-------------+--------------+-------------
- col1   | integer                  |           |          |         | plain    |             |              | 
- col2   | text                     |           |          |         | extended |             |              | 
- col3   | timestamp with time zone |           | not null | now()   | plain    |             |              | 
+ col1   | integer                  |           |          |         | plain    |             |              |
+ col2   | text                     |           |          |         | extended |             |              |
+ col3   | timestamp with time zone |           | not null | now()   | plain    |             |              |
 Partition key: RANGE (col3)
 Partitions: partman_test.time_taptest_table_p20220101 FOR VALUES FROM ('2022-01-01 00:00:00-05') TO ('2022-04-01 00:00:00-04'),
             partman_test.time_taptest_table_p20220401 FOR VALUES FROM ('2022-04-01 00:00:00-04') TO ('2022-07-01 00:00:00-04'),
@@ -274,4 +310,3 @@ Partitions: partman_test.time_taptest_table_p20220101 FOR VALUES FROM ('2022-01-
             partman_test.time_taptest_table_default DEFAULT
 ```
 You can adjust the values of your premake and infinite_time_partitions columns back to their original values if needed.
-

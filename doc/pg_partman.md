@@ -7,7 +7,7 @@ PostgreSQL Partition Manager is an extension to help make managing time or numbe
 
 As of version 5.0.0, the minimum version of PostgreSQL required is 14 and trigger-based partitioning is no longer supported. All partitioning is done using built-in declarative partitioning. Currently only ranged partitioning is supported for time- and number-based intervals. Version 4.x of pg_partman, which still has trigger-based support, is no longer in active development and will only be receiving critical bug fixes for a limited time. If partitioning is a critical part of your infrastructure, please make plans to upgrade in the near future.
 
-A default partition to catch data outside the existing child boundaries is automatically created for all partition sets. The `check_default()` function provides monitoring for any data getting inserted into the default table and the `partition_data_`* set of functions can easily partition that data for you if it is valid data. That is much easier than automatically creating new child tables on demand and having to clean up potentially hundreds or thousands of unwanted partitions. And also better than throwing an error and losing the data! 
+A default partition to catch data outside the existing child boundaries is automatically created for all partition sets. The `check_default()` function provides monitoring for any data getting inserted into the default table and the `partition_data_`* set of functions can easily partition that data for you if it is valid data. That is much easier than automatically creating new child tables on demand and having to clean up potentially hundreds or thousands of unwanted partitions. And also better than throwing an error and losing the data!
 
 Note that future child table creation is based on the data currently in the partition set and, by default, ignores data in the default. It is recommended that you set the `premake` value high enough to encompass your expected data range being inserted. See below for further explanations on these configuration values.
 
@@ -15,7 +15,7 @@ If you have an existing partition set and you'd like to migrate it to pg_partman
 
 ### Child Table Property Inheritance
 
-For this extension, most of the attributes of the child partitions are all obtained from the parent table. With declarative partitioning, certain features are not able to be inherited from the parent depending on the version of PostgreSQL. So pg_partman uses a template table instead. The following table matrix shows how certain property inheritances are managed with pg_partman. The number given is the version of PostgreSQL. If a property is not listed here, then assume it is managed via the parent. 
+For this extension, most of the attributes of the child partitions are all obtained from the parent table. With declarative partitioning, certain features are not able to be inherited from the parent depending on the version of PostgreSQL. So pg_partman uses a template table instead. The following table matrix shows how certain property inheritances are managed with pg_partman. The number given is the version of PostgreSQL. If a property is not listed here, then assume it is managed via the parent.
 
 | Feature                                           | Parent Inheritance    | Template Inheritance  |
 | ----------                                        | --------------------- | --------------------- |
@@ -32,7 +32,7 @@ Privileges & ownership are NOT inherited by default. If enabled by pg_partman, n
 
 If you are using the IDENTITY feature for sequences, the automatic generation of new sequence values using this feature is only supported when data is inserted through the parent table, not directly into the children.
 
-IMPORTANT NOTES: 
+IMPORTANT NOTES:
 
  * The template table feature is only a temporary solution to help speed up declarative partitioning adoption. As things are handled better in core, the use of the template table will be phased out quickly from pg_partman. If a feature that was managed by the template is supported in core in the future, it will eventually be removed from template management in pg_partman, so please plan ahead for that during major version upgrading if it applies to you.
 
@@ -42,7 +42,7 @@ IMPORTANT NOTES:
 
 It is important to ensure that the time zones for all systems that will be running pg_partman maintenance operations are consistent, especially when running time-based partitioning. The calls to pg_partman functions will use the time zone that is set by the client at the time the functions are called. This is consistent with the way libpq clients work in general.
 
-In general, it is highly recommended to always run your database system in UTC time. It makes handling any time-related issues tremendously eaiser and especially to overcome issues that are currently not possible to solve due to Daylight Saving Time (DST) changes. In addition to this, also ensure the client that will be creating partition sets and running the maintenance calls is also set to UTC. For example, trying to partition hourly will either break when the time changes or skip creating a child table.
+In general, it is highly recommended to always run your database system in UTC time. It makes handling any time-related issues tremendously easier and especially to overcome issues that are currently not possible to solve due to Daylight Saving Time (DST) changes. In addition to this, also ensure the client that will be creating partition sets and running the maintenance calls is also set to UTC. For example, trying to partition hourly will either break when the time changes or skip creating a child table.
 
 ### Subpartitioning
 
@@ -67,13 +67,19 @@ Adding these constraints could potentially cause contention with the data contai
 
 NOTE: This may not work with subpartitioning. It will work on the first level of partitioning, but is not guaranteed to work properly on further subpartition sets depending on the interval combinations and the optimize_constraint value. Ex: Weekly -> Daily with a daily optimize_constraint of 7 won't work as expected. Weekly constraints will get created but daily subpartition ones likely will not.
 
-### Custom Time Interval Considerations
+### Time Interval Considerations
 
 The smallest time interval supported is 1 second and the upper limit is bounded by the minimum and maximum timestamp values that PostgreSQL supports (http://www.postgresql.org/docs/current/static/datatype-datetime.html).
 
 When first running `create_parent()` to create a partition set, intervals less than a day round down when determining what the first partition to create will be. Intervals less than 24 hours but greater than 1 minute use the nearest hour rounded down. Intervals less than 1 minute use the nearest minute rounded down. However, enough partitions will be made to support up to what the real current time is. This means that when `create_parent()` is run, more previous partitions may be made than expected and all future partitions may not be made. The first run of `run_maintenance()` will fix the missing future partitions. This happens due to the nature of being able to support custom time intervals. Any intervals greater than or equal to 24 hours should set things up as would be expected.
 
 Keep in mind that for intervals equal to or greater than 100 years, the extension will use the real start of the century or millennium to determine the partition name & constraint rules. For example, the 21st century and 3rd millennium started January 1, 2001 (not 2000). This also means there is no year "0".
+
+For weekly partitions, note that the default "start" of the week will be based on the day of the week that you run `create_parent()`. For example, if you ran it on a Tuesday or Friday, the time boundaries of the child tables would all start on those respective days vs the expected Monday or Sunday start of the week. The easiest way to handle this is to use the `date_trunc()` function to start the weeks on a Monday using the `p_start_partition` parameter to `create_parent()`. Starting on Sundays is likely possible as well, but trickier and outside the scope of the documentation at this time.
+
+```
+SELECT partman.create_parent('public.time_table', 'col3', '1 week', p_start_partition := to_char(date_trunc('week',CURRENT_TIMESTAMP), 'YYYY-MM-DD HH24:MI:SS'));
+```
 
 ### Naming Length Limits
 
@@ -104,7 +110,7 @@ The following configuration options are available to add into postgresql.conf to
  - `pg_partman_bgw.role`
     - The role that `run_maintenance()` will run as. Default is "postgres". Only a single role name is allowed.
  - `pg_partman_bgw.analyze`
-    - Same purpose as the p_analyze argument to `run_maintenance()`. See below for more detail. Set to 'on' for TRUE. Set to 'off' for FALSE (Default is 'off'). 
+    - Same purpose as the p_analyze argument to `run_maintenance()`. See below for more detail. Set to 'on' for TRUE. Set to 'off' for FALSE (Default is 'off').
  - `pg_partman_bgw.jobmon`
     - Same purpose as the p_jobmon argument to `run_maintenance()`. See below for more detail. Set to 'on' for TRUE. Set to 'off' for FALSE. Default is 'on'.
 
@@ -124,12 +130,12 @@ create_parent(
     , p_control text
     , p_interval text
     , p_type text DEFAULT 'range'
-    , p_epoch text DEFAULT 'none' 
+    , p_epoch text DEFAULT 'none'
     , p_premake int DEFAULT 4
     , p_start_partition text DEFAULT NULL
     , p_default_table boolean DEFAULT true
-    , p_automatic_maintenance text DEFAULT 'on' 
-    , p_constraint_cols text[] DEFAULT NULL 
+    , p_automatic_maintenance text DEFAULT 'on'
+    , p_constraint_cols text[] DEFAULT NULL
     , p_template_table text DEFAULT NULL
     , p_jobmon boolean DEFAULT true
     , p_date_trunc_interval text DEFAULT NULL
@@ -142,7 +148,7 @@ RETURNS boolean
  * A default partition and template table are created by default unless otherwise configured
  * `p_parent_table` - the existing parent table. MUST be schema qualified, even if in public schema
  * `p_control` - the column that the partitioning will be based on. Must be a time or integer based column
- * `p_interval` - the time or integer range interval for each partition. No matter the partitioning type, value must be given as text. 
+ * `p_interval` - the time or integer range interval for each partition. No matter the partitioning type, value must be given as text.
     + *\<interval\>*      - Any valid value for the interval data type. Do not type cast the parameter value, just leave as text.
     + *\<integer\>*       - For ID based partitions, the integer value range of the ID that should be set per partition. Enter this as an integer in text format ('100' not 100). Currently must be greater than or equal to 2.
  * `p_type` - the type of partitioning to be done. Currently only **range** is supported.
@@ -154,7 +160,7 @@ RETURNS boolean
  * `p_constraint_cols` - an optional array parameter to set the columns that will have additional constraints set. See the **About** section above for more information on how this works and the **apply_constraints()** function for how this is used.
  * `p_template_table` - If you do not pass a value here, a template table will automatically be made for you in same schema that pg_partman was installed to. If you pre-create a template table and pass its name here, then the initial child tables will obtain these properties discussed in the **About** section immediately.
  * `p_jobmon` - allow `pg_partman` to use the `pg_jobmon` extension to monitor that partitioning is working correctly. Defaults to TRUE.
- * `p_date_trunc_interval` - By default, pg_partman's time-based partitioning will truncate the child table starting values to line up at the beginning of typical boundaries (midnight for daily, day 1 for monthly, Jan 1 for yearly, etc). If a custom time interval that does not fall on those boundaries is desired, this option may be required to ensure the child table has the expected boundaries (especially if you also set p_start_partition). The valid values allowed for this parameter are the interval values accepted by the built-in date_trunc() function (day, week, month, etc). For example, if you set a 9-week interval, by default pg_partman would truncate the tables by month (since the interval is greater than one month but less than 1 year) and unexpectedly start on the first of the month in some cases. Set this value to week, so that the child table start values are properly truncated on a weekly basis to line up with the 9-week interval. If you are using a custom time interval, please experiment with this option to get the expected set of child tables you desire or use a more typical partitioning interval to simplify partition management. 
+ * `p_date_trunc_interval` - By default, pg_partman's time-based partitioning will truncate the child table starting values to line up at the beginning of typical boundaries (midnight for daily, day 1 for monthly, Jan 1 for yearly, etc). If a custom time interval that does not fall on those boundaries is desired, this option may be required to ensure the child table has the expected boundaries (especially if you also set p_start_partition). The valid values allowed for this parameter are the interval values accepted by the built-in date_trunc() function (day, week, month, etc). For example, if you set a 9-week interval, by default pg_partman would truncate the tables by month (since the interval is greater than one month but less than 1 year) and unexpectedly start on the first of the month in some cases. Set this value to week, so that the child table start values are properly truncated on a weekly basis to line up with the 9-week interval. If you are using a custom time interval, please experiment with this option to get the expected set of child tables you desire or use a more typical partitioning interval to simplify partition management.
 
 ```
 create_sub_parent(
@@ -163,18 +169,18 @@ create_sub_parent(
     , p_control text
     , p_interval text
     , p_type text DEFAULT 'range'
-    , p_epoch text DEFAULT 'none' 
+    , p_epoch text DEFAULT 'none'
     , p_premake int DEFAULT 4
     , p_start_partition text DEFAULT NULL
     , p_default_table boolean DEFAULT true
-    , p_constraint_cols text[] DEFAULT NULL 
+    , p_constraint_cols text[] DEFAULT NULL
     , p_jobmon boolean DEFAULT true
     , p_date_trunc_interval text DEFAULT NULL
 )
 RETURNS boolean
 ```
 
- * Create a subpartition set of an already existing partitioned set. See important notes about Subpartitioning in **About** section. 
+ * Create a subpartition set of an already existing partitioned set. See important notes about Subpartitioning in **About** section.
  * `p_top_parent` - This parameter is the parent table of an already existing partition set. It tells `pg_partman` to turn all child tables of the given partition set into their own parent tables of their own partition sets using the rest of the parameters for this function.
  * `p_declarative_check` - Turning an existing partition set into a subpartitioned set is a **destructive** process. A table must be declared partitioned at creation time and cannot be altered later. Therefore existing child tables must be dropped and recreated as partitioned parent tables. This flag is here to help ensure this function is not run without prior consent that all data in the partition set will be destroyed as part of the creation process. It must be set to "yes" to proceed with subpartitioning.
  * All other parameters to this function have the same exact purpose as those of `create_parent()`, but instead are used to tell `pg_partman` how each child table shall itself be partitioned.
@@ -222,7 +228,7 @@ partition_data_id(p_parent_table text
     , p_analyze boolean DEFAULT true
     , p_source_table text DEFAULT NULL
     , p_ignored_columns text[] DEFAULT NULL
-) 
+)
 RETURNS bigint
 ```
 
@@ -397,7 +403,7 @@ show_partition_info(p_child_table text
     , OUT child_start_time timestamptz
     , OUT child_end_time timestamptz
     , OUT child_start_id bigint
-    , OUT child_end_id bigint 
+    , OUT child_end_id bigint
     , OUT suffix text
 )
 RETURNS record
@@ -436,7 +442,7 @@ RETURNS integer
   * Function to fill in any gaps that may exist in the series of child tables for a given parent table (p_parent_table).
   * Starts from current minimum child table and fills in any gaps encountered based on the partition interval, up to the current maximum child table
   * Returns how many child tables are created. Returns 0 if none are created.
- 
+
 
 ```
 apply_constraints(
@@ -533,7 +539,7 @@ undo_partition(
     , p_ignored_columns text[] DEFAULT NULL
     , p_drop_cascade boolean DEFAULT false
     , OUT partitions_undone int
-    , OUT rows_undone bigint) 
+    , OUT rows_undone bigint)
 RETURNS record
 ```
 
@@ -543,12 +549,12 @@ RETURNS record
  * By default, partitions are not DROPPED, they are DETTACHed. This leave previous child tables as empty, independent tables.
  * Without setting either batch argument manually, each run of the function will move all the data from a single partition into the target.
  * Once all child tables have been uninherited/dropped, the configuration data is removed from `pg_partman` automatically.
- * For subpartitioned tables, you may have to start at the lowest level parent table and undo from there then work your way up. 
+ * For subpartitioned tables, you may have to start at the lowest level parent table and undo from there then work your way up.
  * `p_parent_table` - parent table of the partition set. Must be schema qualified and match a parent table name already configured in `pg_partman`.
  * `p_target_table` - A schema-qualified table to move the old partitioned table's data to. Required since a partition table cannot be converted into a non-partitioned table. Schema can be different from original table.
  * `p_loop_count` - an optional argument, this sets how many times to move the amount of data equal to the `p_batch_interval` argument (or default partition interval if not set) in a single run of the function. Defaults to 1.
  * `p_batch_interval` - optional argument. A time or id interval of how much of the data to move. This can be smaller than the partition interval, allowing for very large partitions to be broken up into smaller commit batches. Defaults to the configured partition interval if not given or if you give an interval larger than the partition interval. Note that the value must be given as text to this parameter.
- * `p_keep_table` - an optional argument, setting this to false will cause the old child table to be dropped instead of deattached after all of its data has been moved. Note that it takes at least two batches to actually drop a table from the set.
+ * `p_keep_table` - an optional argument, setting this to false will cause the old child table to be dropped instead of detached after all of its data has been moved. Note that it takes at least two batches to actually drop a table from the set.
  * `p_lock_wait` - optional argument, sets how long in seconds to wait for either the table or a row to be unlocked before timing out. Default is to wait forever.
  * `p_ignored_columns` - This option allows for filtering out specific columns when moving data from the child tables to the target table. This is generally only required when using columns with a GENERATED ALWAYS value since directly inserting a value would fail when moving the data. Value is a text array of column names.
  * `p_drop_cascade` - Allow undoing subpartition sets from parent tables higher in the inheritance tree. Only applies when `p_keep_tables` is set to false. Note this causes all child tables below a subpartition parent to be dropped when that parent is dropped.
@@ -634,20 +640,20 @@ RETURNS int
 
 **`part_config`**
 
-Stores all configuration data for partition sets mananged by the extension. 
+Stores all configuration data for partition sets mananged by the extension.
 
     parent_table text NOT NULL
     , control text NOT NULL
     , partition_interval text NOT NULL
     , partition_type text NOT NULL
     , premake int NOT NULL DEFAULT 4
-    , automatic_maintenance text NOT NULL DEFAULT 'on' 
+    , automatic_maintenance text NOT NULL DEFAULT 'on'
     , template_table text
     , retention text
     , retention_schema text
     , retention_keep_index boolean NOT NULL DEFAULT true
     , retention_keep_table boolean NOT NULL DEFAULT true
-    , epoch text NOT NULL DEFAULT 'none' 
+    , epoch text NOT NULL DEFAULT 'none'
     , constraint_cols text[]
     , optimize_constraint int NOT NULL DEFAULT 30
     , infinite_time_partitions boolean NOT NULL DEFAULT false
@@ -709,7 +715,7 @@ Stores all configuration data for partition sets mananged by the extension.
  - `undo_in_progress`
     - Set by the undo_partition functions whenever they are run. If true, this causes all partition creation and retention management by the `run_maintenance()` function to stop. Default is false.
  - `inherit_privileges`
-    - Sets whether to inherit the ownership/privileges of the parent table to all child tables. Defaults to false and should only be necessary if you need direct access to child tables, by-passing the parent table. 
+    - Sets whether to inherit the ownership/privileges of the parent table to all child tables. Defaults to false and should only be necessary if you need direct access to child tables, by-passing the parent table.
   - `constraint_valid`
     - Boolean value that allows the additional constraints that pg_partman can manage for you to be created as NOT VALID. See "Constraint Exclusion" section at the beginning for more details on these constraints. This can allow maintenance to run much quicker on large partition sets since the existing data is not validated before additing the constraint. Newly inserted data is validated, so this is a perfectly safe option to set for data integrity. Note that constraint exclusion WILL NOT work until the constraints are validated. Defaults to true so that constraints are created as VALID. Set to false to set new constraints as NOT VALID.
   - `subscription_refresh` - Name of a logical replication subscription to refresh when maintenance runs. If the partition set is subscribed to a publication that will be adding/removing tables and you need your partition set to be aware of these changes, you must name that subscription with this option. Otherwise the subscription will never become aware of the new tables added to the publisher unless you are refreshing the subscription via some other means. See the PG documentation for ALTER SUBSCRIPTION for more info on refreshing subscriptions - https://www.postgresql.org/docs/current/sql-altersubscription.html
@@ -721,7 +727,7 @@ Stores all configuration data for partition sets mananged by the extension.
  * The **`sub_parent`** column is the parent table of the subpartition set and all other columns govern how that parent's children are subpartitioned.
  * All other columns work the same exact way as their counterparts in either the **`part_config`** table or as the parameters passed to `create_parent()`.
 
- 
+
 ### Scripts
 
 If the extension was installed using *make*, the below script files should have been installed to the PostgreSQL binary directory.
@@ -780,4 +786,3 @@ If the extension was installed using *make*, the below script files should have 
  * `--simple`:                Output a single integer value with the total duplicate count. Use this for monitoring software that requires a simple value to be checked for.
  * `--quiet (-q)`:            Suppress all output unless there is a constraint violation found.
  * `--version`:               Print out the minimum version of `pg_partman` this script is meant to work with. The version of `pg_partman` installed may be greater than this.
-
