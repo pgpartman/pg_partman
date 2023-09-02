@@ -131,11 +131,16 @@ For converting either time or serial based partition sets, if you have the lower
 So a query like the following which first extracts the original name then reformats the suffix would work. It doesn't actually do the renaming, it just generates all the ALTER TABLE statements for you for all the child tables in the set. If all of them don't quite have the same pattern for some reason, you can easily just re-run this, editing things as needed, and filter the resulting list of ALTER TABLE statements accordingly.
 
 ```
-SELECT 'ALTER TABLE '||n.nspname||'.'||c.relname||' RENAME TO '||substring(c.relname from 1 for 9)||'_p'||to_char(to_timestamp(substring(c.relname from 10), 'YYYYMMDD'), 'YYYYMMDD')||';'
+SELECT format(
+    'ALTER TABLE %I.%I RENAME TO %I;'
+    , n.nspname
+    , c.relname
+    , substring(c.relname from 1 for 9) || '_p' || to_char(to_timestamp(substring(c.relname from 10), 'YYYYMMDD'), 'YYYYMMDD')
+)
         FROM pg_inherits h
         JOIN pg_class c ON h.inhrelid = c.oid
         JOIN pg_namespace n ON c.relnamespace = n.oid
-        WHERE h.inhparent::regclass = 'tracking.hits_time'::regclass
+        WHERE h.inhparent = 'tracking.hits_time'::regclass
         ORDER BY c.relname;
                                ?column?                                
 -----------------------------------------------------------------------
@@ -158,11 +163,16 @@ Running that should rename your tables to look like this now:
 If you're migrating a serial/id based partition set, and also have the naming convention with the lowest possible value, you'd do something very similar. Everything would be the same as the time-series one above except the renaming would be slightly different. Using my second example table above, it would be something like this.
 
 ```
-SELECT 'ALTER TABLE '||n.nspname||'.'||c.relname||' RENAME TO '||substring(c.relname from 1 for 7)||'_p'||substring(c.relname from 8)||';'
+SELECT format(
+    'ALTER TABLE %I.%I RENAME TO %I;'
+    , n.nspname
+    , c.relname
+    , substring(c.relname from 1 for 7) || '_p' || substring(c.relname from 8)
+)
     FROM pg_inherits h
     JOIN pg_class c ON h.inhrelid = c.oid
     JOIN pg_namespace n ON c.relnamespace = n.oid
-    WHERE h.inhparent::regclass = 'tracking.hits_id'::regclass
+    WHERE h.inhparent = 'tracking.hits_id'::regclass
     ORDER by c.relname;
                          ?column?                          
 -----------------------------------------------------------
@@ -200,7 +210,7 @@ FOR v_row IN
         FROM pg_inherits h
         JOIN pg_class c ON h.inhrelid = c.oid
         JOIN pg_namespace n ON c.relnamespace = n.oid
-        WHERE h.inhparent::regclass = 'tracking.hits_stufftime'::regclass
+        WHERE h.inhparent = 'tracking.hits_stufftime'::regclass
         ORDER BY c.relname
 LOOP
     v_min_val := NULL;
@@ -255,7 +265,7 @@ FOR v_row IN
         FROM pg_inherits h
         JOIN pg_class c ON h.inhrelid = c.oid
         JOIN pg_namespace n ON c.relnamespace = n.oid
-        WHERE h.inhparent::regclass = 'tracking.hits_stuffid'::regclass
+        WHERE h.inhparent = 'tracking.hits_stuffid'::regclass
         ORDER BY c.relname
 LOOP
     -- Substitute your control column's name here in the min() function
