@@ -91,7 +91,12 @@ We will use a query below to generate some SQL that will rename the tables to th
  * In the second substring function, the number after the `from` should be the previous number +1. In this case `21`
 
 ```
-SELECT 'ALTER TABLE '||n.nspname||'.'||c.relname||' RENAME TO '||substring(c.relname from 1 for 20)||to_char(to_timestamp(substring(c.relname from 21), 'IYYY"w"IW'), 'YYYYMMDD')||';'
+SELECT format(
+    'ALTER TABLE %I.%I RENAME TO %I;'
+    , n.nspname
+    , c.relname
+    , substring(c.relname from 1 for 20) || to_char(to_timestamp(substring(c.relname from 21), 'IYYY"w"IW'), 'YYYYMMDD')
+)
 FROM pg_inherits h
 JOIN pg_class c ON h.inhrelid = c.oid
 JOIN pg_namespace n ON c.relnamespace = n.oid
@@ -241,7 +246,7 @@ FOR v_row IN
         FROM pg_inherits h
         JOIN pg_class c ON h.inhrelid = c.oid
         JOIN pg_namespace n ON c.relnamespace = n.oid
-        WHERE h.inhparent::regclass = 'partman_test.time_taptest_table'::regclass
+        WHERE h.inhparent = 'partman_test.time_taptest_table'::regclass
         AND c.relname NOT LIKE '%_default'
         ORDER BY c.relname
 LOOP
@@ -265,10 +270,10 @@ LOOP
     END CASE;
 
     -- Build the sql statement to rename the child table
-    v_sql := format('ALTER TABLE %I.%I RENAME TO %I'
+    v_sql := format('ALTER TABLE %I.%I RENAME TO %I;'
             , v_row.child_schema
             , v_row.child_table
-            , substring(v_row.child_table from 1 for 20)||to_char(v_child_start_time, 'YYYYMMDD'))||';';
+            , substring(v_row.child_table from 1 for 20)||to_char(v_child_start_time, 'YYYYMMDD'));
 
     RAISE NOTICE '%', v_sql;
 END LOOP;

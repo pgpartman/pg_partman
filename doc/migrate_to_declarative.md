@@ -93,7 +93,7 @@ The first major step in this migration process is now to uninherit all the child
 DO NOT RUN THE RESULTING STATEMENTS YET. A future query will not work if the child tables are no longer part of the inheritance set.
 
 ```
-SELECT 'ALTER TABLE '||inhrelid::regclass||' NO INHERIT '||inhparent::regclass||';' 
+SELECT format('ALTER TABLE %s NO INHERIT %s;', inhrelid::regclass, inhparent::regclass)
 FROM pg_inherits 
 WHERE inhparent::regclass = 'partman_test.time_taptest_table'::regclass;
                                               ?column?                                               
@@ -125,16 +125,21 @@ If your child table names do not have a usable pattern like this, you'll have to
 Again, we can use some sql to generate statements to re-attach the children to the new parent:
 ```
 WITH child_tables AS (
-    SELECT inhrelid::regclass::text AS child_tablename FROM pg_inherits WHERE inhparent::regclass = 'partman_test.time_taptest_table'::regclass
+    SELECT 
+          inhrelid::regclass::text AS child_tablename_safe
+        , relname AS child_tablename  -- need unquoted name for parsing
+    FROM pg_inherits
+    JOIN pg_class c ON inhrelid = c.oid
+    WHERE inhparent = 'partman_test.time_taptest_table'::regclass
 )
-, parse_suffix AS (
-    SELECT child_tablename
-    , to_timestamp(right(x.child_tablename, 10), 'YYYY_MM_DD') AS child_start_time
-    , to_timestamp(right(x.child_tablename, 10), 'YYYY_MM_DD')+'1 day'::interval AS child_end_time 
-    FROM child_tables x
-) 
-SELECT 'ALTER TABLE partman_test.time_taptest_table_native ATTACH PARTITION '||y.child_tablename||' FOR VALUES FROM ('||quote_literal(y.child_start_time)||') TO ('||quote_literal(y.child_end_time)||');' 
-FROM parse_suffix y;
+SELECT format(
+    'ALTER TABLE %s ATTACH PARTITION %s FOR VALUES FROM (%L) TO (%L);'
+    , 'partman_test.time_taptest_table_native'::regclass
+    , child_tablename_safe
+    , to_timestamp(right(x.child_tablename, 10), 'YYYY_MM_DD')
+    , to_timestamp(right(x.child_tablename, 10), 'YYYY_MM_DD')+'1 day'::interval
+)
+FROM child_tables x;
                                                                                          ?column?                                                                                          
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  ALTER TABLE partman_test.time_taptest_table_native ATTACH PARTITION partman_test.time_taptest_table_p2023_03_26 FOR VALUES FROM ('2023-03-26 00:00:00-04') TO ('2023-03-27 00:00:00-04');
