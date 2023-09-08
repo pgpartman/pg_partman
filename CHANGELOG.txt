@@ -1,7 +1,7 @@
 4.7.4
 NEW FEATURES
 ============
--- Compatible with PostgreSQL 15.
+-- Compatible with PostgreSQL 16.
 
 
 4.7.3
