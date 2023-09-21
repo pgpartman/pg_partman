@@ -186,6 +186,7 @@ _PG_init(void)
 
     // Start BGW when database starts
     sprintf(worker.bgw_name, "pg_partman master background worker");
+    sprintf(worker.bgw_type, "pg_partman background worker");
     worker.bgw_flags = BGWORKER_SHMEM_ACCESS |
         BGWORKER_BACKEND_DATABASE_CONNECTION;
     worker.bgw_start_time = BgWorkerStart_RecoveryFinished;
@@ -254,13 +255,13 @@ void pg_partman_bgw_main(Datum main_arg) {
             return;
         }
 
-        // Use method of shared_preload_libraries to split the pg_partman_bgw_dbname string found in src/backend/utils/init/miscinit.c 
-        // Need a modifiable copy of string 
+        // Use method of shared_preload_libraries to split the pg_partman_bgw_dbname string found in src/backend/utils/init/miscinit.c
+        // Need a modifiable copy of string
         if (pg_partman_bgw_dbname != NULL) {
             rawstring = pstrdup(pg_partman_bgw_dbname);
-            // Parse string into list of identifiers 
+            // Parse string into list of identifiers
             if (!(*split_function_ptr)(rawstring, ',', &elemlist)) {
-                // syntax error in list 
+                // syntax error in list
                 pfree(rawstring);
                 list_free(elemlist);
                 ereport(LOG,
@@ -268,12 +269,12 @@ void pg_partman_bgw_main(Datum main_arg) {
                          errmsg("invalid list syntax in parameter \"pg_partman_bgw.dbname\" in postgresql.conf")));
                 return;
             }
-            
+
             dbcounter = 0;
             foreach(l, elemlist) {
 
                 char *dbname = (char *) lfirst(l);
-                
+
                 elog(DEBUG1, "Dynamic bgw launch begun for %s (%d)", dbname, dbcounter);
                 worker.bgw_flags = BGWORKER_SHMEM_ACCESS |
                     BGWORKER_BACKEND_DATABASE_CONNECTION;
@@ -289,6 +290,7 @@ void pg_partman_bgw_main(Datum main_arg) {
                     memcpy(worker.bgw_name + sizeof(worker.bgw_name) - sizeof(truncated_mark),
                            truncated_mark, sizeof(truncated_mark));
                 }
+                sprintf(worker.bgw_type, "pg_partman background worker");
                 worker.bgw_main_arg = Int32GetDatum(dbcounter);
                 worker.bgw_notify_pid = MyProcPid;
 
@@ -318,7 +320,7 @@ void pg_partman_bgw_main(Datum main_arg) {
                 }
                 Assert(status == BGWH_STARTED);
 
-                // Shutdown wait function introduced in 9.5. The latch problems this wait fixes are only encountered in 
+                // Shutdown wait function introduced in 9.5. The latch problems this wait fixes are only encountered in
                 // 9.6 and later.
                 elog(DEBUG1, "Waiting for BGW shutdown...");
                 status = WaitForBackgroundWorkerShutdown(handle);
@@ -352,7 +354,7 @@ void pg_partman_bgw_main(Datum main_arg) {
 
 /*
  * Unable to pass the database name as a string argument (not sure why yet)
- * Instead, the GUC is parsed both in the main function and below and a counter integer 
+ * Instead, the GUC is parsed both in the main function and below and a counter integer
  *  is passed to determine which database the BGW will run in.
  */
 void pg_partman_bgw_run_maint(Datum arg) {
@@ -380,9 +382,9 @@ void pg_partman_bgw_run_maint(Datum arg) {
     elog(DEBUG1, "Before parsing dbname GUC in dynamic main func: %s", pg_partman_bgw_dbname);
     rawstring = pstrdup(pg_partman_bgw_dbname);
     elog(DEBUG1, "GUC rawstring copy: %s", rawstring);
-    // Parse string into list of identifiers 
+    // Parse string into list of identifiers
     if (!(*split_function_ptr)(rawstring, ',', &elemlist)) {
-        // syntax error in list 
+        // syntax error in list
         pfree(rawstring);
         list_free(elemlist);
         ereport(LOG,
@@ -393,7 +395,7 @@ void pg_partman_bgw_run_maint(Datum arg) {
 
     dbname = list_nth(elemlist, db_main_counter);
     elog(DEBUG1, "Parsing dbname list: %s (%d)", dbname, db_main_counter);
-    
+
     if (strcmp(dbname, "template1") == 0) {
         elog(DEBUG1, "Default database name found in dbname local variable (\"template1\").");
     }
@@ -401,7 +403,7 @@ void pg_partman_bgw_run_maint(Datum arg) {
     elog(DEBUG1, "Before run_maint initialize connection for db %s", dbname);
 
     BackgroundWorkerInitializeConnection(dbname, pg_partman_bgw_role, 0);
-    
+
     elog(DEBUG1, "After run_maint initialize connection for db %s", dbname);
 
     initStringInfo(&buf);
@@ -444,7 +446,7 @@ void pg_partman_bgw_run_maint(Datum arg) {
         return;
     }
 
-    // If so then actually log that it's started for that database. 
+    // If so then actually log that it's started for that database.
     elog(LOG, "%s dynamic background worker initialized with role %s on database %s"
             , MyBgworkerEntry->bgw_name
             , pg_partman_bgw_role
@@ -529,4 +531,3 @@ void pg_partman_bgw_run_maint(Datum arg) {
 
     return;
 }
-

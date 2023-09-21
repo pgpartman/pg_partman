@@ -181,7 +181,6 @@ CREATE TABLE @extschema@.part_config (
     , undo_in_progress boolean NOT NULL DEFAULT false
     , inherit_privileges boolean DEFAULT false
     , constraint_valid boolean DEFAULT true NOT NULL
-    , subscription_refresh text
     , ignore_default_data boolean NOT NULL DEFAULT true
     , default_table boolean DEFAULT true
     , date_trunc_interval text
@@ -214,7 +213,6 @@ INSERT INTO @extschema@.part_config (
     , undo_in_progress
     , inherit_privileges
     , constraint_valid
-    , subscription_refresh
     , ignore_default_data
 )
 SELECT
@@ -239,7 +237,6 @@ SELECT
     , undo_in_progress
     , inherit_privileges
     , constraint_valid
-    , subscription_refresh
     , ignore_default_data
 FROM @extschema@.part_config_pre_500_data;
 
@@ -263,7 +260,6 @@ CREATE TABLE @extschema@.part_config_sub (
     , sub_jobmon boolean NOT NULL DEFAULT true
     , sub_inherit_privileges boolean DEFAULT false
     , sub_constraint_valid boolean DEFAULT true NOT NULL
-    , sub_subscription_refresh text
     , sub_ignore_default_data boolean NOT NULL DEFAULT true
     , sub_default_table boolean default true
     , sub_date_trunc_interval TEXT
@@ -292,7 +288,6 @@ INSERT INTO @extschema@.part_config_sub (
     , sub_jobmon
     , sub_inherit_privileges
     , sub_constraint_valid
-    , sub_subscription_refresh
     , sub_date_trunc_interval
     , sub_ignore_default_data
 )
@@ -315,7 +310,6 @@ SELECT
     , sub_jobmon
     , sub_inherit_privileges
     , sub_constraint_valid
-    , sub_subscription_refresh
     , sub_date_trunc_interval
     , sub_ignore_default_data
 FROM @extschema@.part_config_sub_pre_500_data;
@@ -843,7 +837,6 @@ CREATE FUNCTION @extschema@.check_subpart_sameconfig(p_parent_table text)
         , sub_jobmon boolean
         , sub_inherit_privileges boolean
         , sub_constraint_valid boolean
-        , sub_subscription_refresh text
         , sub_date_trunc_interval text
         , sub_ignore_default_data boolean
         , sub_default_table boolean
@@ -894,7 +887,6 @@ AS $$
         , a.sub_jobmon
         , a.sub_inherit_privileges
         , a.sub_constraint_valid
-        , a.sub_subscription_refresh
         , a.sub_date_trunc_interval
         , a.sub_ignore_default_data
         , a.sub_default_table
@@ -1158,7 +1150,6 @@ FOR v_row IN
         , a.sub_jobmon
         , a.sub_inherit_privileges
         , a.sub_constraint_valid
-        , a.sub_subscription_refresh
         , a.sub_date_trunc_interval
         , a.sub_ignore_default_data
         , a.sub_default_table
@@ -1184,7 +1175,6 @@ LOOP
         , sub_template_table
         , sub_inherit_privileges
         , sub_constraint_valid
-        , sub_subscription_refresh
         , sub_date_trunc_interval
         , sub_ignore_default_data)
     VALUES (
@@ -1206,7 +1196,6 @@ LOOP
         , v_row.sub_template_table
         , v_row.sub_inherit_privileges
         , v_row.sub_constraint_valid
-        , v_row.sub_subscription_refresh
         , v_row.sub_date_trunc_interval
         , v_row.sub_ignore_default_data);
 
@@ -1742,7 +1731,6 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
             , sub_jobmon
             , sub_inherit_privileges
             , sub_constraint_valid
-            , sub_subscription_refresh
             , sub_date_trunc_interval
             , sub_ignore_default_data
             , sub_default_table
@@ -1789,7 +1777,6 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
             , infinite_time_partitions = v_row.sub_infinite_time_partitions
             , inherit_privileges = v_row.sub_inherit_privileges
             , constraint_valid = v_row.sub_constraint_valid
-            , subscription_refresh = v_row.sub_subscription_refresh
             , ignore_default_data = v_row.sub_ignore_default_data
         WHERE parent_table = v_parent_schema||'.'||v_partition_name;
 
@@ -2139,7 +2126,6 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             , sub_jobmon
             , sub_inherit_privileges
             , sub_constraint_valid
-            , sub_subscription_refresh
             , sub_date_trunc_interval
             , sub_ignore_default_data
             , sub_default_table
@@ -2187,7 +2173,6 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             , infinite_time_partitions = v_row.sub_infinite_time_partitions
             , inherit_privileges = v_row.sub_inherit_privileges
             , constraint_valid = v_row.sub_constraint_valid
-            , subscription_refresh = v_row.sub_subscription_refresh
             , ignore_default_data = v_row.sub_ignore_default_data
         WHERE parent_table = v_parent_schema||'.'||v_partition_name;
 
@@ -3083,7 +3068,6 @@ DECLARE
     v_template_table text;
     v_inherit_privileges boolean; -- DEFAULT false
     v_constraint_valid boolean; -- DEFAULT true NOT NULL
-    v_subscription_refresh TEXT;
     v_ignore_default_data boolean; -- DEFAULT false NOT NULL
     v_date_trunc_interval text;
     v_default_table boolean ;
@@ -3109,7 +3093,6 @@ BEGIN
         pc.template_table,
         pc.inherit_privileges,
         pc.constraint_valid,
-        pc.subscription_refresh,
         pc.ignore_default_data,
         pc.date_trunc_interval,
         pc.default_table
@@ -3134,7 +3117,6 @@ BEGIN
         v_template_table,
         v_inherit_privileges,
         v_constraint_valid,
-        v_subscription_refresh,
         v_ignore_default_data,
         v_date_trunc_interval,
         v_default_table
@@ -3190,7 +3172,6 @@ E'UPDATE @extschema@.part_config SET
 \tsub_partition_set_full = %L,
 \tinherit_privileges = %L,
 \tconstraint_valid = %L,
-\tsubscription_refresh = %L,
 \tignore_default_data = %L
 WHERE parent_table = %L;',
         v_optimize_constraint,
@@ -3203,7 +3184,6 @@ WHERE parent_table = %L;',
         v_sub_partition_set_full,
         v_inherit_privileges,
         v_constraint_valid,
-        v_subscription_refresh,
         v_ignore_default_data,
         v_parent_table
     );
@@ -3990,7 +3970,7 @@ $$;
 
 CREATE FUNCTION @extschema@.run_maintenance(
     p_parent_table text DEFAULT NULL
-    -- If these default changed reflect them in `run_maintenance_proc`!
+    -- If these defaults change reflect them in `run_maintenance_proc`!
     , p_analyze boolean DEFAULT false
     , p_jobmon boolean DEFAULT true
 )
@@ -4041,7 +4021,6 @@ v_sub_id_max                    bigint;
 v_sub_id_max_suffix             bigint;
 v_sub_id_min                    bigint;
 v_sub_parent                    text;
-v_sub_refresh_done              text[];
 v_sub_timestamp_max             timestamptz;
 v_sub_timestamp_max_suffix      timestamptz;
 v_sub_timestamp_min             timestamptz;
@@ -4091,7 +4070,6 @@ v_tables_list_sql := 'SELECT parent_table
                 , epoch
                 , infinite_time_partitions
                 , retention
-                , subscription_refresh
                 , ignore_default_data
                 , datetime_string
             FROM @extschema@.part_config
@@ -4343,20 +4321,6 @@ LOOP
         END LOOP;
 
     END IF; -- end main IF check for time or id
-
-    -- Refresh subscriptions in order to catch new tables that may have been created in the publication
-    -- Keep track of which ones have been refreshed so it doesn't needlessly run more than once
-    -- in a single maintenance run
-    IF v_row.subscription_refresh IS NOT NULL THEN
-        IF v_sub_refresh_done @> ARRAY[v_row.subscription_refresh] THEN
-            CONTINUE;
-        ELSE
-            v_sql := format('ALTER SUBSCRIPTION %I REFRESH PUBLICATION', v_row.subscription_refresh);
-            RAISE DEBUG '%', v_sql;
-            EXECUTE v_sql;
-            v_sub_refresh_done := array_append(v_sub_refresh_done, v_row.subscription_refresh);
-        END IF;
-    END IF;
 
     IF v_analyze AND p_analyze THEN
         IF v_jobmon_schema IS NOT NULL THEN

@@ -1,16 +1,17 @@
 CREATE FUNCTION @extschema@.undo_partition(
     p_parent_table text
-    , p_batch_count int DEFAULT 1
+    , p_target_table text
+    , p_loop_count int DEFAULT 1
     , p_batch_interval text DEFAULT NULL
     , p_keep_table boolean DEFAULT true
     , p_lock_wait numeric DEFAULT 0
-    , p_target_table text DEFAULT NULL
     , p_ignored_columns text[] DEFAULT NULL
     , p_drop_cascade boolean DEFAULT false
     , OUT partitions_undone int
-    , OUT rows_undone bigint) 
+    , OUT rows_undone bigint
+)
     RETURNS record
-    LANGUAGE plpgsql 
+    LANGUAGE plpgsql
     AS $$
 DECLARE
 
@@ -24,7 +25,6 @@ v_batch_interval_time           interval;
 v_batch_loop_count              int := 0;
 v_child_loop_total              bigint := 0;
 v_child_table                   text;
-v_col                           text;
 v_column_list                   text;
 v_control                       text;
 v_control_type                  text;
@@ -44,8 +44,6 @@ v_parent_schema                 text;
 v_parent_tablename              text;
 v_partition_expression          text;
 v_partition_interval            text;
-v_partition_type                text;
-v_relkind                       char;
 v_row                           record;
 v_rowcount                      bigint;
 v_sql                           text;
@@ -63,14 +61,13 @@ v_undo_count                    int := 0;
 
 BEGIN
 /*
- * For native, moves data to new, target table since data cannot be moved to parent.
- *      Leaves old parent table as is and does not change name of new table.
- * For trigger-based, moves data to parent
+ * Moves data to new, target table since data cannot be moved elsewhere in the same partition set.
+ * Leaves old parent table as is and does not change name of new table.
  */
 
-v_adv_lock := pg_try_advisory_xact_lock(hashtext('pg_partman undo_partition_native'));
+v_adv_lock := pg_try_advisory_xact_lock(hashtext('pg_partman undo_partition'));
 IF v_adv_lock = 'false' THEN
-    RAISE NOTICE 'undo_partition_native already running.';
+    RAISE NOTICE 'undo_partition already running.';
     partitions_undone = -1;
     RETURN;
 END IF;
@@ -80,30 +77,28 @@ IF p_parent_table = p_target_table THEN
 END IF;
 
 SELECT partition_interval::text
-    , partition_type
     , control
     , jobmon
     , epoch
     , template_table
 INTO v_partition_interval
-    , v_partition_type
     , v_control
     , v_jobmon
     , v_epoch
     , v_template_table
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table;
 
 IF v_control IS NULL THEN
     RAISE EXCEPTION 'No configuration found for pg_partman for given parent table: %', p_parent_table;
 END IF;
 
-IF v_partition_type = 'native' AND p_target_table IS NULL THEN
-    RAISE EXCEPTION 'Natively partitioned tables require setting the p_target_table option';
+IF p_target_table IS NULL THEN
+    RAISE EXCEPTION 'The p_target_table option must be set when undoing a partitioned table';
 END IF;
 
-SELECT n.nspname, c.relname, c.relkind
-INTO v_parent_schema, v_parent_tablename, v_relkind 
+SELECT n.nspname, c.relname
+INTO v_parent_schema, v_parent_tablename
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
 WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
@@ -127,7 +122,7 @@ ELSIF v_control_type = 'id' THEN
         v_batch_interval_id := p_batch_interval::bigint;
     END IF;
 ELSE
-    RAISE EXCEPTION 'Data type of control column in given partition set must be either data/time or integer.';
+    RAISE EXCEPTION 'Data type of control column in given partition set must be either date/time or integer.';
 END IF;
 
 SELECT current_setting('search_path') INTO v_old_search_path;
@@ -146,7 +141,7 @@ EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_new_search_path
 
 -- Check if any child tables are themselves partitioned or part of an inheritance tree. Prevent undo at this level if so.
 -- Need to lock child tables at all levels before multi-level undo can be performed safely.
-FOR v_row IN 
+FOR v_row IN
     SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(p_parent_table)
 LOOP
     SELECT count(*) INTO v_sub_count
@@ -156,21 +151,16 @@ LOOP
     WHERE c.relname = v_row.partition_tablename::name
     AND n.nspname = v_row.partition_schemaname::name;
     IF v_sub_count > 0 THEN
-        RAISE EXCEPTION 'Child table for this parent has child table(s) itself (%). Run undo partitioning on this table or remove inheritance first to ensure all data is properly moved to parent', v_row.partition_schemaname||'.'||v_row.partition_tablename;
+        RAISE EXCEPTION 'Child table for this parent has child table(s) itself (%). Run undo partitioning on this table to ensure all data is properly moved to target table', v_row.partition_schemaname||'.'||v_row.partition_tablename;
     END IF;
 END LOOP;
 
-IF p_target_table IS NOT NULL THEN
-    SELECT n.nspname, c.relname 
-    INTO v_target_schema, v_target_tablename 
-    FROM pg_catalog.pg_class c
-    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-    WHERE n.nspname = split_part(p_target_table, '.', 1)::name
-    AND c.relname = split_part(p_target_table, '.', 2)::name;
-ELSE
-    v_target_schema := v_parent_schema;
-    v_target_tablename := v_parent_tablename;
-END IF;
+SELECT n.nspname, c.relname
+INTO v_target_schema, v_target_tablename
+FROM pg_catalog.pg_class c
+JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+WHERE n.nspname = split_part(p_target_table, '.', 1)::name
+AND c.relname = split_part(p_target_table, '.', 2)::name;
 
 IF v_target_tablename IS NULL THEN
     RAISE EXCEPTION 'Given target table not found in system catalogs: %', p_target_table;
@@ -191,52 +181,6 @@ END;
 -- Stops new time partitions from being made as well as stopping child tables from being dropped if they were configured with a retention period.
 UPDATE @extschema@.part_config SET undo_in_progress = true WHERE parent_table = p_parent_table;
 
-IF v_partition_type != 'native' THEN
-    -- Stop data going into child tables on non-native partition sets.
-
-    v_trig_name := @extschema@.check_name_length(p_object_name := v_parent_tablename, p_suffix := '_part_trig'); 
-    v_function_name := @extschema@.check_name_length(v_parent_tablename, '_part_trig_func', FALSE);
-
-    -- Double-check for proper object existence
-    SELECT tgname INTO v_trig_name 
-    FROM pg_catalog.pg_trigger t
-    JOIN pg_catalog.pg_class c ON t.tgrelid = c.oid
-    WHERE tgname = v_trig_name::name 
-    AND c.relname = v_parent_tablename::name;
-
-    SELECT proname INTO v_function_name FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON p.pronamespace = n.oid WHERE n.nspname = v_parent_schema::name AND proname = v_function_name::name;
-
-    IF v_trig_name IS NOT NULL THEN
-        -- lockwait for trigger drop
-        IF p_lock_wait > 0  THEN
-            v_lock_iter := 0;
-            WHILE v_lock_iter <= 5 LOOP
-                v_lock_iter := v_lock_iter + 1;
-                BEGIN
-                    EXECUTE format('LOCK TABLE ONLY %I.%I IN ACCESS EXCLUSIVE MODE NOWAIT', v_parent_schema, v_parent_tablename);
-                    v_lock_obtained := TRUE;
-                EXCEPTION
-                    WHEN lock_not_available THEN
-                        PERFORM pg_sleep( p_lock_wait / 5.0 );
-                        CONTINUE;
-                END;
-                EXIT WHEN v_lock_obtained;
-            END LOOP;
-            IF NOT v_lock_obtained THEN
-                RAISE NOTICE 'Unable to obtain lock on parent table to remove trigger';
-                partitions_undone = -1;
-                RETURN;
-            END IF;
-        END IF; -- END p_lock_wait IF
-        EXECUTE format('DROP TRIGGER IF EXISTS %I ON %I.%I', v_trig_name, v_parent_schema, v_parent_tablename);
-    END IF; -- END trigger IF
-    v_lock_obtained := FALSE; -- reset for reuse later
-
-    IF v_function_name IS NOT NULL THEN
-        EXECUTE format('DROP FUNCTION IF EXISTS %I.%I()', v_parent_schema, v_function_name);
-    END IF;
-
-END IF; -- end pg_partman trigger cleanup
 
 IF v_jobmon_schema IS NOT NULL THEN
     IF (v_trig_name IS NOT NULL OR v_function_name IS NOT NULL) THEN
@@ -247,30 +191,23 @@ IF v_jobmon_schema IS NOT NULL THEN
 END IF;
 
 -- Generate column list to use in SELECT/INSERT statements below. Allows for exclusion of GENERATED (or any other desired) columns.
-v_sql := format ('SELECT ''"''||string_agg(attname, ''","'')||''"'' FROM pg_catalog.pg_attribute a
-                    JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
-                    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-                    WHERE n.nspname = %L
-                    AND c.relname = %L 
-                    AND a.attnum > 0 
-                    AND a.attisdropped = false'
-                  , v_target_schema
-                  , v_target_tablename);
-
-IF p_ignored_columns IS NOT NULL THEN
-    FOREACH v_col IN ARRAY p_ignored_columns LOOP
-        v_sql := v_sql || format(' AND attname != %L ', v_col);
-    END LOOP;
-END IF;
-
-EXECUTE v_sql INTO v_column_list;
+SELECT string_agg(quote_ident(attname), ',')
+INTO v_column_list
+FROM pg_catalog.pg_attribute a
+JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
+JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+WHERE n.nspname = v_target_schema
+AND c.relname = v_target_tablename
+AND a.attnum > 0
+AND a.attisdropped = false
+AND attname <> ALL(COALESCE(p_ignored_columns, ARRAY[]::text[]));
 
 <<outer_child_loop>>
 LOOP
     -- Get ordered list of child table in set. Store in variable one at a time per loop until none are left or batch count is reached.
     -- This easily allows it to loop over same child table until empty or move onto next child table after it's dropped
-    -- Include the native default table to ensure all data there is removed as well (final parameter = true)
-    SELECT partition_tablename INTO v_child_table FROM @extschema@.show_partitions(p_parent_table, 'ASC', TRUE) LIMIT 1;
+    -- Include the default table to ensure all data there is removed as well
+    SELECT partition_tablename INTO v_child_table FROM @extschema@.show_partitions(p_parent_table, 'ASC', p_include_default := TRUE) LIMIT 1;
 
     EXIT outer_child_loop WHEN v_child_table IS NULL;
 
@@ -310,20 +247,12 @@ LOOP
         END IF; -- END p_lock_wait IF
         v_lock_obtained := FALSE; -- reset for reuse later
 
-        IF v_partition_type = 'native' THEN
-            v_sql := format('ALTER TABLE %I.%I DETACH PARTITION %I.%I'
-                            , v_parent_schema
-                            , v_parent_tablename
-                            , v_parent_schema
-                            , v_child_table);
-            EXECUTE v_sql;
-        ELSE
-            EXECUTE format('ALTER TABLE %I.%I NO INHERIT %I.%I'
-                            , v_parent_schema
-                            , v_child_table
-                            , v_parent_schema
-                            , v_parent_tablename);
-        END IF;
+        v_sql := format('ALTER TABLE %I.%I DETACH PARTITION %I.%I'
+                        , v_parent_schema
+                        , v_parent_tablename
+                        , v_parent_schema
+                        , v_child_table);
+        EXECUTE v_sql;
 
         IF p_keep_table = false THEN
             v_sql := 'DROP TABLE %I.%I';
@@ -340,12 +269,8 @@ LOOP
             END IF;
         END IF;
 
-        IF v_partition_type = 'time-custom' THEN
-            DELETE FROM @extschema@.custom_time_partitions WHERE parent_table = p_parent_table AND child_table = v_parent_schema||'.'||v_child_table;
-        END IF;
-
         v_undo_count := v_undo_count + 1;
-        EXIT outer_child_loop WHEN v_batch_loop_count >= p_batch_count; -- Exit outer FOR loop if p_batch_count is reached
+        EXIT outer_child_loop WHEN v_batch_loop_count >= p_loop_count; -- Exit outer FOR loop if p_loop_count is reached
         CONTINUE outer_child_loop; -- skip data moving steps below
     END IF;
     v_inner_loop_count := 1;
@@ -403,7 +328,7 @@ LOOP
             -- Check again if table is empty and go to outer loop again to drop it if so
             EXECUTE format('SELECT min(%s) FROM %I.%I', v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_time;
             CONTINUE outer_child_loop WHEN v_child_min_time IS NULL;
-            
+
         ELSIF v_control_type = 'id' THEN
 
             IF p_lock_wait > 0  THEN
@@ -458,7 +383,7 @@ LOOP
 
         END IF; -- end v_control_type check
 
-        EXIT outer_child_loop WHEN v_batch_loop_count >= p_batch_count; -- Exit outer FOR loop if p_batch_count is reached
+        EXIT outer_child_loop WHEN v_batch_loop_count >= p_loop_count; -- Exit outer FOR loop if p_loop_count is reached
 
     END LOOP inner_child_loop;
 END LOOP outer_child_loop;
@@ -467,7 +392,7 @@ SELECT partition_tablename INTO v_child_table FROM @extschema@.show_partitions(p
 
 IF v_child_table IS NULL THEN
     DELETE FROM @extschema@.part_config WHERE parent_table = p_parent_table;
-    
+
     -- Check if any other config entries still have this template table and don't remove if so
     -- Allows other sibling/parent tables to still keep using in case entire partition set isn't being undone
     SELECT count(*) INTO v_template_siblings FROM @extschema@.part_config WHERE template_table = v_template_table;
@@ -526,4 +451,3 @@ DETAIL: %
 HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
-

@@ -36,7 +36,6 @@ SELECT bag_eq(
     'undo_in_progress',
     'inherit_privileges',
     'constraint_valid',
-    'subscription_refresh',
     'ignore_default_data',
     'default_table',
     'date_trunc_interval'
@@ -89,7 +88,6 @@ UPDATE partman.part_config SET
 	sub_partition_set_full = ''f'',
 	inherit_privileges = ''t'',
 	constraint_valid = ''f'',
-	subscription_refresh = NULL,
 	ignore_default_data = ''t''
 WHERE parent_table = ''public.declarative_objects'';'
 );

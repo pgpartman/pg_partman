@@ -1,4 +1,10 @@
-CREATE FUNCTION @extschema@.apply_constraints(p_parent_table text, p_child_table text DEFAULT NULL, p_analyze boolean DEFAULT FALSE, p_job_id bigint DEFAULT NULL) RETURNS void
+CREATE FUNCTION @extschema@.apply_constraints(
+    p_parent_table text
+    , p_child_table text DEFAULT NULL
+    , p_analyze boolean DEFAULT FALSE
+    , p_job_id bigint DEFAULT NULL
+)
+    RETURNS void
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -11,7 +17,6 @@ v_child_exists                  text;
 v_child_tablename               text;
 v_col                           text;
 v_constraint_cols               text[];
-v_constraint_col_type           text;
 v_constraint_name               text;
 v_constraint_valid              boolean;
 v_constraint_values             record;
@@ -24,10 +29,8 @@ v_job_id                        bigint;
 v_jobmon                        boolean;
 v_jobmon_schema                 text;
 v_last_partition                text;
-v_last_partition_id             bigint; 
+v_last_partition_id             bigint;
 v_last_partition_timestamp      timestamptz;
-v_max_id                        bigint;
-v_max_timestamp                 timestamptz;
 v_new_search_path               text;
 v_old_search_path               text;
 v_optimize_constraint           int;
@@ -39,8 +42,6 @@ v_partition_suffix              text;
 v_premake                       int;
 v_sql                           text;
 v_step_id                       bigint;
-v_suffix_position               int;
-v_type                          text;
 
 BEGIN
 /*
@@ -48,7 +49,6 @@ BEGIN
  */
 
 SELECT parent_table
-    , partition_type
     , control
     , premake
     , partition_interval
@@ -59,7 +59,6 @@ SELECT parent_table
     , jobmon
     , constraint_valid
 INTO v_parent_table
-    , v_type
     , v_control
     , v_premake
     , v_partition_interval
@@ -79,9 +78,9 @@ IF v_constraint_cols IS NULL THEN
     RETURN;
 END IF;
 
-SELECT schemaname, tablename 
-INTO v_parent_schema, v_parent_tablename 
-FROM pg_catalog.pg_tables 
+SELECT schemaname, tablename
+INTO v_parent_schema, v_parent_tablename
+FROM pg_catalog.pg_tables
 WHERE schemaname = split_part(v_parent_table, '.', 1)::name
 AND tablename = split_part(v_parent_table, '.', 2)::name;
 
@@ -122,7 +121,7 @@ IF p_child_table IS NULL THEN
         v_partition_suffix := to_char(v_last_partition_timestamp - (v_partition_interval::interval * (v_optimize_constraint + v_premake + 1) ), v_datetime_string);
     ELSIF v_control_type = 'id' THEN
         SELECT child_start_id INTO v_last_partition_id FROM @extschema@.show_partition_info(v_parent_schema||'.'||v_last_partition, v_partition_interval, v_parent_table);
-        v_partition_suffix := (v_last_partition_id - (v_partition_interval::bigint * (v_optimize_constraint + v_premake + 1) ))::text; 
+        v_partition_suffix := (v_last_partition_id - (v_partition_interval::bigint * (v_optimize_constraint + v_premake + 1) ))::text;
     END IF;
 
     RAISE DEBUG 'apply_constraint: v_parent_tablename: %, v_last_partition: %, v_last_partition_timestamp: %, v_partition_suffix: %'
@@ -136,7 +135,7 @@ IF p_child_table IS NULL THEN
 ELSE
     v_child_tablename = split_part(p_child_table, '.', 2);
 END IF;
-    
+
 IF v_jobmon_schema IS NOT NULL THEN
     v_step_id := add_step(v_job_id, 'Applying additional constraints: Checking if target child table exists');
 END IF;
@@ -165,11 +164,11 @@ LOOP
     FROM pg_catalog.pg_constraint con
     JOIN pg_class c ON c.oid = con.conrelid
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-    JOIN pg_catalog.pg_attribute a ON con.conrelid = a.attrelid 
+    JOIN pg_catalog.pg_attribute a ON con.conrelid = a.attrelid
     WHERE c.relname = v_child_tablename::name
         AND n.nspname = v_parent_schema::name
         AND con.conname LIKE 'partmanconstr_%'
-        AND con.contype = 'c' 
+        AND con.contype = 'c'
         AND a.attname = v_col::name
         AND ARRAY[a.attnum] OPERATOR(pg_catalog.<@) con.conkey
         AND a.attisdropped = false;
@@ -186,7 +185,7 @@ LOOP
         CONTINUE;
     END IF;
 
-    -- Ensure column name gets put on end of constraint name to help avoid naming conflicts 
+    -- Ensure column name gets put on end of constraint name to help avoid naming conflicts
     v_constraint_name := @extschema@.check_name_length('partmanconstr_'||v_child_tablename, p_suffix := '_'||v_col);
 
     EXECUTE format('SELECT min(%I)::text AS min, max(%I)::text AS max FROM %I.%I', v_col, v_col, v_parent_schema, v_child_tablename) INTO v_constraint_values;
@@ -260,4 +259,3 @@ DETAIL: %
 HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
-
