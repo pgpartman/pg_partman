@@ -2,7 +2,7 @@ EXTENSION = pg_partman
 EXTVERSION = $(shell grep default_version $(EXTENSION).control | \
                sed -e "s/default_version[[:space:]]*=[[:space:]]*'\([^']*\)'/\1/")
 
-PG_CONFIG = pg_config
+PG_CONFIG ?= pg_config
 PG_VER = $(shell $(PG_CONFIG) --version | sed "s/^[^ ]* \([0-9]*\).*$$/\1/" 2>/dev/null)
 
 PG_VER_min = 14
