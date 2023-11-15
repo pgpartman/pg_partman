@@ -15,7 +15,7 @@ The examples in this document assume you are running at least 5.0.0 of pg_partma
 ### Simple Time Based: 1 Partition Per Day
 For native partitioning, you must start with a parent table that has already been set up to be partitioned in the desired type. Currently pg_partman only supports the RANGE type of partitioning (both for time & id). You cannot turn a non-partitioned table into the parent table of a partitioned set, which can make migration a challenge. This document will show you some techniques for how to manage this later. For now, we will start with a brand new table in this example. Any non-unique indexes can also be added to the parent table in PG11+ and they will automatically be created on all child tables.
 
-```
+```sql
 CREATE SCHEMA IF NOT EXISTS partman_test;
 
 CREATE TABLE partman_test.time_taptest_table 
@@ -26,7 +26,7 @@ PARTITION BY RANGE (col3);
 
 CREATE INDEX ON partman_test.time_taptest_table (col3);
 ```
-```
+```sql
 \d+ partman_test.time_taptest_table 
                                       Partitioned table "partman_test.time_taptest_table"
  Column |           Type           | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description 
@@ -43,12 +43,12 @@ Number of partitions: 0
 Unique indexes (including primary keys) cannot be created on a natively partitioned parent unless they include the partition key. For time-based partitioning that generally doesn't work out since that would limit only a single timestamp value in each child table. pg_partman helps to manage this by using a template table to manage properties that currently are not supported by native partitioning. Note that this does *not* solve the issue of the constraint *not* being enforced across the entire partition set. See the [main documentation](pg_partman.md#child-table-property-inheritance) to see which properties are managed by the template.
 
 For this example, we are going to manually create the template table first so that when we run `create_parent()` the initial child tables that are created will have a primary key. If you do not supply a template table to pg_partman, it will create one for you in the schema that you installed the extension to. However properties you add to that template are only then applied to newly created child tables after that point. You will have to retroactively apply those properties manually to any child tables that already existed.
-```
+```sql
 CREATE TABLE partman_test.time_taptest_table_template (LIKE partman_test.time_taptest_table);
 
 ALTER TABLE partman_test.time_taptest_table_template ADD PRIMARY KEY (col1);
 ```
-```
+```sql
  \d partman_test.time_taptest_table_template
           Table "partman_test.time_taptest_table_template"
  Column |           Type           | Collation | Nullable | Default 
@@ -59,7 +59,7 @@ ALTER TABLE partman_test.time_taptest_table_template ADD PRIMARY KEY (col1);
 Indexes:
     "time_taptest_table_template_pkey" PRIMARY KEY, btree (col1)
 ```
-```
+```sql
 SELECT partman.create_parent(
     p_parent_table := 'partman_test.time_taptest_table'
     , p_control := 'col3'
@@ -71,7 +71,7 @@ SELECT partman.create_parent(
  t
 (1 row)
 ```
-```
+```sql
 \d+ partman_test.time_taptest_table
                                       Partitioned table "partman_test.time_taptest_table"
  Column |           Type           | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description 
@@ -93,7 +93,7 @@ Partitions: partman_test.time_taptest_table_p20230324 FOR VALUES FROM ('2023-03-
             partman_test.time_taptest_table_p20230401 FOR VALUES FROM ('2023-04-01 00:00:00-07') TO ('2023-04-02 00:00:00-07'),
             partman_test.time_taptest_table_default DEFAULT
 ```
-```
+```sql
 \d+ partman_test.time_taptest_table_p20230324
                                        Table "partman_test.time_taptest_table_p20230324"
  Column |           Type           | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description 
@@ -112,7 +112,7 @@ Access method: heap
 ### Simple Serial ID: 1 Partition Per 10 ID Values
 For this use-case, the template table is not created manually before calling `create_parent()`. So it shows that if a primary/unique key is added later, it does not apply to the currently existing child tables. That will have to be done manually. 
 
-```
+```sql
 CREATE TABLE partman_test.id_taptest_table (
     col1 bigint not null
     , col2 text
@@ -122,7 +122,7 @@ PARTITION BY RANGE (col1);
 
 CREATE INDEX ON partman_test.id_taptest_table (col1);
 ```
-```
+```sql
 \d+ partman_test.id_taptest_table 
                                     Partitioned table "partman_test.id_taptest_table"
  Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description 
@@ -136,7 +136,7 @@ Indexes:
     "id_taptest_table_col1_idx" btree (col1)
 Number of partitions: 0
 ```
-```
+```sql
 SELECT partman.create_parent(
     p_parent_table := 'partman_test.id_taptest_table'
     , p_control := 'col1'
@@ -147,7 +147,7 @@ SELECT partman.create_parent(
  t
 (1 row)
 ```
-```
+```sql
 \d+ partman_test.id_taptest_table
                                     Partitioned table "partman_test.id_taptest_table"
  Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description 
@@ -169,7 +169,7 @@ Partitions: partman_test.id_taptest_table_p0 FOR VALUES FROM ('0') TO ('10'),
 
 You can see the name of the template table by looking in the pg_partman configuration for that parent table
 
-```
+```sql
 SELECT template_table 
 FROM partman.part_config 
 WHERE parent_table = 'partman_test.id_taptest_table';
@@ -179,11 +179,11 @@ WHERE parent_table = 'partman_test.id_taptest_table';
  partman.template_partman_test_id_taptest_table
 (1 row)
 ```
-```
+```sql
 ALTER TABLE partman.template_partman_test_id_taptest_table ADD PRIMARY KEY (col2);
 ```
 Now if we add some data and run maintenance again to create new child tables...
-```
+```sql
 INSERT INTO partman_test.id_taptest_table (col1, col2) VALUES (generate_series(1,20), generate_series(1,20)::text||'stuff'::text);
 
 CALL partman.run_maintenance_proc();
@@ -210,7 +210,7 @@ Partitions: partman_test.id_taptest_table_p0 FOR VALUES FROM ('0') TO ('10'),
 
 ```
 ... you'll see that only the new child tables (p50 & p60) have that primary key and the original tables do not (p40 and earlier).
-```
+```sql
 keith=# \d partman_test.id_taptest_table_p40
              Table "partman_test.id_taptest_table_p40"
  Column |           Type           | Collation | Nullable | Default 
@@ -250,7 +250,7 @@ Indexes:
     "id_taptest_table_p60_col1_idx" btree (col1)
 ```
 Add them manually:
-```
+```sql
 ALTER TABLE partman_test.id_taptest_table_p0 ADD PRIMARY KEY (col2);
 ALTER TABLE partman_test.id_taptest_table_p10 ADD PRIMARY KEY (col2);
 ALTER TABLE partman_test.id_taptest_table_p20 ADD PRIMARY KEY (col2);
@@ -274,7 +274,7 @@ Taking the partitioned table offline is the only method that realistically works
 
 Here is the original table with some generated data:
 
-```
+```sql
 CREATE TABLE public.original_table (
     col1 bigint not null
     , col2 text not null
@@ -287,14 +287,14 @@ INSERT INTO public.original_table (col1, col2, col3, col4) VALUES (generate_seri
 ```
 
 First, the original table should be renamed so the partitioned table can be made with the original table's name. This makes it so that, when the child tables are created, they have names that are associated with the original table name. 
-```
+```sql
 ALTER TABLE public.original_table RENAME to old_nonpartitioned_table;
 ```
 We'll use the serial partitioning example from above. The initial setup is exactly the same, creating a brand new table that will be the parent and then running `create_parent()` on it. We'll make the interval slightly larger this time. Also, make sure you've applied all the same original properties to this new table that the old table had: privileges, constraints, defaults, indexes, etc. Privileges are especially important to make sure they match so that all users of the table will continue to work after the conversion.
 
 Note that primary keys/unique indexes cannot be applied to a partitioned parent unless the partition key is part of it. In this case that would work, however it's likely not the intention since that would mean only one row per value is allowed and that would mean only 10,000 rows could ever exist in each child table. Partitioning is definitely not needed in that case then. The next example of online partitioning will show how to handle when you need a primary key for a column that is not part of the partition key.
 
-```
+```sql
 CREATE TABLE public.original_table (
     col1 bigint not null
     , col2 text not null
@@ -310,7 +310,7 @@ SELECT partman.create_parent(
     , p_interval := '10000'
 );
 ```
-```
+```sql
 \d+ original_table;
                                         Partitioned table "public.original_table"
  Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description 
@@ -334,7 +334,7 @@ If you happened to be using IDENTITY columns, or you created a new sequence for 
 
 Now we can use the `partition_data_proc()` procedure to migrate our data from the old table to the new table. And we're going to do it in 1,000 row increments vs the 10,000 interval that the partition set has. The batch value is used to tell it how many times to run through the given interval; the default value of 1 only makes a single child table. Since we want to partition all of the data, just give it a number equal to or greater than the expected child table count. This procedure has an option where you can tell it the source of the data, which is how we're going to migrate the data from the old table. Without setting this option, it attempts to clean the data out of the DEFAULT partition (which we'll see an example of next).
 
-```
+```sql
 keith=# CALL partman.partition_data_proc(
     p_parent_table := 'public.original_table'
     , p_loop_count := 200
@@ -369,7 +369,7 @@ Again, doing the commits in smaller batches like this can avoid transactions wit
 Using the `partition_data_proc()` PROCEDURE vs the `partition_data_id()` FUNCTION allows those commit batches. Functions in PostgreSQL always run entirely in a single transaction, even if you may tell it to do things in batches inside the function. 
 
 Now if we check our original table, it is empty
-```
+```sql
 SELECT count(*) FROM old_nonpartitioned_table;
  count 
 -------
@@ -377,7 +377,7 @@ SELECT count(*) FROM old_nonpartitioned_table;
 (1 row)
 ```
 And the new, partitioned table with the original name has all the data and child tables created
-```
+```sql
 SELECT count(*) FROM original_table;
  count  
 --------
@@ -427,7 +427,7 @@ Sometimes it is not possible to take the table offline for an extended period of
 As mentioned above, these methods DO NOT account for there being foreign keys TO the original table. You can create foreign keys FROM the original table on the new partitioned table and things should work as expected. However, if you have foreign keys coming in to the table, I'm not aware of any migration method that does not require an outage to drop the original foreign keys and recreate them against the new partitioned table.
 
 This will be a daily, time-based partition set with an IDENTITY sequence as the primary key
-```
+```sql
 CREATE TABLE public.original_table (
     col1 bigint not null PRIMARY KEY GENERATED ALWAYS AS IDENTITY
     , col2 text not null
@@ -439,7 +439,7 @@ CREATE INDEX CONCURRENTLY ON public.original_table (col3);
 INSERT INTO public.original_table (col2, col3, col4) VALUES ('stuff', generate_series(now() - '1 week'::interval, now(), '5 minutes'::interval), 'stuff');
 ```
 The process is still initially the same as the offline method since you cannot turn an existing table into the parent table of a partition set. However it is critical that all constraints, privileges, defaults and any other properties be applied to the new parent table before you move on to the next step of swapping the table names around.
-```
+```sql
 CREATE TABLE public.new_partitioned_table (
     col1 bigint not null GENERATED BY DEFAULT AS IDENTITY
     , col2 text not null
@@ -449,7 +449,7 @@ CREATE TABLE public.new_partitioned_table (
 CREATE INDEX ON public.new_partitioned_table (col3);
 ```
 You'll notice I did not set "col1" as a primary key here. That is because we cannot.
-```
+```sql
 CREATE TABLE public.new_partitioned_table (
     col1 bigint not null PRIMARY KEY GENERATED BY DEFAULT AS IDENTITY
     , col2 text not null
@@ -461,7 +461,7 @@ DETAIL:  PRIMARY KEY constraint on table "new_partitioned_table" lacks column "c
 pg_partman does have a mechanism to still apply primary/unique keys that are not part of the partition column. Just be aware that they are NOT enforced across the entire partition set; only for the individual partition. This is done with a template table. And to ensure the keys are applied when the initial child tables are created, that template table must be pre-created and its name supplied to the `create_parent()` call. We're going to use the original table as the basis and give a name similar to that so it makes sense after the name swapping later.
 
 Another important note is that we changed the IDENTITY column from GENERATED ALWAYS to GENERATED BY DEFAULT. This is because we need to move existing values for that identity column into place. ALWAYS generally prevents manually entered values.
-```
+```sql
 CREATE TABLE public.original_table_template (LIKE public.original_table);
 
 ALTER TABLE public.original_table_template ADD PRIMARY KEY (col1);
@@ -469,14 +469,14 @@ ALTER TABLE public.original_table_template ADD PRIMARY KEY (col1);
 If you do not pre-create a template table, pg_partman will always create one for you in the same schema that the extension was installed into. You can see its name by looking at the `template_table` column in the `part_config` table. However, if you add the index onto that template table after the `create_parent()` call, the already existing child tables will not have that index applied and you will have to go back and do that manually. However, any new child tables create after that will have the index. 
 
 The tricky part here is that we cannot yet have any child tables in the partition set that match data that currently exists in the original table. This is because we're going to be adding the old table as the DEFAULT table to our new partition table. If the DEFAULT table contains any data that matches a current child table's constraints, PostgreSQL will not allow that table to be added. So, with the below `create_parent()` call, we're going to start the partition set well ahead of the data we inserted and disable the automatic creation of a default table. In your case you will have to look at your current data set and pick a value well ahead of the current working set of data that may get inserted before you are able to run the table name swap process below. We're also setting the premake value to a low value to avoid having to rename too many child tables later. We'll increase premake back up to the default later (or you can set it to whatever you require).
-```
+```sql
 SELECT min(col3), max(col3) FROM original_table;
 
               min              |              max              
 -------------------------------+-------------------------------
  2023-03-21 11:09:31.980586-07 | 2023-03-28 11:09:31.980586-07
 ```
-```
+```sql
 SELECT partman.create_parent(
     p_parent_table := 'public.new_partitioned_table'
     , p_control := 'col3'
@@ -488,7 +488,7 @@ SELECT partman.create_parent(
 );
 ```
 The state of the new partitioned table should now look something like this. The current date for when this HowTo was written is given for reference:
-```
+```sql
 SELECT CURRENT_TIMESTAMP;
        current_timestamp       
 -------------------------------
@@ -509,7 +509,7 @@ Partitions: new_partitioned_table_p20230330 FOR VALUES FROM ('2023-03-30 00:00:0
 
 ```
 You will need to update the `part_config` table to have the original table name. You can also update the template table if you didn't manually create one yourself, just be sure to both rename the table and update the `part_config` table as well. We'll reset the premake to the default value here as well.
-```
+```sql
 UPDATE partman.part_config SET parent_table = 'public.original_table', premake = 4 WHERE parent_table = 'public.new_partitioned_table';
 UPDATE 1
 ```
@@ -529,7 +529,7 @@ If you are using an IDENTITY column, it is important to get its last value while
 
 If at any point there is a problem with one of these mini-steps, just perform a ROLLBACK and you should return to the previous state and allow your original table to work as it was before.
 
-```
+```sql
 BEGIN;
 
 LOCK TABLE public.original_table IN ACCESS EXCLUSIVE MODE;
@@ -553,7 +553,7 @@ ALTER TABLE public.original_table ALTER col1 RESTART WITH <<<VALUE OBTAINED ABOV
 
 ALTER TABLE public.original_table ATTACH PARTITION public.original_table_default DEFAULT;
 ```
-```
+```sql
 COMMIT; or ROLLBACK;
 ```
 
@@ -564,7 +564,7 @@ The next step is to partition the data out of the default. You DO NOT want to le
 The `partition_data_proc()` can handle moving the data out of the default. However, it cannot move data in any interval smaller than the partition interval when moving data out of the DEFAULT. This is related to what was just mentioned: You cannot add a child table to a partition set if that new child table's constraint covers data that already exists in the default. 
 
 pg_partman handles this by first moving all the data for a given child table out to a temporary table, then creating the child table, and then moving the data from the temp table into the new child table. Since we're moving data out of the DEFAULT and we cannot use a smaller interval, the only parameter that we need to pass is a batch size. The default batch size of 1 would only make a single child table then stop. If you want to move all the data in a single call, just pass a value large enough to cover the expected number of child tables. However, with a live table and LOTS rows, this could potentially generate A LOT of WAL files, especially since this method doubles the number of writes vs the offline method (default -> temp -> child table). So if keeping control of your disk usage is a concern, just give a smaller batch value and then give PostgreSQL some time to run through a few CHECKPOINTs and clean up its own WAL before moving on to the next batch. 
-```
+```sql
 CALL partman.partition_data_proc('public.original_table', p_loop_count := 200);
 NOTICE:  Loop: 1, Rows moved: 134
 NOTICE:  Loop: 2, Rows moved: 288
@@ -581,11 +581,11 @@ VACUUM ANALYZE original_table;
 VACUUM
 ```
 If you were using an IDENTITY column with GENERATED ALWAYS before, you'll want to change the identity on the partitioned table back to that from the current setting of BY DEFAULT
-```
+```sql
 ALTER TABLE public.original_table ALTER col1 SET GENERATED ALWAYS;
 ```
 Now, double-check that the child table creation was performed as expected. There is one missing here if you look closely but we'll discuss that below.
-```
+```sql
 \d+ original_table
                                                    Partitioned table "public.original_table"
  Column |           Type           | Collation | Nullable |           Default            | Storage  | Compression | Stats target | Description 
@@ -609,7 +609,7 @@ Partitions: original_table_p20230321 FOR VALUES FROM ('2023-03-21 00:00:00-07') 
             original_table_default DEFAULT
 ```
 And now to ensure any new data coming in is going to proper child tables and not the default, run maintenance on the new partitioned table to ensure the current premake partitions are created
-```
+```sql
 SELECT partman.run_maintenance('public.original_table');
 
 \d+ original_table
@@ -639,7 +639,7 @@ Partitions: original_table_p20230321 FOR VALUES FROM ('2023-03-21 00:00:00-07') 
 ```
 
 Before this, depending on the child tables that were generated and the new data coming in, there may have been some data that still went to the default. You can check for that with a function that comes with pg_partman:
-```
+```sql
 SELECT * FROM partman.check_default(p_exact_count := true);
 ```
 If you don't pass "true" to the function, it just returns a 1 or 0 to indicate if any data exists in any default. This is convenient for monitoring situations and it can also be quicker since it stops checking as soon as it finds data in any child table. However, in this case we want to see exactly what our situation is, so passing true will give us an exact count of how many rows are left in the default.
@@ -648,7 +648,7 @@ You'll also notice that there is a child table missing in the set above (March 2
 
 1. Wait for data for that time period to be inserted and once you're sure that interval is done, partition the data out of the DEFAULT the same way we did before.
 1. Run the `partition_gap_fill()` function to fill any gaps immediately:
-```
+```sql
 SELECT * FROM partman.partition_gap_fill('public.original_table');
  partition_gap_fill 
 --------------------
@@ -683,7 +683,7 @@ Partitions: original_table_p20230321 FOR VALUES FROM ('2023-03-21 00:00:00-07') 
 You can see that created the missing table for March 29.
 
 At this point your new partitioned table should already have been in use and working without any issues!
-```
+```sql
 INSERT INTO original_table (col2, col3, col4) VALUES ('newstuff', now(), 'newstuff');
 INSERT INTO original_table (col2, col3, col4) VALUES ('newstuff', now(), 'newstuff');
 SELECT * FROM original_table ORDER BY col1 DESC limit 5;
@@ -697,7 +697,7 @@ Just as a normal table cannot be converted to a natively partitioned table, the 
 First, we create a new table to migrate the data to. We can set a primary key, or any unique indexes that were made on the template. If there are any identity columns, they have to set the method to `GENERATED BY DEFAULT` since we will be adding values in manually as part of the migration. If it needs to be `ALWAYS`, this can be changed later.
 
 If this table is going to continue to be used the same as the previous partitioned table, ensure all privileges, constraints & indexes are created on this table as well. Index & constraint creation can be delayed until after the data has been moved to speed up the migration.
-```
+```sql
 CREATE TABLE public.new_regular_table (
     col1 bigint not null GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY
     , col2 text not null
@@ -708,7 +708,7 @@ CREATE INDEX ON public.new_regular_table (col3);
 ```
 
 Now we can use the `undo_partition_proc()` procedure to move the data out of our partitioned table to the regular table.  We can even chose a smaller interval size for this as well to reduce the transaction runtime for each batch. The batch size is a default of 1, which would only run the given interval one time. We want to undo the entire thing with one call, so pass a number at high enough to run through all batches. It will stop when all the data has been moved, even if you passed a higher batch number. We also don't need to keep the old child tables once they're empty, so that is set to false. See the documentation for more information on other options for the undo functions/procedure.
-```
+```sql
 CALL partman.undo_partition_proc(
     p_parent_table := 'public.original_table'
     , p_target_table := 'public.new_regular_table'
@@ -738,7 +738,7 @@ VACUUM ANALYZE original_table;
 VACUUM ANALYZE new_regular_table;
 ```
 Now object names can be swapped around and the identity sequence reset and method changed if needed. Be sure to grab the original sequence value and use that when resetting.
-```
+```sql
 SELECT max(col1)+1 FROM public.new_regular_table;
 
 ALTER TABLE original_table RENAME TO old_partitioned_table;
@@ -749,7 +749,7 @@ ALTER SEQUENCE new_regular_table_col1_seq RENAME TO original_table_col1_seq;
 ALTER TABLE public.original_table ALTER col1 RESTART WITH <<<VALUE OBTAINED ABOVE>>>;
 ALTER TABLE public.original_table ALTER col1 SET GENERATED ALWAYS;
 ```
-```
+```sql
 INSERT INTO original_table (col2, col3, col4) VALUES ('newstuff', now(), 'newstuff');
 INSERT INTO original_table (col2, col3, col4) VALUES ('newstuff', now(), 'newstuff');
 SELECT * FROM original_table ORDER BY col1 DESC limit 5;

@@ -77,7 +77,7 @@ Keep in mind that for intervals equal to or greater than 100 years, the extensio
 
 For weekly partitions, note that the default "start" of the week will be based on the day of the week that you run `create_parent()`. For example, if you ran it on a Tuesday or Friday, the time boundaries of the child tables would all start on those respective days vs the expected Monday or Sunday start of the week. The easiest way to handle this is to use the `date_trunc()` function to start the weeks on a Monday using the `p_start_partition` parameter to `create_parent()`. Starting on Sundays is likely possible as well, but trickier and outside the scope of the documentation at this time.
 
-```
+```sql
 SELECT partman.create_parent('public.time_table', 'col3', '1 week', p_start_partition := to_char(date_trunc('week',CURRENT_TIMESTAMP), 'YYYY-MM-DD HH24:MI:SS'));
 ```
 
@@ -124,7 +124,7 @@ As a note for people that were not aware, you can name arguments in function cal
 
 ### Creation Functions
 
-```
+```sql
 create_parent(
     p_parent_table text
     , p_control text
@@ -162,7 +162,7 @@ RETURNS boolean
  * `p_jobmon` - allow `pg_partman` to use the `pg_jobmon` extension to monitor that partitioning is working correctly. Defaults to TRUE.
  * `p_date_trunc_interval` - By default, pg_partman's time-based partitioning will truncate the child table starting values to line up at the beginning of typical boundaries (midnight for daily, day 1 for monthly, Jan 1 for yearly, etc). If a custom time interval that does not fall on those boundaries is desired, this option may be required to ensure the child table has the expected boundaries (especially if you also set p_start_partition). The valid values allowed for this parameter are the interval values accepted by the built-in date_trunc() function (day, week, month, etc). For example, if you set a 9-week interval, by default pg_partman would truncate the tables by month (since the interval is greater than one month but less than 1 year) and unexpectedly start on the first of the month in some cases. Set this value to week, so that the child table start values are properly truncated on a weekly basis to line up with the 9-week interval. If you are using a custom time interval, please experiment with this option to get the expected set of child tables you desire or use a more typical partitioning interval to simplify partition management.
 
-```
+```sql
 create_sub_parent(
     p_top_parent text
     , p_declarative_check text DEFAULT NULL
@@ -190,7 +190,7 @@ RETURNS boolean
  * The template table that is already set for the given p_top_parent will automatically be used.
 
 
-```
+```sql
 partition_data_time(
         p_parent_table text
         , p_batch_count int DEFAULT 1
@@ -219,7 +219,7 @@ RETURNS bigint
  * Returns the number of rows that were moved from the parent table to partitions. Returns zero when source table is empty and partitioning is complete.
 
 
-```
+```sql
 partition_data_id(p_parent_table text
     , p_batch_count int DEFAULT 1
     , p_batch_interval bigint DEFAULT NULL
@@ -247,7 +247,7 @@ RETURNS bigint
  * Returns the number of rows that were moved from the parent table to partitions. Returns zero when source table is empty and partitioning is complete.
 
 
-```
+```sql
 partition_data_proc (
     p_parent_table text
     , p_loop_count int DEFAULT NULL
@@ -276,7 +276,7 @@ partition_data_proc (
  * `p_quiet` - Procedures cannot return values, so by default it emits NOTICE's to show progress. Set this option to silence these notices.
 
 
-```
+```sql
 create_partition_time(
     p_parent_table text
     , p_partition_times timestamptz[]
@@ -293,7 +293,7 @@ RETURNS boolean
  * Returns TRUE if any child tables were created for the given timestamptz values. Returns false if no child tables were created.
 
 
-```
+```sql
 create_partition_id(
     p_parent_table text
     , p_partition_ids bigint[]
@@ -312,7 +312,7 @@ RETURNS boolean
 
 ### Maintenance Functions
 
-```
+```sql
 run_maintenance(
     p_parent_table text DEFAULT NULL
     , p_analyze boolean DEFAULT false
@@ -332,7 +332,7 @@ RETURNS void
  * `p_jobmon` - an optional parameter to control whether `run_maintenance()` itself uses the `pg_jobmon` extension to log what it does. Whether the maintenance of a particular table uses `pg_jobmon` is controlled by the setting in the **part_config** table and this setting will have no affect on that. Defaults to true if not set.
 
 
-```
+```sql
 run_maintenance_proc(
     p_wait int DEFAULT 0
     , p_analyze boolean DEFAULT NULL
@@ -346,7 +346,7 @@ run_maintenance_proc(
  * `p_analyze` - See p_analyze option in run_maintenance.
 
 
-```
+```sql
 check_default(
     p_exact_count boolean DEFAULT true
 )
@@ -358,7 +358,7 @@ check_default(
  * p_exact_count will tell the function to give back an exact count of how many rows are in each parent if any is found. This is the default if the parameter is left out. If you don't care about an exact count, you can set this to false and it will return if it finds even just a single row in any parent. This can significantly speed up the check if a lot of data ends up in a parent or there are many partitions being managed.
 
 
-```
+```sql
 show_partitions (
     p_parent_table text
     , p_order text DEFAULT 'ASC'
@@ -376,7 +376,7 @@ RETURNS TABLE (
  * `p_order` - optional parameter to set the order the child tables are returned in. Defaults to ASCending. Set to 'DESC' to return in descending order. If the default is included, it is always listed first.
 
 
-```
+```sql
 show_partition_name(
     p_parent_table text
     , p_value text
@@ -396,7 +396,7 @@ RETURNS record
  * Also returns a boolean value (table_exists) to say whether that child table actually exists
 
 
-```
+```sql
 show_partition_info(p_child_table text
     , p_partition_interval text DEFAULT NULL
     , p_parent_table text DEFAULT NULL
@@ -418,7 +418,7 @@ RETURNS record
   * `OUT suffix` - Outputs the text portition appended to the child table that identifies its contents minus the "_p" (Ex "20230324" OR "920000"). Useful for generating your own suffixes for partitioning similar to how pg_partman does it.
 
 
-```
+```sql
 dump_partitioned_table_definition(
   p_parent_table text,
   p_ignore_template_table boolean DEFAULT false
@@ -432,7 +432,7 @@ RETURNS text
   * `p_ignore_template` - The template table needs to be created before the SQL generated by this function will work properly. If you haven't modified the template table at all then it's safe to pass TRUE here to have the generated SQL tell partman to generate a new template table. But for safety it's preferred to use pg_dump to dump the template tables and restore them prior to using the generated SQL so that you can maintain any template overrides.
 
 
-```
+```sql
 partition_gap_fill(
     p_parent_table text
 )
@@ -444,7 +444,7 @@ RETURNS integer
   * Returns how many child tables are created. Returns 0 if none are created.
 
 
-```
+```sql
 apply_constraints(
     p_parent_table text
     , p_child_table text DEFAULT NULL
@@ -465,7 +465,7 @@ RETURNS void
  * The p_job_id parameter is optional. It's for internal use and allows job logging to be consolidated into the original job that called this function if applicable.
 
 
-```
+```sql
 drop_constraints(
     p_parent_table text
     , p_child_table text
@@ -480,7 +480,7 @@ RETURNS void
  * The debug parameter will show you the constraint drop statement that was used.
 
 
-```
+```sql
 reapply_constraints_proc(
     p_parent_table text
     , p_drop_constraints boolean DEFAULT false
@@ -500,7 +500,7 @@ reapply_constraints_proc(
  * `p_dryrun` - Do not actually apply the drop/apply constraint commands when this procedure is run. Just outputs which tables the commands will be applied to as NOTICEs.
 
 
-```
+```sql
 reapply_privileges(
     p_parent_table text
 )
@@ -514,7 +514,7 @@ RETURNS void
  * `p_parent_table` - parent table of the partition set. Must be schema qualified and match a parent table name already configured in `pg_partman`.
 
 
-```
+```sql
 stop_sub_partition(
     p_parent_table text
     , p_jobmon boolean DEFAULT true
@@ -528,7 +528,7 @@ RETURNS boolean
 
 ### Destruction Functions
 
-```
+```sql
 undo_partition(
     p_parent_table text
     , p_target_table text
@@ -561,7 +561,7 @@ RETURNS record
  * Returns the number of partitions undone and the number of rows moved to the parent table. The partitions undone value returns -1 if a problem is encountered.
 
 
-```
+```sql
 undo_partition_proc(
     p_parent_table text
     , p_target_table text DEFAULT NULL
@@ -594,7 +594,7 @@ undo_partition_proc(
 
 
 
-```
+```sql
 drop_partition_time(
     p_parent_table text
     , p_retention interval DEFAULT NULL
@@ -616,7 +616,7 @@ RETURNS int
  * Returns the number of partitions affected.
 
 
-```
+```sql
 drop_partition_id(
     p_parent_table text
     , p_retention bigint DEFAULT NULL
