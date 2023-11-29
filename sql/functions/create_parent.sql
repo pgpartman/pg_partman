@@ -108,7 +108,7 @@ JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
 WHERE c.relname = v_parent_tablename::name
 AND n.nspname = v_parent_schema::name
 AND a.attname = p_control::name;
-    IF (v_notnull = false OR v_notnull IS NULL) THEN
+    IF (p_default_table = false AND (v_notnull = false OR v_notnull IS NULL)) THEN
         RAISE EXCEPTION 'Control column given (%) for parent table (%) does not exist or must be set to NOT NULL', p_control, p_parent_table;
     END IF;
 
