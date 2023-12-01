@@ -8,7 +8,7 @@ As always, if you can first test this migration on a development system, it is h
 
 This is how our partition set currently looks before migration:
 
-```
+```sql
 \d+ partman_test.time_taptest_table
                                          Table "partman_test.time_taptest_table"
  Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description 
@@ -39,7 +39,7 @@ Access method: heap
 ```
 
 If your trigger-based partition set happens to be managed by pg_partman version prior to 5.0.0, it is best to remove it from partman management. This can be done by deleting it from the `part_config` and `part_config_sub` tables (if sub-partitioned, ensure all child tables are removed as well). After it has been migrated to native partitioning, see the Migrating to pg_partman document mentioned above to return it to being managed by partman.
-```
+```sql
 DELETE FROM partman.part_config WHERE parent_table = 'partman_test.time_taptest_table';
 ```
 
@@ -49,7 +49,7 @@ Next, we need to create a new parent table using native partitioning since you c
 
 Please see the `Child Table Property Inheritance` section of `docs/pg_partman.md` for which properties can be set on the native parent and which must be managed via the template .
   
-```
+```sql
 CREATE TABLE partman_test.time_taptest_table_native 
     (col1 int, col2 text default 'stuff', col3 timestamptz NOT NULL DEFAULT now()) 
     PARTITION BY RANGE (col3);
@@ -58,7 +58,7 @@ CREATE INDEX ON partman_test.time_taptest_table_native (col3);
 ```
 
 Next check what the ownership and privileges on your original table were and ensure they exist on the new parent table. This will ensure all access to the table works the same after the migration. By default with native partitioning, privileges are no longer granted on child tables to provide direct access to them. If you'd like to keep that behavior, set the `inherit_privileges` column in `part_config` (and part_config_sub if needed) to true. 
-```
+```sql
 \dt partman_test.time_taptest_table
                      List of relations
     Schema    |        Name        | Type  |     Owner     
@@ -75,14 +75,14 @@ Next check what the ownership and privileges on your original table were and ens
               |                    |       | testing=r/partman_owner             |                   | 
 (1 row)
 ```
-```
+```sql
 ALTER TABLE partman_test.time_taptest_table_native OWNER TO partman_owner;
 GRANT SELECT, INSERT, UPDATE, DELETE ON partman_test.time_taptest_table_native TO partman_basic;
 GRANT SELECT ON partman_test.time_taptest_table_native TO testing;
 ```
 
 It is best to halt all activity on the original table during the migration process to avoid any issues. This can be done by either revoking all permissions to the table temporarily or by taking out an exclusive lock on the parent table and running all of these steps in a single transaction. The transactional method is highly recommended for the simple fact that if you run into any issues before you've completed the migration process, you can simply rollback and return to the state your database was in before the migration started.
-```
+```sql
 BEGIN;
 LOCK TABLE partman_test.time_taptest_table IN ACCESS EXCLUSIVE MODE NOWAIT;
 ```
@@ -92,7 +92,7 @@ The first major step in this migration process is now to uninherit all the child
 
 DO NOT RUN THE RESULTING STATEMENTS YET. A future query will not work if the child tables are no longer part of the inheritance set.
 
-```
+```sql
 SELECT format('ALTER TABLE %s NO INHERIT %s;', inhrelid::regclass, inhparent::regclass)
 FROM pg_inherits 
 WHERE inhparent::regclass = 'partman_test.time_taptest_table'::regclass;
@@ -123,7 +123,7 @@ For any partition sets, even those not managed by pg_partman, the next step is t
 If your child table names do not have a usable pattern like this, you'll have to figure out some method of determining each child table's boundaries. 
 
 Again, we can use some sql to generate statements to re-attach the children to the new parent:
-```
+```sql
 WITH child_tables AS (
     SELECT 
           inhrelid::regclass::text AS child_tablename_safe
@@ -161,7 +161,7 @@ FROM child_tables x;
 
 ```
 We can now run these two sets of ALTER TABLE statements to first uninherit them from the old trigger-based parent and attach them to the new native parent. After doing so, the old trigger-based parent should have no longer have children:
-```
+```sql
 \d+ partman_test.time_taptest_table
 
                                          Table "partman_test.time_taptest_table"
@@ -177,7 +177,7 @@ Triggers:
 Access method: heap
 ```
 And our new native parent should have now adopted all its new children:
-```
+```sql
 \d+ partman_test.time_taptest_table_native
                                    Partitioned table "partman_test.time_taptest_table_native"
  Column |           Type           | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description 
@@ -206,12 +206,12 @@ Partitions: partman_test.time_taptest_table_p2023_03_26 FOR VALUES FROM ('2023-0
 
 ```
 Next is to swap the names of your old trigger-based parent and the new native parent. 
-```
+```sql
 ALTER TABLE partman_test.time_taptest_table RENAME TO time_taptest_table_old;
 ALTER TABLE partman_test.time_taptest_table_native RENAME TO time_taptest_table;
 ```
 PG11+ supports the feature of a default partition to catch any data that doesn't have a matching child. If your table names are particularly long, ensure that adding the `_default` suffix doesn't get truncated unexpectedly. The suffix isn't required for functionality, but provides good context for what the table is for, so it's better to shorten the table name itself to fit the suffix.
-```
+```sql
 CREATE TABLE partman_test.time_taptest_table_default (LIKE partman_test.time_taptest_table INCLUDING ALL);
 ALTER TABLE partman_test.time_taptest_table ATTACH PARTITION partman_test.time_taptest_table_default DEFAULT;
 ```
@@ -219,7 +219,7 @@ ALTER TABLE partman_test.time_taptest_table ATTACH PARTITION partman_test.time_t
 There was a primary key on the original parent table, but that is not possible with native partitioning unless the primary key also includes the partition key. This is typically not practical in time-based partitioning. You can place a primary key on each individual child table, but that only enforces the constraint for that child table, not across the entire partition set. You can add a primary key to each individual table using similar SQL generation above, but if you'd like a method to manage adding these to any new child tables, please see the features available in pg_partman.
 
 If you've run this process inside a transaction, be sure to commit your work now:
-```
+```sql
 COMMIT;
 ```
 This should complete the migration process. If you'd like to migrate your partition set to be managed by pg_partman, please see the `migrate_to_partman.md` documentation file.

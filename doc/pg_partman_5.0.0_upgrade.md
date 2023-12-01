@@ -22,7 +22,7 @@ The migration is simply a renaming of the child tables and an update to the part
 ### Weekly Migration
 
 Here is an example weekly partition set created with pg_partman version 4.7.3.
-```
+```sql
  \d+ partman_test.time_taptest_table
                                                        Partitioned table "partman_test.time_taptest_table"
  Column |           Type           | Collation | Nullable |                    Default                     | Storage  | Compression | Stats target | Description
@@ -48,7 +48,7 @@ Partitions: partman_test.time_taptest_table_p2023w05 FOR VALUES FROM ('2023-01-3
 
 ```
 The contents of the config table are as follows (note the columns in the config table have changed significantly in 5.x and greater)
-```
+```sql
 SELECT * FROM partman.part_config;
 
 -[ RECORD 1 ]--------------+-------------------------------------------------
@@ -90,7 +90,7 @@ We will use a query below to generate some SQL that will rename the tables to th
  * In the first substring function, the number after `for` should be the character length of your parent table name +2 to account for the `_p`. In this case `20`
  * In the second substring function, the number after the `from` should be the previous number +1. In this case `21`
 
-```
+```sql
 SELECT format(
     'ALTER TABLE %I.%I RENAME TO %I;'
     , n.nspname
@@ -124,18 +124,18 @@ ORDER BY c.relname;
 Note that all ISO weeks start on Monday, so that is the first day of the week that the child table names will be based on. This also lines up with the original boundaries of the child tables if you look at them above, so child table names should be lining up with the lower boundaries of the data they contain. If you happened to want your weeks to start on a Sunday (or some other day), that would require a much more involved migration of the data itself as well, and is beyond the scope of this document.
 
 Lastly you need to update the `datetime_string` column in the part_config table to the new suffix pattern.
-```
+```sql
 UPDATE partman.part_config SET datetime_string = 'YYYYMMDD';
 ```
 Now we can test if this is working by increasing the premake value. The default value of the premake is 4, so if you'd changed that previously, just add one to that value. We're also setting `infinite_time_partitions` to true here as well because there may not be enough data in the partition set yet to cause future tables to be created. This can be disabled again after testing here if that is not desired.
-```
+```sql
 UPDATE partman.part_config SET premake = premake+1, infinite_time_partitions = true;
 ```
 Now we can call run_maintenance() to ensure partition maintenance is working as expected
-```
+```sql
 SELECT partman.run_maintenance('partman_test.time_taptest_table');
 ```
-```
+```sql
 keith=# \d+ partman_test.time_taptest_table
                                                        Partitioned table "partman_test.time_taptest_table"
  Column |           Type           | Collation | Nullable |                    Default                     | Storage  | Compression | Stats target | Description
@@ -167,7 +167,7 @@ If all is well, you can return your `premake` and `infinite_time_partitions` val
 
 If you want to ensure any weekly partitioned tables start on a Monday when you create them, you can use the `date_trunc()` function in the `p_start_partition` parameter to `create_parent()` to do that. The following example shows doing this on a Tuesday. Without setting a specific starting partition like this, the partition set would have started on Tues, Aug 29 2023 and every future partition would have been based on a week starting on Tuesday.
 
-```
+```sql
 SELECT CURRENT_TIMESTAMP;
        current_timestamp  
 -------------------------------
@@ -183,7 +183,7 @@ PARTITION BY RANGE (col3);
 
 SELECT partman.create_parent('public.time_table', 'col3', '1 week', p_start_partition := to_char(date_trunc('week',CURRENT_TIMESTAMP), 'YYYY-MM-DD HH24:MI:SS'));
 ```
-```
+```sql
 \d+ public.time_table
                                                Partitioned table "public.time_table"
  Column |           Type           | Collation | Nullable |      Default      | Storage  | Compression | Stats target | Description
@@ -204,7 +204,7 @@ Partitions: time_table_p20230828 FOR VALUES FROM ('2023-08-28 00:00:00-04') TO (
 ### Quarterly Partitioning
 
 Similar to weekly, the names of the child tables just need to be renamed and the partman config updated with the new datetime_string. Below is the table as it was with the original quarterly names
-```
+```sql
 \d+ partman_test.time_taptest_table
                                    Partitioned table "partman_test.time_taptest_table"
  Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description
@@ -228,7 +228,7 @@ Here is the SQL to generate the renames of the child tables. Note this is quite 
 
 Note you will have to adjust the substring in the generation of the ALTER TABLE statement to match the length of your parent table name +2 (to account for the `_p`). In this case the value is `20`.
 
-```
+```sql
 DO $rename$
 DECLARE
     v_child_start_time      timestamptz;
@@ -282,17 +282,17 @@ END
 $rename$;
 ```
 Then update the configuration to use the new datetime_string. Note this is the same as weekly now
-```
+```sql
 UPDATE partman.part_config SET datetime_string = 'YYYYMMDD';
 ```
 The remaining steps to test that things are working is the same as weekly
-```
+```sql
 UPDATE partman.part_config SET premake = premake+1, infinite_time_partitions = true;
 
 SELECT partman.run_maintenance('partman_test.time_taptest_table');
 ```
 You should see at least one more additional child table now
-```
+```sql
 \d+ partman_test.time_taptest_table
                                    Partitioned table "partman_test.time_taptest_table"
  Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description
