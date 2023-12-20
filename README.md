@@ -3,7 +3,7 @@
 PostgreSQL Partition Manager
 ====================
 
-pg_partman is an extension to create and manage both time-based and number-based table partition sets. As of version 5.0.0, only built-in, declarative partitioning is supported and the older trigger-based methods have been deprecated.
+pg_partman is an extension to create and manage both time-based and number-based table partition sets. As of version 5.0.1, only built-in, declarative partitioning is supported and the older trigger-based methods have been deprecated.
 
 The declarative partitioning built into PostgreSQL provides the commands to create a partitioned table and its children. pg_partman uses the built-in declarative features that PostgreSQL provides and builds upon those with additional features and enhancements to make managing partitions easier. One key way that pg_partman extends partitioning in Postgres is by providing a means to automate the child table maintenance over time (Ex. adding new children, dropping old ones based on a retention policy). pg_partman also has features to turn an existing table into a partitioned table or vice versa.
 
@@ -24,16 +24,16 @@ The following list of files is found in the [doc](doc) folder of the pg_partman 
 | [pg_partman_howto.md](doc/pg_partman_howto.md)                    | A How-To guide for general usage of pg_partman. Provides examples for setting up new partition sets and migrating existing tables to partitioned tables.                                                                                                    |
 | [migrate_to_partman.md](doc/migrate_to_partman.md)                | How to migrate existing partition sets to being managed by pg_partman.        |
 | [migrate_to_declarative.md](doc/migrate_to_declarative.md)        | How to migrate from trigger-based partitioning to declarative partitioning.   |
-| [pg_partman_5.0.0_upgrade.md](doc/pg_partman_5.0.0_upgrade.md)    | If pg_partman is being upgraded to version 5.x from any prior version, special considerations may need to be made. Please carefully review this document before performing any upgrades to 5.x or higher.                                      |
-| [fix_missing_procedures.md](doc/fix_missing_procedures.md)        | If pg_partman had been installed prior to PostgreSQL 11 and upgraded since then, it may be missing procedures. This document outlines how to restore those procedures and preserve the current configration.                                  |
+| [pg_partman_5.0.1_upgrade.md](doc/pg_partman_5.0.1_upgrade.md)    | If pg_partman is being upgraded to version 5.x from any prior version, special considerations may need to be made. Please carefully review this document before performing any upgrades to 5.x or higher.                                      |
+| [fix_missing_procedures.md](doc/fix_missing_procedures.md)        | If pg_partman had been installed prior to PostgreSQL 11 and upgraded since then, it may be missing procedures. This document outlines how to restore those procedures and preserve the current configuration.                                  |
 
 INSTALLATION
 ------------
-Requirement: 
+Requirement:
 
  * PostgreSQL >= 14
 
-Recommended: 
+Recommended:
 
  * [pg_jobmon](https://github.com/omniti-labs/pg_jobmon) (>=v1.4.0). PG Job Monitor will automatically be used if it is installed and setup properly.
 
@@ -106,7 +106,7 @@ ALTER EXTENSION pg_partman UPDATE TO '<latest version>';
 
 If you are doing a `pg_dump`/`pg_restore` and you've upgraded pg_partman in place from previous versions, it is recommended you use the `--column-inserts` option when dumping and/or restoring pg_partman's configuration tables. This is due to ordering of the configuration columns possibly being different (upgrades just add the columns onto the end, whereas the default of a new install may be different).
 
-If upgrading between any major versions of pg_partman (4.x -> 5.x, etc), please carefully read all intervening version notes in the [CHANGELOG](CHANGELOG.txt), especially those notes for the major version. There are often additional instructions and other important considerations for the updates. Extra special considerations are needed if you are upgrading to 5+ from any version less than 5.0.0. Please see [pg_partman_5.0.0_upgrade.md](doc/pg_partman_5.0.0_upgrade.md).
+If upgrading between any major versions of pg_partman (4.x -> 5.x, etc), please carefully read all intervening version notes in the [CHANGELOG](CHANGELOG.txt), especially those notes for the major version. There are often additional instructions and other important considerations for the updates. Extra special considerations are needed if you are upgrading to 5+ from any version less than 5.0.0. Please see [pg_partman_5.0.1_upgrade.md](doc/pg_partman_5.0.1_upgrade.md).
 
 IMPORTANT NOTE: Some updates to pg_partman must drop and recreate its own database objects. If you are revoking PUBLIC privileges from functions/procedures, that can be added back to objects that are recreated as part of an update. If restrictions from PUBLIC use are desired for pg_partman, it is recommended to install it into its own schema as shown above and the revoke undesired access to that schema. Otherwise you may have to add an additional step to your extension upgrade procedures to revoke PUBLIC access again.
 

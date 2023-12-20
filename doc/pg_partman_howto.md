@@ -10,7 +10,7 @@ Example Guide On Setting Up Native Partitioning
 
 This HowTo guide will show you some examples of how to set up simple, single level partitioning. It will also show you several methods to partition data out of a table that has existing data (see [Partitioning an Existing Table](#partitioning-an-existing-table)) and undo the partitioning of an existing partition set (see [Undoing Native Partitioning](#undoing-native-partitioning)). For more details on what each function does and the additional features in this extension, please see the **pg_partman.md** documentation file.
 
-The examples in this document assume you are running at least 5.0.0 of pg_partman with PostgreSQL 14 or higher. 
+The examples in this document assume you are running at least 5.0.1 of pg_partman with PostgreSQL 14 or higher.
 
 ### Simple Time Based: 1 Partition Per Day
 For native partitioning, you must start with a parent table that has already been set up to be partitioned in the desired type. Currently pg_partman only supports the RANGE type of partitioning (both for time & id). You cannot turn a non-partitioned table into the parent table of a partitioned set, which can make migration a challenge. This document will show you some techniques for how to manage this later. For now, we will start with a brand new table in this example. Any non-unique indexes can also be added to the parent table in PG11+ and they will automatically be created on all child tables.
@@ -18,22 +18,22 @@ For native partitioning, you must start with a parent table that has already bee
 ```sql
 CREATE SCHEMA IF NOT EXISTS partman_test;
 
-CREATE TABLE partman_test.time_taptest_table 
-    (col1 int, 
-    col2 text default 'stuff', 
-    col3 timestamptz NOT NULL DEFAULT now()) 
+CREATE TABLE partman_test.time_taptest_table
+    (col1 int,
+    col2 text default 'stuff',
+    col3 timestamptz NOT NULL DEFAULT now())
 PARTITION BY RANGE (col3);
 
 CREATE INDEX ON partman_test.time_taptest_table (col3);
 ```
 ```sql
-\d+ partman_test.time_taptest_table 
+\d+ partman_test.time_taptest_table
                                       Partitioned table "partman_test.time_taptest_table"
- Column |           Type           | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description 
+ Column |           Type           | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description
 --------+--------------------------+-----------+----------+---------------+----------+-------------+--------------+-------------
- col1   | integer                  |           |          |               | plain    |             |              | 
- col2   | text                     |           |          | 'stuff'::text | extended |             |              | 
- col3   | timestamp with time zone |           | not null | now()         | plain    |             |              | 
+ col1   | integer                  |           |          |               | plain    |             |              |
+ col2   | text                     |           |          | 'stuff'::text | extended |             |              |
+ col3   | timestamp with time zone |           | not null | now()         | plain    |             |              |
 Partition key: RANGE (col3)
 Indexes:
     "time_taptest_table_col3_idx" btree (col3)
@@ -51,11 +51,11 @@ ALTER TABLE partman_test.time_taptest_table_template ADD PRIMARY KEY (col1);
 ```sql
  \d partman_test.time_taptest_table_template
           Table "partman_test.time_taptest_table_template"
- Column |           Type           | Collation | Nullable | Default 
+ Column |           Type           | Collation | Nullable | Default
 --------+--------------------------+-----------+----------+---------
- col1   | integer                  |           | not null | 
- col2   | text                     |           |          | 
- col3   | timestamp with time zone |           | not null | 
+ col1   | integer                  |           | not null |
+ col2   | text                     |           |          |
+ col3   | timestamp with time zone |           | not null |
 Indexes:
     "time_taptest_table_template_pkey" PRIMARY KEY, btree (col1)
 ```
@@ -66,7 +66,7 @@ SELECT partman.create_parent(
     , p_interval := '1 day'
     , p_template_table := 'partman_test.time_taptest_table_template'
 );
- create_parent 
+ create_parent
 ---------------
  t
 (1 row)
@@ -74,11 +74,11 @@ SELECT partman.create_parent(
 ```sql
 \d+ partman_test.time_taptest_table
                                       Partitioned table "partman_test.time_taptest_table"
- Column |           Type           | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description 
+ Column |           Type           | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description
 --------+--------------------------+-----------+----------+---------------+----------+-------------+--------------+-------------
- col1   | integer                  |           |          |               | plain    |             |              | 
- col2   | text                     |           |          | 'stuff'::text | extended |             |              | 
- col3   | timestamp with time zone |           | not null | now()         | plain    |             |              | 
+ col1   | integer                  |           |          |               | plain    |             |              |
+ col2   | text                     |           |          | 'stuff'::text | extended |             |              |
+ col3   | timestamp with time zone |           | not null | now()         | plain    |             |              |
 Partition key: RANGE (col3)
 Indexes:
     "time_taptest_table_col3_idx" btree (col3)
@@ -96,11 +96,11 @@ Partitions: partman_test.time_taptest_table_p20230324 FOR VALUES FROM ('2023-03-
 ```sql
 \d+ partman_test.time_taptest_table_p20230324
                                        Table "partman_test.time_taptest_table_p20230324"
- Column |           Type           | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description 
+ Column |           Type           | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description
 --------+--------------------------+-----------+----------+---------------+----------+-------------+--------------+-------------
- col1   | integer                  |           | not null |               | plain    |             |              | 
- col2   | text                     |           |          | 'stuff'::text | extended |             |              | 
- col3   | timestamp with time zone |           | not null | now()         | plain    |             |              | 
+ col1   | integer                  |           | not null |               | plain    |             |              |
+ col2   | text                     |           |          | 'stuff'::text | extended |             |              |
+ col3   | timestamp with time zone |           | not null | now()         | plain    |             |              |
 Partition of: partman_test.time_taptest_table FOR VALUES FROM ('2023-03-24 00:00:00-07') TO ('2023-03-25 00:00:00-07')
 Partition constraint: ((col3 IS NOT NULL) AND (col3 >= '2023-03-24 00:00:00-07'::timestamp with time zone) AND (col3 < '2023-03-25 00:00:00-07'::timestamp with time zone))
 Indexes:
@@ -110,27 +110,27 @@ Access method: heap
 ```
 
 ### Simple Serial ID: 1 Partition Per 10 ID Values
-For this use-case, the template table is not created manually before calling `create_parent()`. So it shows that if a primary/unique key is added later, it does not apply to the currently existing child tables. That will have to be done manually. 
+For this use-case, the template table is not created manually before calling `create_parent()`. So it shows that if a primary/unique key is added later, it does not apply to the currently existing child tables. That will have to be done manually.
 
 ```sql
 CREATE TABLE partman_test.id_taptest_table (
     col1 bigint not null
     , col2 text
     , col3 timestamptz DEFAULT now() not null
-    , col4 text) 
+    , col4 text)
 PARTITION BY RANGE (col1);
 
 CREATE INDEX ON partman_test.id_taptest_table (col1);
 ```
 ```sql
-\d+ partman_test.id_taptest_table 
+\d+ partman_test.id_taptest_table
                                     Partitioned table "partman_test.id_taptest_table"
- Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description 
+ Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description
 --------+--------------------------+-----------+----------+---------+----------+-------------+--------------+-------------
- col1   | bigint                   |           | not null |         | plain    |             |              | 
- col2   | text                     |           |          |         | extended |             |              | 
- col3   | timestamp with time zone |           | not null | now()   | plain    |             |              | 
- col4   | text                     |           |          |         | extended |             |              | 
+ col1   | bigint                   |           | not null |         | plain    |             |              |
+ col2   | text                     |           |          |         | extended |             |              |
+ col3   | timestamp with time zone |           | not null | now()   | plain    |             |              |
+ col4   | text                     |           |          |         | extended |             |              |
 Partition key: RANGE (col1)
 Indexes:
     "id_taptest_table_col1_idx" btree (col1)
@@ -142,7 +142,7 @@ SELECT partman.create_parent(
     , p_control := 'col1'
     , p_interval := '10'
 );
- create_parent 
+ create_parent
 ---------------
  t
 (1 row)
@@ -150,12 +150,12 @@ SELECT partman.create_parent(
 ```sql
 \d+ partman_test.id_taptest_table
                                     Partitioned table "partman_test.id_taptest_table"
- Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description 
+ Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description
 --------+--------------------------+-----------+----------+---------+----------+-------------+--------------+-------------
- col1   | bigint                   |           | not null |         | plain    |             |              | 
- col2   | text                     |           |          |         | extended |             |              | 
- col3   | timestamp with time zone |           | not null | now()   | plain    |             |              | 
- col4   | text                     |           |          |         | extended |             |              | 
+ col1   | bigint                   |           | not null |         | plain    |             |              |
+ col2   | text                     |           |          |         | extended |             |              |
+ col3   | timestamp with time zone |           | not null | now()   | plain    |             |              |
+ col4   | text                     |           |          |         | extended |             |              |
 Partition key: RANGE (col1)
 Indexes:
     "id_taptest_table_col1_idx" btree (col1)
@@ -170,11 +170,11 @@ Partitions: partman_test.id_taptest_table_p0 FOR VALUES FROM ('0') TO ('10'),
 You can see the name of the template table by looking in the pg_partman configuration for that parent table
 
 ```sql
-SELECT template_table 
-FROM partman.part_config 
+SELECT template_table
+FROM partman.part_config
 WHERE parent_table = 'partman_test.id_taptest_table';
 
-                 template_table                 
+                 template_table  
 ------------------------------------------------
  partman.template_partman_test_id_taptest_table
 (1 row)
@@ -190,12 +190,12 @@ CALL partman.run_maintenance_proc();
 
 \d+ partman_test.id_taptest_table
                                     Partitioned table "partman_test.id_taptest_table"
- Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description 
+ Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description
 --------+--------------------------+-----------+----------+---------+----------+-------------+--------------+-------------
- col1   | bigint                   |           | not null |         | plain    |             |              | 
- col2   | text                     |           |          |         | extended |             |              | 
- col3   | timestamp with time zone |           | not null | now()   | plain    |             |              | 
- col4   | text                     |           |          |         | extended |             |              | 
+ col1   | bigint                   |           | not null |         | plain    |             |              |
+ col2   | text                     |           |          |         | extended |             |              |
+ col3   | timestamp with time zone |           | not null | now()   | plain    |             |              |
+ col4   | text                     |           |          |         | extended |             |              |
 Partition key: RANGE (col1)
 Indexes:
     "id_taptest_table_col1_idx" btree (col1)
@@ -213,24 +213,24 @@ Partitions: partman_test.id_taptest_table_p0 FOR VALUES FROM ('0') TO ('10'),
 ```sql
 keith=# \d partman_test.id_taptest_table_p40
              Table "partman_test.id_taptest_table_p40"
- Column |           Type           | Collation | Nullable | Default 
+ Column |           Type           | Collation | Nullable | Default
 --------+--------------------------+-----------+----------+---------
- col1   | bigint                   |           | not null | 
- col2   | text                     |           |          | 
+ col1   | bigint                   |           | not null |
+ col2   | text                     |           |          |
  col3   | timestamp with time zone |           | not null | now()
- col4   | text                     |           |          | 
+ col4   | text                     |           |          |
 Partition of: partman_test.id_taptest_table FOR VALUES FROM ('40') TO ('50')
 Indexes:
     "id_taptest_table_p40_col1_idx" btree (col1)
 
 keith=# \d partman_test.id_taptest_table_p50
              Table "partman_test.id_taptest_table_p50"
- Column |           Type           | Collation | Nullable | Default 
+ Column |           Type           | Collation | Nullable | Default
 --------+--------------------------+-----------+----------+---------
- col1   | bigint                   |           | not null | 
- col2   | text                     |           | not null | 
+ col1   | bigint                   |           | not null |
+ col2   | text                     |           | not null |
  col3   | timestamp with time zone |           | not null | now()
- col4   | text                     |           |          | 
+ col4   | text                     |           |          |
 Partition of: partman_test.id_taptest_table FOR VALUES FROM ('50') TO ('60')
 Indexes:
     "id_taptest_table_p50_pkey" PRIMARY KEY, btree (col2)
@@ -238,12 +238,12 @@ Indexes:
 
 keith=# \d partman_test.id_taptest_table_p60
              Table "partman_test.id_taptest_table_p60"
- Column |           Type           | Collation | Nullable | Default 
+ Column |           Type           | Collation | Nullable | Default
 --------+--------------------------+-----------+----------+---------
- col1   | bigint                   |           | not null | 
- col2   | text                     |           | not null | 
+ col1   | bigint                   |           | not null |
+ col2   | text                     |           | not null |
  col3   | timestamp with time zone |           | not null | now()
- col4   | text                     |           |          | 
+ col4   | text                     |           |          |
 Partition of: partman_test.id_taptest_table FOR VALUES FROM ('60') TO ('70')
 Indexes:
     "id_taptest_table_p60_pkey" PRIMARY KEY, btree (col2)
@@ -279,14 +279,14 @@ CREATE TABLE public.original_table (
     col1 bigint not null
     , col2 text not null
     , col3 timestamptz DEFAULT now()
-    , col4 text); 
+    , col4 text);
 
 CREATE INDEX ON public.original_table (col1);
 
 INSERT INTO public.original_table (col1, col2, col3, col4) VALUES (generate_series(1,100000), 'stuff'||generate_series(1,100000), now(), 'stuff');
 ```
 
-First, the original table should be renamed so the partitioned table can be made with the original table's name. This makes it so that, when the child tables are created, they have names that are associated with the original table name. 
+First, the original table should be renamed so the partitioned table can be made with the original table's name. This makes it so that, when the child tables are created, they have names that are associated with the original table name.
 ```sql
 ALTER TABLE public.original_table RENAME to old_nonpartitioned_table;
 ```
@@ -299,7 +299,7 @@ CREATE TABLE public.original_table (
     col1 bigint not null
     , col2 text not null
     , col3 timestamptz DEFAULT now()
-    , col4 text) 
+    , col4 text)
 PARTITION BY RANGE (col1);
 
 CREATE INDEX ON public.original_table (col1);
@@ -313,12 +313,12 @@ SELECT partman.create_parent(
 ```sql
 \d+ original_table;
                                         Partitioned table "public.original_table"
- Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description 
+ Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description
 --------+--------------------------+-----------+----------+---------+----------+-------------+--------------+-------------
- col1   | bigint                   |           | not null |         | plain    |             |              | 
- col2   | text                     |           | not null |         | extended |             |              | 
- col3   | timestamp with time zone |           |          | now()   | plain    |             |              | 
- col4   | text                     |           |          |         | extended |             |              | 
+ col1   | bigint                   |           | not null |         | plain    |             |              |
+ col2   | text                     |           | not null |         | extended |             |              |
+ col3   | timestamp with time zone |           |          | now()   | plain    |             |              |
+ col4   | text                     |           |          |         | extended |             |              |
 Partition key: RANGE (col1)
 Indexes:
     "original_table_col1_idx1" btree (col1)
@@ -364,14 +364,14 @@ NOTICE:  Ensure to VACUUM ANALYZE the parent (and source table if used) after pa
 VACUUM ANALYZE public.original_table;
 ```
 
-Again, doing the commits in smaller batches like this can avoid transactions with huge row counts and long runtimes when you're partitioning a table that may have billions of rows. It's always advisable to avoid long running transactions to allow PostgreSQL's autovacuum process to work efficiently for the rest of the database. However, doing smaller batches per loop can cause the process to partition the data to take longer. You will have to find the balance between the load on your database and time required. 
+Again, doing the commits in smaller batches like this can avoid transactions with huge row counts and long runtimes when you're partitioning a table that may have billions of rows. It's always advisable to avoid long running transactions to allow PostgreSQL's autovacuum process to work efficiently for the rest of the database. However, doing smaller batches per loop can cause the process to partition the data to take longer. You will have to find the balance between the load on your database and time required.
 
-Using the `partition_data_proc()` PROCEDURE vs the `partition_data_id()` FUNCTION allows those commit batches. Functions in PostgreSQL always run entirely in a single transaction, even if you may tell it to do things in batches inside the function. 
+Using the `partition_data_proc()` PROCEDURE vs the `partition_data_id()` FUNCTION allows those commit batches. Functions in PostgreSQL always run entirely in a single transaction, even if you may tell it to do things in batches inside the function.
 
 Now if we check our original table, it is empty
 ```sql
 SELECT count(*) FROM old_nonpartitioned_table;
- count 
+ count
 -------
      0
 (1 row)
@@ -387,12 +387,12 @@ SELECT count(*) FROM original_table;
 
  \d+ public.original_table
                                         Partitioned table "public.original_table"
- Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description 
+ Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description
 --------+--------------------------+-----------+----------+---------+----------+-------------+--------------+-------------
- col1   | bigint                   |           | not null |         | plain    |             |              | 
- col2   | text                     |           | not null |         | extended |             |              | 
- col3   | timestamp with time zone |           |          | now()   | plain    |             |              | 
- col4   | text                     |           |          |         | extended |             |              | 
+ col1   | bigint                   |           | not null |         | plain    |             |              |
+ col2   | text                     |           | not null |         | extended |             |              |
+ col3   | timestamp with time zone |           |          | now()   | plain    |             |              |
+ col4   | text                     |           |          |         | extended |             |              |
 Partition key: RANGE (col1)
 Indexes:
     "original_table_col1_idx" btree (col1)
@@ -410,7 +410,7 @@ Partitions: original_table_p0 FOR VALUES FROM ('0') TO ('10000'),
             original_table_default DEFAULT
 
 SELECT count(*) FROM original_table_p10000;
- count 
+ count
 -------
  10000
 (1 row)
@@ -432,7 +432,7 @@ CREATE TABLE public.original_table (
     col1 bigint not null PRIMARY KEY GENERATED ALWAYS AS IDENTITY
     , col2 text not null
     , col3 timestamptz DEFAULT now() not null
-    , col4 text); 
+    , col4 text);
 
 CREATE INDEX CONCURRENTLY ON public.original_table (col3);
 
@@ -466,13 +466,13 @@ CREATE TABLE public.original_table_template (LIKE public.original_table);
 
 ALTER TABLE public.original_table_template ADD PRIMARY KEY (col1);
 ```
-If you do not pre-create a template table, pg_partman will always create one for you in the same schema that the extension was installed into. You can see its name by looking at the `template_table` column in the `part_config` table. However, if you add the index onto that template table after the `create_parent()` call, the already existing child tables will not have that index applied and you will have to go back and do that manually. However, any new child tables create after that will have the index. 
+If you do not pre-create a template table, pg_partman will always create one for you in the same schema that the extension was installed into. You can see its name by looking at the `template_table` column in the `part_config` table. However, if you add the index onto that template table after the `create_parent()` call, the already existing child tables will not have that index applied and you will have to go back and do that manually. However, any new child tables create after that will have the index.
 
 The tricky part here is that we cannot yet have any child tables in the partition set that match data that currently exists in the original table. This is because we're going to be adding the old table as the DEFAULT table to our new partition table. If the DEFAULT table contains any data that matches a current child table's constraints, PostgreSQL will not allow that table to be added. So, with the below `create_parent()` call, we're going to start the partition set well ahead of the data we inserted and disable the automatic creation of a default table. In your case you will have to look at your current data set and pick a value well ahead of the current working set of data that may get inserted before you are able to run the table name swap process below. We're also setting the premake value to a low value to avoid having to rename too many child tables later. We'll increase premake back up to the default later (or you can set it to whatever you require).
 ```sql
 SELECT min(col3), max(col3) FROM original_table;
 
-              min              |              max              
+              min              |              max  
 -------------------------------+-------------------------------
  2023-03-21 11:09:31.980586-07 | 2023-03-28 11:09:31.980586-07
 ```
@@ -490,18 +490,18 @@ SELECT partman.create_parent(
 The state of the new partitioned table should now look something like this. The current date for when this HowTo was written is given for reference:
 ```sql
 SELECT CURRENT_TIMESTAMP;
-       current_timestamp       
+       current_timestamp  
 -------------------------------
  2023-03-28 11:23:55.971402-07
 
 \d+ new_partitioned_table;
                                                  Partitioned table "public.new_partitioned_table"
- Column |           Type           | Collation | Nullable |             Default              | Storage  | Compression | Stats target | Description 
+ Column |           Type           | Collation | Nullable |             Default              | Storage  | Compression | Stats target | Description
 --------+--------------------------+-----------+----------+----------------------------------+----------+-------------+--------------+-------------
- col1   | bigint                   |           | not null | generated by default as identity | plain    |             |              | 
- col2   | text                     |           | not null |                                  | extended |             |              | 
- col3   | timestamp with time zone |           | not null | now()                            | plain    |             |              | 
- col4   | text                     |           |          |                                  | extended |             |              | 
+ col1   | bigint                   |           | not null | generated by default as identity | plain    |             |              |
+ col2   | text                     |           | not null |                                  | extended |             |              |
+ col3   | timestamp with time zone |           | not null | now()                            | plain    |             |              |
+ col4   | text                     |           |          |                                  | extended |             |              |
 Partition key: RANGE (col3)
 Indexes:
     "new_partitioned_table_col3_idx" btree (col3)
@@ -513,14 +513,14 @@ You will need to update the `part_config` table to have the original table name.
 UPDATE partman.part_config SET parent_table = 'public.original_table', premake = 4 WHERE parent_table = 'public.new_partitioned_table';
 UPDATE 1
 ```
-The next step, which is actually multiple steps in a single transaction, is the only outage of any significance that needs to be anticipated. 
+The next step, which is actually multiple steps in a single transaction, is the only outage of any significance that needs to be anticipated.
 
-1. BEGIN transaction 
+1. BEGIN transaction
 1. Take an exclusive lock on the original table and the new table to ensure no gaps exist for data to be misrouted
 1. If using an IDENTITY column, get the original last value
 1. Rename the original table to the DEFAULT table name for the partition set
 1. If using an IDENTITY column, DROP the IDENTITY from the old table
-1. Rename the new table to the original table's name and rename child tables & sequence to match. 
+1. Rename the new table to the original table's name and rename child tables & sequence to match.
 1. If using an IDENTITY column, reset the new table's identity to the latest value so any new inserts pick up where old table's sequence left off.
 1. Add original table as the DEFAULT for the partition set
 1. COMMIT transaction
@@ -561,9 +561,9 @@ Once COMMIT is run, the new partitioned table should now take over from the orig
 
 The next step is to partition the data out of the default. You DO NOT want to leave data in the default partition set for any length of time and especially leave any significant amount of data. If you look at the constraint that exists on a partitioned default, it is basically the anti-constraint of all other child tables. And when a new child table is added, PostgreSQL manages updating that default constraint as needed. But it must check if any data that should belong in that new child table already exists in the default. If it finds any, it will fail. But more importantly, it has to check EVERY entry in the default which can take quite a long time even with an index if there are billions of rows. During this check, there is an exclusive lock on the entire partition set.
 
-The `partition_data_proc()` can handle moving the data out of the default. However, it cannot move data in any interval smaller than the partition interval when moving data out of the DEFAULT. This is related to what was just mentioned: You cannot add a child table to a partition set if that new child table's constraint covers data that already exists in the default. 
+The `partition_data_proc()` can handle moving the data out of the default. However, it cannot move data in any interval smaller than the partition interval when moving data out of the DEFAULT. This is related to what was just mentioned: You cannot add a child table to a partition set if that new child table's constraint covers data that already exists in the default.
 
-pg_partman handles this by first moving all the data for a given child table out to a temporary table, then creating the child table, and then moving the data from the temp table into the new child table. Since we're moving data out of the DEFAULT and we cannot use a smaller interval, the only parameter that we need to pass is a batch size. The default batch size of 1 would only make a single child table then stop. If you want to move all the data in a single call, just pass a value large enough to cover the expected number of child tables. However, with a live table and LOTS rows, this could potentially generate A LOT of WAL files, especially since this method doubles the number of writes vs the offline method (default -> temp -> child table). So if keeping control of your disk usage is a concern, just give a smaller batch value and then give PostgreSQL some time to run through a few CHECKPOINTs and clean up its own WAL before moving on to the next batch. 
+pg_partman handles this by first moving all the data for a given child table out to a temporary table, then creating the child table, and then moving the data from the temp table into the new child table. Since we're moving data out of the DEFAULT and we cannot use a smaller interval, the only parameter that we need to pass is a batch size. The default batch size of 1 would only make a single child table then stop. If you want to move all the data in a single call, just pass a value large enough to cover the expected number of child tables. However, with a live table and LOTS rows, this could potentially generate A LOT of WAL files, especially since this method doubles the number of writes vs the offline method (default -> temp -> child table). So if keeping control of your disk usage is a concern, just give a smaller batch value and then give PostgreSQL some time to run through a few CHECKPOINTs and clean up its own WAL before moving on to the next batch.
 ```sql
 CALL partman.partition_data_proc('public.original_table', p_loop_count := 200);
 NOTICE:  Loop: 1, Rows moved: 134
@@ -588,12 +588,12 @@ Now, double-check that the child table creation was performed as expected. There
 ```sql
 \d+ original_table
                                                    Partitioned table "public.original_table"
- Column |           Type           | Collation | Nullable |           Default            | Storage  | Compression | Stats target | Description 
+ Column |           Type           | Collation | Nullable |           Default            | Storage  | Compression | Stats target | Description
 --------+--------------------------+-----------+----------+------------------------------+----------+-------------+--------------+-------------
- col1   | bigint                   |           | not null | generated always as identity | plain    |             |              | 
- col2   | text                     |           | not null |                              | extended |             |              | 
- col3   | timestamp with time zone |           | not null | now()                        | plain    |             |              | 
- col4   | text                     |           |          |                              | extended |             |              | 
+ col1   | bigint                   |           | not null | generated always as identity | plain    |             |              |
+ col2   | text                     |           | not null |                              | extended |             |              |
+ col3   | timestamp with time zone |           | not null | now()                        | plain    |             |              |
+ col4   | text                     |           |          |                              | extended |             |              |
 Partition key: RANGE (col3)
 Indexes:
     "new_partitioned_table_col3_idx" btree (col3)
@@ -614,12 +614,12 @@ SELECT partman.run_maintenance('public.original_table');
 
 \d+ original_table
                                                    Partitioned table "public.original_table"
- Column |           Type           | Collation | Nullable |           Default            | Storage  | Compression | Stats target | Description 
+ Column |           Type           | Collation | Nullable |           Default            | Storage  | Compression | Stats target | Description
 --------+--------------------------+-----------+----------+------------------------------+----------+-------------+--------------+-------------
- col1   | bigint                   |           | not null | generated always as identity | plain    |             |              | 
- col2   | text                     |           | not null |                              | extended |             |              | 
- col3   | timestamp with time zone |           | not null | now()                        | plain    |             |              | 
- col4   | text                     |           |          |                              | extended |             |              | 
+ col1   | bigint                   |           | not null | generated always as identity | plain    |             |              |
+ col2   | text                     |           | not null |                              | extended |             |              |
+ col3   | timestamp with time zone |           | not null | now()                        | plain    |             |              |
+ col4   | text                     |           |          |                              | extended |             |              |
 Partition key: RANGE (col3)
 Indexes:
     "new_partitioned_table_col3_idx" btree (col3)
@@ -650,19 +650,19 @@ You'll also notice that there is a child table missing in the set above (March 2
 1. Run the `partition_gap_fill()` function to fill any gaps immediately:
 ```sql
 SELECT * FROM partman.partition_gap_fill('public.original_table');
- partition_gap_fill 
+ partition_gap_fill
 --------------------
                   1
 (1 row)
 
 keith=# \d+ original_table
                                                    Partitioned table "public.original_table"
- Column |           Type           | Collation | Nullable |           Default            | Storage  | Compression | Stats target | Description 
+ Column |           Type           | Collation | Nullable |           Default            | Storage  | Compression | Stats target | Description
 --------+--------------------------+-----------+----------+------------------------------+----------+-------------+--------------+-------------
- col1   | bigint                   |           | not null | generated always as identity | plain    |             |              | 
- col2   | text                     |           | not null |                              | extended |             |              | 
- col3   | timestamp with time zone |           | not null | now()                        | plain    |             |              | 
- col4   | text                     |           |          |                              | extended |             |              | 
+ col1   | bigint                   |           | not null | generated always as identity | plain    |             |              |
+ col2   | text                     |           | not null |                              | extended |             |              |
+ col3   | timestamp with time zone |           | not null | now()                        | plain    |             |              |
+ col4   | text                     |           |          |                              | extended |             |              |
 Partition key: RANGE (col3)
 Indexes:
     "new_partitioned_table_col3_idx" btree (col3)

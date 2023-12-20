@@ -122,7 +122,7 @@ Rename the existing partitions to new naming convention. pg_partman uses a stati
     _pYYYYMMDD_HH24MISS - All time intervals less than 1 day
     _p#####             - Serial/ID partition has a suffix that is the value of the lowest possible entry in that table (Ex: _p10, _p20000, etc)
 
-You can use custom datetime_string formats to change the suffix the children will get with pg_partman 5.0.0 and greater, but that is not covered in this tutorial. This only covers how to convert to using pg_partman's default suffixes and pg_partman always adds `_p` to the beginning to distinguish the suffix boundary.
+You can use custom datetime_string formats to change the suffix the children will get with pg_partman 5.0.1 and greater, but that is not covered in this tutorial. This only covers how to convert to using pg_partman's default suffixes and pg_partman always adds `_p` to the beginning to distinguish the suffix boundary.
 
 Step 3a
 -------

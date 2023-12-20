@@ -1,10 +1,36 @@
-Guildelines for Upgrading to pg_partman 5.0.0
+Guildelines for Upgrading to pg_partman 5.0.1
 =============================================
 
-IMPORTANT NOTE: This document assumes all partition sets are native partition sets. If you have trigger-based partitioning sets, you must migrate them to native first before doing any further work to make your partition set compatible with pg_partman 5.0.0 and greater.
+IMPORTANT NOTE: This document assumes all partition sets are native partition sets. If you have trigger-based partitioning sets, you must migrate them to native first before doing any further work to make your partition sets compatible with pg_partman 5.0.1 and greater.
+
+## Trigger Error During Upgrade
+
+If you see the following errors during your upgrade, you will have to do a staged upgrade of pg_partman. The upgrade needs to add constraints and change table values all in one transaction and PostgreSQL doesn't always allow that.
+```sql
+ERROR:  cannot ALTER TABLE "part_config_sub" because it has pending trigger events
+```
+Or from Amazon RDS
+```sql
+ERROR:  42501: cannot fire deferred trigger within security-restricted operation
+```
+
+First upgrade directly to 5.0.0
+```sql
+BEGIN;
+ALTER EXTENSION pg_partman UPDATE TO '5.0.0';
+COMMIT;
+```
+Then ***IMMEDIATELY*** upgrade to 5.0.1
+```sql
+BEGIN;
+ALTER EXTENSION pg_partman UPDATE TO '5.0.1';
+COMMIT;
+```
+If you cannot run both of these updates in quick succession, each in their own distinct transaction, you should wait until you can have a maintenance window that allows it before upgrading to 5.x or higher.
+
 
 ## Deprecated Partitioning Methods
-There are several partitioning schemes that pg_partman supported prior to version 5.0.0 that are no longer supported, namely ISO weekly and Quarterly. Note that is still possible to partition with these intervals in version 5 and above using the intervals "1 week" or "3 months". It's just the specialized versions of this partitioning that were done before are no longer supported.
+There are several partitioning schemes that pg_partman supported prior to version 5.0.1 that are no longer supported, namely ISO weekly and Quarterly. Note that is still possible to partition with these intervals in version 5 and above using the intervals "1 week" or "3 months". It's just the specialized versions of this partitioning that were done before are no longer supported.
 
 Previously weekly partitioning could be done using the ISO week format `IYYYwIW` which would result in partitioning suffixes like 2021w44 or 1994w32 where the number after the `w` was the numbered week of that year and the year would always be sure to be aligned with an ISO week. Also supported was a quarterly partitioning method with the suffix `YYYYq#` where # was one of the 4 standard quarters in a year starting with January 1st. The quarterly method was particularly problematic to support since not all the time-based functions supported it properly.
 
@@ -13,7 +39,7 @@ So while quarterly was problematic to maintain, weekly did work well for the mos
  * `YYYYMMDD` for intervals greater than or equal to 1 day
  * `YYYYMMDD_HH24MISS` for intervals less than 1 day (supported down to 1 second)
 
-Custom interval support had always been possible with pg_partman, especially with native partitioning. But the simplification of the suffixes supported greatly simplifies the code maintenance. If you were using either of these partitioning methods, you will have to migrate away from them in order to use pg_partman 5.0.0 or greater. The migration can be done before or after the upgrade, but just note that partition maintenance will not work for these methods in 5+ and will generate errors when maintenance runs for these sets until after the migration.
+Custom interval support had always been possible with pg_partman, especially with native partitioning. But the simplification of the suffixes supported greatly simplifies the code maintenance. If you were using either of these partitioning methods, you will have to migrate away from them in order to use pg_partman 5.0.1 or greater. The migration can be done before or after the upgrade, but just note that partition maintenance will not work for these methods in 5+ and will generate errors when maintenance runs for these sets until after the migration.
 
 Note that previously `hourly` partitioning did not have seconds in the suffix, but any new partition sets made with that interval will. There is no hard requirement to migrate like there is for weekly and quarterly, but there will be an inconsistency in child table naming with any existing partition sets from before 5.x. A migration similar to the below examples can be done if consistency is desired.
 
