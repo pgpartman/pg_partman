@@ -10,6 +10,7 @@ UPGRADE NOTES
     - Leigh Downs and the team at Crunchy Data for extensive testing
     - vitaly-burovoy on Github for some amazing optimizations and code review
     - andyatkinson on Github for documentation review and pointing out my antiquated usage of the term "native" now that there's only one partitioning method supported
+    - hyde1 on Github for finding the upgrade issue and a simpler upgrade method for 5.0.1
     - And as always to [pgTAP](https://pgtap.org/) for making testing so much easier
 
 BREAKING CHANGES
