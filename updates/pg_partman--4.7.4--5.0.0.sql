@@ -278,7 +278,7 @@ CREATE TABLE @extschema@.part_config_sub (
     , sub_default_table boolean default true
     , sub_date_trunc_interval TEXT
     , CONSTRAINT part_config_sub_pkey PRIMARY KEY (sub_parent)
-    , CONSTRAINT part_config_sub_sub_parent_fkey FOREIGN KEY (sub_parent) REFERENCES @extschema@.part_config (parent_table) ON DELETE CASCADE ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED
+    , CONSTRAINT part_config_sub_sub_parent_fkey FOREIGN KEY (sub_parent) REFERENCES @extschema@.part_config (parent_table) ON DELETE CASCADE ON UPDATE CASCADE
     , CONSTRAINT positive_premake_check CHECK (sub_premake > 0)
 );
 SELECT pg_catalog.pg_extension_config_dump('@extschema@.part_config_sub'::regclass, '');
@@ -328,6 +328,27 @@ SELECT
     , sub_ignore_default_data
 FROM @extschema@.part_config_sub_pre_500_data;
 
+ALTER TABLE @extschema@.part_config ADD CONSTRAINT control_constraint_col_chk CHECK ((constraint_cols @> ARRAY[control]) <> true);
+ALTER TABLE @extschema@.part_config_sub ADD CONSTRAINT control_constraint_col_chk CHECK ((sub_constraint_cols @> ARRAY[sub_control]) <> true);
+
+ALTER TABLE @extschema@.part_config ADD CONSTRAINT retention_schema_not_empty_chk CHECK (retention_schema <> '');
+ALTER TABLE @extschema@.part_config_sub ADD CONSTRAINT retention_schema_not_empty_chk CHECK (sub_retention_schema <> '');
+
+ALTER TABLE @extschema@.part_config
+ADD CONSTRAINT part_config_automatic_maintenance_check
+CHECK (@extschema@.check_automatic_maintenance_value(automatic_maintenance));
+
+ALTER TABLE @extschema@.part_config_sub
+ADD CONSTRAINT part_config_sub_automatic_maintenance_check
+CHECK (@extschema@.check_automatic_maintenance_value(sub_automatic_maintenance));
+
+ALTER TABLE @extschema@.part_config
+ADD CONSTRAINT part_config_epoch_check
+CHECK (@extschema@.check_epoch_type(epoch));
+
+ALTER TABLE @extschema@.part_config_sub
+ADD CONSTRAINT part_config_sub_epoch_check
+CHECK (@extschema@.check_epoch_type(sub_epoch));
 
 UPDATE @extschema@.part_config SET partition_type = 'range' WHERE partition_type = 'native';
 UPDATE @extschema@.part_config_sub SET sub_partition_type = 'range' WHERE sub_partition_type = 'native';
@@ -344,6 +365,14 @@ BEGIN
     RETURN v_result;
 END
 $$;
+
+ALTER TABLE @extschema@.part_config
+ADD CONSTRAINT part_config_type_check
+CHECK (@extschema@.check_partition_type(partition_type));
+
+ALTER TABLE @extschema@.part_config_sub
+ADD CONSTRAINT part_config_sub_type_check
+CHECK (@extschema@.check_partition_type(sub_partition_type));
 
 -- #### Brand new functions ####
 
