@@ -28,6 +28,7 @@ BREAKING CHANGES
  - The minimum required version of PostgreSQL is now 14
     - Required for calling procedures via background worker (Github PR #242).
  - Dropped automatic publication refresh of a partition set that was part of a logical replication subscription. As of PostgreSQL 14, it is no longer possible to call ALTER SUBSCRIPTION ... REFRESH PUBLICATION within a transaction block which means it can no longer be called via the maintenance functions. For now, an independent call with this refresh statement will need to be done on the subscription side of partition sets that are part of logical replication (Github Issue #572).
+ - The partition control column being NOT NULL is now fully enforced when making new partition sets.
 
 NEW FEATURES
 ------------
