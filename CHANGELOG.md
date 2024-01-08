@@ -42,6 +42,7 @@ NEW FEATURES
  - Added support for dropping indexes for partitions moved to another schema as part of retention (Github PR #449).
  - Creating a template table is now optional when calling `create_parent()`. Set `p_template_table` to `false` to skip template table creation. Note this is not a boolean since this parameter is also meant to take a template table name, so the explicit string value `false` must be set (Github Issue #505).
  - Lots of backend optimizations and code simplification
+ - Allow overriding of the PG_CONFIG environment variable when running make (Github PR #589).
 
 BUG FIXES
 ---------
