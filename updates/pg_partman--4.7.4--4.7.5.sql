@@ -1,4 +1,13 @@
-CREATE FUNCTION partition_gap_fill(p_parent_table text, p_analyze boolean DEFAULT true) RETURNS integer
+-- Added p_analyze parameter to partition_gap_fill().
+
+/*
+Added p_analyze parameter to partition_gap_fill() to workaround locking issue with logical replication worker
+writing to a patritioned table.
+*/
+
+DROP FUNCTION @extschema@.partition_gap_fill(text);
+
+CREATE FUNCTION @extschema@.partition_gap_fill(p_parent_table text, p_analyze boolean DEFAULT true) RETURNS integer
     LANGUAGE plpgsql
     AS $$
 DECLARE

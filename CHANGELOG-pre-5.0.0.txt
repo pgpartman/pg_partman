@@ -1,3 +1,8 @@
+4.7.5
+NEW FEATURES
+============
+-- Add p_analyze parameter to partition_gap_fill() to allow disable analyze during partition creation. It resolves lock issue when logical replication worker is inserting data into the partitioned table (with default partition).
+
 4.7.4
 NEW FEATURES
 ============
