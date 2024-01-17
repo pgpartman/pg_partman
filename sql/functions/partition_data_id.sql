@@ -1,17 +1,19 @@
-CREATE FUNCTION @extschema@.partition_data_id(p_parent_table text
+CREATE FUNCTION @extschema@.partition_data_id(
+    p_parent_table text
     , p_batch_count int DEFAULT 1
     , p_batch_interval bigint DEFAULT NULL
     , p_lock_wait numeric DEFAULT 0
     , p_order text DEFAULT 'ASC'
     , p_analyze boolean DEFAULT true
     , p_source_table text DEFAULT NULL
-    , p_ignored_columns text[] DEFAULT NULL) 
-RETURNS bigint
-LANGUAGE plpgsql
-AS $$
+    , p_ignored_columns text[] DEFAULT NULL
+)
+    RETURNS bigint
+    LANGUAGE plpgsql
+    AS $$
 DECLARE
 
-v_col                       text;
+v_analyze                   boolean := FALSE;
 v_column_list               text;
 v_control                   text;
 v_control_type              text;
@@ -24,10 +26,10 @@ v_lock_iter                 int := 1;
 v_lock_obtained             boolean := FALSE;
 v_max_partition_id          bigint;
 v_min_partition_id          bigint;
+v_parent_schema             text;
 v_parent_tablename          text;
 v_partition_interval        bigint;
 v_partition_id              bigint[];
-v_partition_type            text;
 v_rowcount                  bigint;
 v_source_schemaname         text;
 v_source_tablename          text;
@@ -37,18 +39,16 @@ v_total_rows                bigint := 0;
 
 BEGIN
     /*
-     * Populate the child table(s) of an id-based partition set with old data from the original parent
+     * Populate the child table(s) of an id-based partition set with data from the default or other given source
      */
 
     SELECT partition_interval::bigint
-    , partition_type
     , control
     , epoch
     INTO v_partition_interval
-    , v_partition_type
     , v_control
     , v_epoch
-    FROM @extschema@.part_config 
+    FROM @extschema@.part_config
     WHERE parent_table = p_parent_table;
     IF NOT FOUND THEN
         RAISE EXCEPTION 'ERROR: No entry in part_config found for given table:  %', p_parent_table;
@@ -59,8 +59,9 @@ FROM pg_catalog.pg_tables
 WHERE schemaname = split_part(p_parent_table, '.', 1)::name
 AND tablename = split_part(p_parent_table, '.', 2)::name;
 
--- Preserve real parent tablename for use below
-v_parent_tablename := v_source_tablename; 
+-- Preserve given parent tablename for use below
+v_parent_schema    := v_source_schemaname;
+v_parent_tablename := v_source_tablename;
 
 SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_source_schemaname, v_source_tablename, v_control);
 
@@ -81,25 +82,24 @@ IF p_source_table IS NOT NULL THEN
     IF v_source_tablename IS NULL THEN
         RAISE EXCEPTION 'Given source table does not exist in system catalogs: %', p_source_table;
     END IF;
-ELSIF v_partition_type = 'native' AND current_setting('server_version_num')::int >= 110000 THEN
+
+ELSE
 
     IF p_batch_interval IS NOT NULL AND p_batch_interval != v_partition_interval THEN
         -- This is true because all data for a given child table must be moved out of the default partition before the child table can be created.
         -- So cannot create the child table when only some of the data has been moved out of the default partition.
-        RAISE EXCEPTION 'Custom intervals are not allowed when moving data out of the DEFAULT partition in a native set. Please leave p_interval/p_batch_interval parameters unset or NULL to allow use of partition set''s default partitioning interval.';
+        RAISE EXCEPTION 'Custom intervals are not allowed when moving data out of the DEFAULT partition. Please leave p_interval/p_batch_interval parameters unset or NULL to allow use of partition set''s default partitioning interval.';
     END IF;
-    -- Set source table to default table if PG11+, p_source_table is not set, and it exists
-    -- Otherwise just return with a DEBUG that no data source exists
-    v_sql := format('SELECT n.nspname::text, c.relname::text FROM
-        pg_catalog.pg_inherits h
-        JOIN pg_catalog.pg_class c ON c.oid = h.inhrelid
-        JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-        WHERE h.inhparent = ''%I.%I''::regclass
-        AND pg_get_expr(relpartbound, c.oid) = ''DEFAULT'''
-        , v_source_schemaname
-        , v_source_tablename);
 
-    EXECUTE v_sql INTO v_default_schemaname, v_default_tablename;
+    -- Set source table to default table if p_source_table is not set, and it exists
+    -- Otherwise just return with a DEBUG that no data source exists
+    SELECT n.nspname::text, c.relname::text
+    INTO v_default_schemaname, v_default_tablename
+    FROM pg_catalog.pg_inherits h
+    JOIN pg_catalog.pg_class c ON c.oid = h.inhrelid
+    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+    WHERE h.inhparent = format('%I.%I', v_source_schemaname, v_source_tablename)::regclass
+    AND pg_get_expr(relpartbound, c.oid) = 'DEFAULT';
 
     IF v_default_tablename IS NOT NULL THEN
         v_source_schemaname := v_default_schemaname;
@@ -119,23 +119,16 @@ IF p_batch_interval IS NULL OR p_batch_interval > v_partition_interval THEN
 END IF;
 
 -- Generate column list to use in SELECT/INSERT statements below. Allows for exclusion of GENERATED (or any other desired) columns.
-v_sql := format ('SELECT ''"''||string_agg(attname, ''","'')||''"'' FROM pg_catalog.pg_attribute a
-                    JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
-                    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-                    WHERE n.nspname = %L
-                    AND c.relname = %L 
-                    AND a.attnum > 0 
-                    AND a.attisdropped = false'
-                  , v_source_schemaname
-                  , v_source_tablename);
-
-IF p_ignored_columns IS NOT NULL THEN
-    FOREACH v_col IN ARRAY p_ignored_columns LOOP
-        v_sql := v_sql || format(' AND attname != %L ', v_col);
-    END LOOP;
-END IF;
-
-EXECUTE v_sql INTO v_column_list;
+SELECT string_agg(quote_ident(attname), ',')
+INTO v_column_list
+FROM pg_catalog.pg_attribute a
+JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
+JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+WHERE n.nspname = v_source_schemaname
+AND c.relname = v_source_tablename
+AND a.attnum > 0
+AND a.attisdropped = false
+AND attname <> ALL(COALESCE(p_ignored_columns, ARRAY[]::text[]));
 
 FOR i IN 1..p_batch_count LOOP
 
@@ -202,7 +195,7 @@ v_current_partition_name := @extschema@.check_name_length(COALESCE(v_parent_tabl
 
 IF v_default_exists THEN
 
-    -- Child tables cannot be created in native partitioning if data that belongs to it exists in the default
+    -- Child tables cannot be created if data that belongs to it exists in the default
     -- Have to move data out to temporary location, create child table, then move it back
 
     -- Temp table created above to avoid excessive temp creation in loop
@@ -216,7 +209,8 @@ IF v_default_exists THEN
         , v_max_partition_id
         , v_column_list);
 
-    PERFORM @extschema@.create_partition_id(p_parent_table, v_partition_id, p_analyze);
+    -- Set analyze to true if a table is created
+    v_analyze := @extschema@.create_partition_id(p_parent_table, v_partition_id);
 
     EXECUTE format('WITH partition_data AS (
             DELETE FROM partman_temp_data_storage RETURNING *)
@@ -227,7 +221,8 @@ IF v_default_exists THEN
 
 ELSE
 
-    PERFORM @extschema@.create_partition_id(p_parent_table, v_partition_id, p_analyze);
+    -- Set analyze to true if a table is created
+    v_analyze := @extschema@.create_partition_id(p_parent_table, v_partition_id);
 
     EXECUTE format('WITH partition_data AS (
             DELETE FROM ONLY %1$I.%2$I WHERE %3$I >= %4$s AND %3$I < %5$s RETURNING *)
@@ -250,12 +245,15 @@ END IF;
 
 END LOOP;
 
-IF v_partition_type = 'partman' THEN
-    PERFORM @extschema@.create_function_id(p_parent_table);
+-- v_analyze is a local check if a new table is made.
+-- p_analyze is a parameter to say whether to run the analyze at all. Used by create_parent() to avoid long exclusive lock or run_maintenence() to avoid long creation runs.
+IF v_analyze AND p_analyze THEN
+    RAISE DEBUG 'partiton_data_time: Begin analyze of %.%', v_parent_schema, v_parent_tablename;
+    EXECUTE format('ANALYZE %I.%I', v_parent_schema, v_parent_tablename);
+    RAISE DEBUG 'partiton_data_time: End analyze of %.%', v_parent_schema, v_parent_tablename;
 END IF;
 
 RETURN v_total_rows;
 
 END
 $$;
-

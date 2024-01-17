@@ -1,4 +1,12 @@
-CREATE FUNCTION @extschema@.show_partition_name(p_parent_table text, p_value text, OUT partition_schema text, OUT partition_table text, OUT suffix_timestamp timestamptz, OUT suffix_id bigint, OUT table_exists boolean) RETURNS record
+CREATE FUNCTION @extschema@.show_partition_name(
+    p_parent_table text, p_value text
+    , OUT partition_schema text
+    , OUT partition_table text
+    , OUT suffix_timestamp timestamptz
+    , OUT suffix_id bigint
+    , OUT table_exists boolean
+)
+    RETURNS record
     LANGUAGE plpgsql STABLE
     AS $$
 DECLARE
@@ -13,8 +21,6 @@ v_control_type                  text;
 v_datetime_string               text;
 v_epoch                         text;
 v_given_timestamp               timestamptz;
-v_max_range                     timestamptz;
-v_min_range                     timestamptz;
 v_parent_schema                 text;
 v_parent_tablename              text;
 v_partition_interval            text;
@@ -28,7 +34,7 @@ BEGIN
  * Also returns just the suffix value and true if the child table exists or false if it does not
  */
 
-SELECT partition_type 
+SELECT partition_type
     , control
     , partition_interval
     , datetime_string
@@ -36,9 +42,9 @@ SELECT partition_type
 INTO v_type
     , v_control
     , v_partition_interval
-    , v_datetime_string 
+    , v_datetime_string
     , v_epoch
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table;
 
 IF v_type IS NULL THEN
@@ -61,11 +67,11 @@ SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_pa
 IF ( (v_control_type = 'time') OR (v_control_type = 'id' AND v_epoch <> 'none') ) THEN
 
     v_given_timestamp := p_value::timestamptz;
-    FOR v_row IN 
+    FOR v_row IN
         SELECT partition_schemaname ||'.'|| partition_tablename AS child_table FROM @extschema@.show_partitions(p_parent_table, 'DESC')
     LOOP
-        SELECT child_start_time INTO v_child_start_time  
-            FROM @extschema@.show_partition_info(v_row.child_table, v_partition_interval, p_parent_table); 
+        SELECT child_start_time INTO v_child_start_time
+            FROM @extschema@.show_partition_info(v_row.child_table, v_partition_interval, p_parent_table);
         -- Don't use child_end_time from above function to avoid edge cases around user supplied timestamps
         v_child_end_time := v_child_start_time + v_partition_interval::interval;
         IF v_given_timestamp >= v_child_end_time THEN
@@ -113,45 +119,12 @@ IF ( (v_control_type = 'time') OR (v_control_type = 'id' AND v_epoch <> 'none') 
 
     partition_table := @extschema@.check_name_length(v_parent_tablename, to_char(suffix_timestamp, v_datetime_string), TRUE);
 
-ELSIF v_control_type = 'id' AND v_type <> 'time-custom' THEN
+ELSIF v_control_type = 'id' THEN
     suffix_id := (p_value::bigint - (p_value::bigint % v_partition_interval::bigint));
     partition_table := @extschema@.check_name_length(v_parent_tablename, suffix_id::text, TRUE);
 
-ELSIF v_type = 'time-custom' THEN
-
-    SELECT child_table, lower(partition_range) INTO partition_table, suffix_timestamp FROM @extschema@.custom_time_partitions 
-        WHERE parent_table = p_parent_table AND partition_range @> p_value::timestamptz;
-
-    IF partition_table IS NULL THEN
-        SELECT max(upper(partition_range)) INTO v_max_range FROM @extschema@.custom_time_partitions WHERE parent_table = p_parent_table;
-        SELECT min(lower(partition_range)) INTO v_min_range FROM @extschema@.custom_time_partitions WHERE parent_table = p_parent_table;
-        IF p_value::timestamptz >= v_max_range THEN
-            suffix_timestamp := v_max_range;
-            LOOP
-                -- Keep incrementing higher until given value is below the upper range
-                suffix_timestamp := suffix_timestamp + v_partition_interval::interval;
-                IF p_value::timestamptz < suffix_timestamp THEN
-                    -- Have to subtract one interval because the value would actually be in the partition previous 
-                    --      to this partition timestamp since the partition names contain the lower boundary
-                    suffix_timestamp := suffix_timestamp - v_partition_interval::interval;
-                    EXIT;
-                END IF;
-            END LOOP;
-        ELSIF p_value::timestamptz < v_min_range THEN
-            suffix_timestamp := v_min_range;
-            LOOP
-                -- Keep decrementing lower until given value is below or equal to the lower range
-                suffix_timestamp := suffix_timestamp - v_partition_interval::interval;
-                IF p_value::timestamptz >= suffix_timestamp THEN
-                    EXIT;
-                END IF;
-            END LOOP;
-        ELSE
-            RAISE EXCEPTION 'Unable to determine a valid child table for the given parent table and value';
-        END IF;
-
-        partition_table := @extschema@.check_name_length(v_parent_tablename, to_char(suffix_timestamp, v_datetime_string), TRUE);
-    END IF;
+ELSE
+    RAISE EXCEPTION 'Unexpected code path encountered in show_partition_name(). No valid control type found. Please report this issue to author with relevant partition config info.';
 END IF;
 
 SELECT tablename INTO v_child_exists
@@ -169,5 +142,3 @@ RETURN;
 
 END
 $$;
-
-

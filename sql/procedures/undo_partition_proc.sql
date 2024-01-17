@@ -1,31 +1,30 @@
 CREATE PROCEDURE @extschema@.undo_partition_proc(
     p_parent_table text
-    , p_interval text DEFAULT NULL
-    , p_batch int DEFAULT NULL
-    , p_wait int DEFAULT 1
     , p_target_table text DEFAULT NULL
+    , p_loop_count int DEFAULT NULL
+    , p_interval text DEFAULT NULL
     , p_keep_table boolean DEFAULT true
     , p_lock_wait int DEFAULT 0
     , p_lock_wait_tries int DEFAULT 10
-    , p_quiet boolean DEFAULT false
+    , p_wait int DEFAULT 1
     , p_ignored_columns text[] DEFAULT NULL
-    , p_drop_cascade boolean DEFAULT false)
+    , p_drop_cascade boolean DEFAULT false
+    , p_quiet boolean DEFAULT false
+)
     LANGUAGE plpgsql
     AS $$
 DECLARE
 
 v_adv_lock                  boolean;
-v_batch_count               int := 0;
 v_is_autovac_off            boolean := false;
 v_lockwait_count            int := 0;
+v_loop_count               int := 0;
 v_parent_schema             text;
 v_parent_tablename          text;
 v_partition_type            text;
 v_partitions_undone         int;
 v_partitions_undone_total   int := 0;
-v_row                       record;
 v_rows_undone               bigint;
-v_target_schema             text;
 v_target_tablename          text;
 v_sql                       text;
 v_total                     bigint := 0;
@@ -40,14 +39,14 @@ END IF;
 
 SELECT partition_type
 INTO v_partition_type
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table;
 IF NOT FOUND THEN
     RAISE EXCEPTION 'ERROR: No entry in part_config found for given table: %', p_parent_table;
 END IF;
 
-IF v_partition_type = 'native' AND p_target_table IS NULL THEN
-    RAISE EXCEPTION 'Natively partitioned table sets require setting the p_target_table parameter to undo partitioning.';
+IF p_target_table IS NULL THEN
+    RAISE EXCEPTION 'The p_target_table option must be set when undoing a partitioned table';
 END IF;
 
 SELECT n.nspname, c.relname INTO v_parent_schema, v_parent_tablename
@@ -60,7 +59,7 @@ AND c.relname = split_part(p_parent_table, '.', 2)::name;
     END IF;
 
 IF p_target_table IS NOT NULL THEN
-    SELECT n.nspname, c.relname INTO v_target_schema, v_target_tablename
+    SELECT c.relname INTO v_target_tablename
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
     WHERE n.nspname = split_part(p_target_table, '.', 1)::name
@@ -80,7 +79,7 @@ IF p_autovacuum_on = false THEN         -- Add this parameter back to definition
 END IF;
 */
 
-v_sql := format('SELECT partitions_undone, rows_undone FROM %I.undo_partition (%L, p_keep_table := %L, p_lock_wait := %L'
+v_sql := format('SELECT partitions_undone, rows_undone FROM %s.undo_partition (%L, p_keep_table := %L, p_lock_wait := %L'
         , '@extschema@'
         , p_parent_table
         , p_keep_table
@@ -104,7 +103,7 @@ LOOP
     EXECUTE v_sql INTO v_partitions_undone, v_rows_undone;
     -- If lock wait timeout, do not increment the counter
     IF v_rows_undone != -1 THEN
-        v_batch_count := v_batch_count + 1;
+        v_loop_count := v_loop_count + 1;
         v_partitions_undone_total := v_partitions_undone_total + v_partitions_undone;
         v_total := v_total + v_rows_undone;
         v_lockwait_count := 0;
@@ -116,15 +115,15 @@ LOOP
     END IF;
     IF p_quiet = false THEN
         IF v_rows_undone > 0 THEN
-            RAISE NOTICE 'Batch: %, Partitions undone this batch: %, Rows undone this batch: %', v_batch_count, v_partitions_undone, v_rows_undone;
+            RAISE NOTICE 'Batch: %, Partitions undone this batch: %, Rows undone this batch: %', v_loop_count, v_partitions_undone, v_rows_undone;
         ELSIF v_rows_undone = -1 THEN
             RAISE NOTICE 'Unable to obtain row locks for data to be moved. Trying again...';
         END IF;
     END IF;
     COMMIT;
 
-    -- If no rows left or given batch argument limit is reached
-    IF v_rows_undone = 0 OR (p_batch > 0 AND v_batch_count >= p_batch) THEN
+    -- If no rows left or given loop argument limit is reached
+    IF v_rows_undone = 0 OR (p_loop_count > 0 AND v_loop_count >= p_loop_count) THEN
         EXIT;
     END IF;
 
@@ -132,22 +131,22 @@ LOOP
     -- Added here to handle edge-case
     SELECT partition_type
     INTO v_partition_type
-    FROM @extschema@.part_config 
+    FROM @extschema@.part_config
     WHERE parent_table = p_parent_table;
     IF NOT FOUND THEN
         EXIT;
     END IF;
 
     PERFORM pg_sleep(p_wait);
-    
-    RAISE DEBUG 'v_partitions_undone: %, v_rows_undone: %, v_batch_count: %, v_total: %, v_lockwait_count: %, p_wait: %', v_partitions_undone, p_wait, v_rows_undone, v_batch_count, v_total, v_lockwait_count;
+
+    RAISE DEBUG 'v_partitions_undone: %, v_rows_undone: %, v_loop_count: %, v_total: %, v_lockwait_count: %, p_wait: %', v_partitions_undone, p_wait, v_rows_undone, v_loop_count, v_total, v_lockwait_count;
 END LOOP;
 
 /*
 IF v_is_autovac_off = true THEN
     -- Reset autovac back to default if it was turned off by this procedure
     PERFORM @extschema@.autovacuum_reset(v_parent_schema, v_parent_tablename, v_source_schema, v_source_tablename);
-    COMMIT; 
+    COMMIT;
 END IF;
 */
 
@@ -158,4 +157,3 @@ RAISE NOTICE 'Ensure to VACUUM ANALYZE the old parent & target table after undo 
 
 END
 $$;
-

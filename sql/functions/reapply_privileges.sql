@@ -1,5 +1,5 @@
 CREATE FUNCTION @extschema@.reapply_privileges(p_parent_table text) RETURNS void
-    LANGUAGE plpgsql 
+    LANGUAGE plpgsql
     AS $$
 DECLARE
 
@@ -55,7 +55,7 @@ IF v_jobmon_schema IS NOT NULL THEN
     v_job_id := add_job(format('PARTMAN RE-APPLYING PRIVILEGES TO ALL CHILD TABLES OF: %s', p_parent_table));
 END IF;
 
-FOR v_row IN 
+FOR v_row IN
     SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(p_parent_table, 'ASC', p_include_default := true)
 LOOP
     PERFORM @extschema@.apply_privileges(v_parent_schema, v_parent_tablename, v_row.partition_schemaname, v_row.partition_tablename, v_job_id);

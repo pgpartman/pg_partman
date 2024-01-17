@@ -6,21 +6,21 @@ SELECT plan(14);
 
 SELECT is_empty('SELECT * FROM partman_test.time_taptest_table_source', 'Check that source table has had data moved to partition');
 
-SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYY_MM_DD'), 
-    ARRAY[1], 'Check count from time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYY_MM_DD'));
+SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'),
+    ARRAY[1], 'Check count from time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'));
 
-SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'9 day'::interval, 'YYYY_MM_DD'), 
-    'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'9 day'::interval, 'YYYY_MM_DD')||' exists');
-SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'9 days'::interval, 'YYYY_MM_DD'), 
-    ARRAY[1], 'Check count from time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'9 days'::interval, 'YYYY_MM_DD'));
+SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'9 day'::interval, 'YYYYMMDD'),
+    'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'9 day'::interval, 'YYYYMMDD')||' exists');
+SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'9 days'::interval, 'YYYYMMDD'),
+    ARRAY[1], 'Check count from time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'9 days'::interval, 'YYYYMMDD'));
 
-SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'5 day'::interval, 'YYYY_MM_DD'), 
-    'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'5 day'::interval, 'YYYY_MM_DD')||' exists');
-SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'5 days'::interval, 'YYYY_MM_DD'), 
-    ARRAY[1], 'Check count from time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'5 days'::interval, 'YYYY_MM_DD'));
+SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'5 day'::interval, 'YYYYMMDD'),
+    'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'5 day'::interval, 'YYYYMMDD')||' exists');
+SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'5 days'::interval, 'YYYYMMDD'),
+    ARRAY[1], 'Check count from time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'5 days'::interval, 'YYYYMMDD'));
 
-SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'10 day'::interval, 'YYYY_MM_DD'), 
-    'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'10 day'::interval, 'YYYY_MM_DD')||' does not exist');
+SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'10 day'::interval, 'YYYYMMDD'),
+    'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'10 day'::interval, 'YYYYMMDD')||' does not exist');
 
 INSERT INTO partman_test.time_taptest_table (col3) VALUES (CURRENT_TIMESTAMP + '1 day'::interval);
 INSERT INTO partman_test.time_taptest_table (col3) VALUES (CURRENT_TIMESTAMP + '2 days'::interval);
@@ -28,14 +28,14 @@ INSERT INTO partman_test.time_taptest_table (col3) VALUES (CURRENT_TIMESTAMP + '
 INSERT INTO partman_test.time_taptest_table (col3) VALUES (CURRENT_TIMESTAMP + '4 days'::interval);
 
 SELECT is_empty('SELECT * FROM ONLY partman_test.time_taptest_table', 'Check that parent table has had no data inserted to it');
-SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'1 day'::interval, 'YYYY_MM_DD'), 
-    ARRAY[1], 'Check count from time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'1 day'::interval, 'YYYY_MM_DD'));
-SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'2 days'::interval, 'YYYY_MM_DD'), 
-    ARRAY[1], 'Check count from time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'2 days'::interval, 'YYYY_MM_DD'));
-SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'3 days'::interval, 'YYYY_MM_DD'), 
-    ARRAY[1], 'Check count from time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'3 days'::interval, 'YYYY_MM_DD'));
-SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'4 days'::interval, 'YYYY_MM_DD'), 
-    ARRAY[1], 'Check count from time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'4 days'::interval, 'YYYY_MM_DD'));
+SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'1 day'::interval, 'YYYYMMDD'),
+    ARRAY[1], 'Check count from time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'1 day'::interval, 'YYYYMMDD'));
+SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'2 days'::interval, 'YYYYMMDD'),
+    ARRAY[1], 'Check count from time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'2 days'::interval, 'YYYYMMDD'));
+SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'3 days'::interval, 'YYYYMMDD'),
+    ARRAY[1], 'Check count from time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'3 days'::interval, 'YYYYMMDD'));
+SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'4 days'::interval, 'YYYYMMDD'),
+    ARRAY[1], 'Check count from time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'4 days'::interval, 'YYYYMMDD'));
 
 UPDATE part_config SET premake = 5 WHERE parent_table = 'partman_test.time_taptest_table';
 
@@ -53,5 +53,3 @@ SELECT diag('!!! In separate psql terminal, please run the following (adjusting 
 SELECT diag('!!! After that, run part3 of this script to check result !!!');
 
 SELECT * FROM finish();
-
-

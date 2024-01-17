@@ -1,3 +1,4 @@
+
 CREATE FUNCTION @extschema@.apply_cluster(p_parent_schema text, p_parent_tablename text, p_child_schema text, p_child_tablename text) RETURNS void
     LANGUAGE plpgsql
 AS $$
@@ -12,7 +13,7 @@ BEGIN
 * Function to apply cluster from parent to child table
 * Adapted from code fork by https://github.com/dturon/pg_partman
 */
-    
+
 SELECT c.relkind INTO v_relkind
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
@@ -26,7 +27,7 @@ ELSIF v_relkind IS NULL THEN
 END IF;
 
 WITH parent_info AS (
-    SELECT c.oid AS parent_oid 
+    SELECT c.oid AS parent_oid
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
     WHERE n.nspname = p_parent_schema::name
@@ -42,7 +43,7 @@ WHERE i.indisclustered = true;
 -- Loop over all existing indexes in child table to find one with matching definition
 FOR v_row IN
     WITH child_info AS (
-        SELECT c.oid AS child_oid 
+        SELECT c.oid AS child_oid
         FROM pg_catalog.pg_class c
         JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
         WHERE n.nspname = p_child_schema::name

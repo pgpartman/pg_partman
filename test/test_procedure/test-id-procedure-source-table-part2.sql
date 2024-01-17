@@ -20,8 +20,8 @@ SELECT hasnt_table('partman_test', 'id_taptest_table_p1100000', 'Check id_taptes
 SELECT is_empty($$SELECT key
     FROM (SELECT indexrelid::regclass AS idx
             , (indrelid::text ||E'\n'|| indclass::text ||E'\n'|| indkey::text ||E'\n'|| coalesce(indexprs::text,'')||E'\n' || coalesce(indpred::text,'')) AS KEY FROM pg_index
-                WHERE indrelid = 'partman_test.id_taptest_table_p500000'::regclass) sub 
-            GROUP BY key 
+                WHERE indrelid = 'partman_test.id_taptest_table_p500000'::regclass) sub
+            GROUP BY key
             HAVING count(*)>1$$
     , 'Check that table id_taptest_table_p500000 does not have duped index');
 

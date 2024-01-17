@@ -32,7 +32,7 @@ WITH top_oid AS (
     JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = v_parent_schema
     AND c.relname = v_parent_tablename
-) 
+)
 SELECT n.nspname, c.relname, p.partition_interval, p.control, p.epoch
 INTO v_top_schema, v_top_tablename, v_top_interval, v_top_control, v_top_epoch
 FROM pg_catalog.pg_class c
@@ -51,11 +51,11 @@ END IF;
 -- If sub-partition is different type than top parent, no need to set limits
 IF p_type = v_top_control_type THEN
     IF p_type = 'time' THEN
-        SELECT child_start_time::text, child_end_time::text 
+        SELECT child_start_time::text, child_end_time::text
         INTO sub_min, sub_max
         FROM @extschema@.show_partition_info(p_parent_table, v_top_interval, v_top_schema||'.'||v_top_tablename);
     ELSIF p_type = 'id' THEN
-        SELECT child_start_id::text, child_end_id::text 
+        SELECT child_start_id::text, child_end_id::text
         INTO sub_min, sub_max
         FROM @extschema@.show_partition_info(p_parent_table, v_top_interval, v_top_schema||'.'||v_top_tablename);
     ELSE

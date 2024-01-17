@@ -1,10 +1,15 @@
-CREATE FUNCTION @extschema@.check_name_length (p_object_name text, p_suffix text DEFAULT NULL, p_table_partition boolean DEFAULT FALSE) RETURNS text
+CREATE FUNCTION @extschema@.check_name_length (
+    p_object_name text
+    , p_suffix text DEFAULT NULL
+    , p_table_partition boolean DEFAULT FALSE
+)
+    RETURNS text
     LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER
     SET search_path TO pg_catalog, pg_temp
     AS $$
 DECLARE
-    v_new_length    int;
     v_new_name      text;
+    v_suffix        text;
 BEGIN
 /*
  * Truncate the name of the given object if it is greater than the postgres default max (63 characters).
@@ -13,28 +18,28 @@ BEGIN
  * Retains SECURITY DEFINER since it is called by trigger functions and did not want to break installations prior to 4.0.0
  */
 
-IF p_table_partition IS TRUE AND (p_suffix IS NULL) THEN
+IF p_table_partition IS TRUE AND (NULLIF(p_suffix, '') IS NULL) THEN
     RAISE EXCEPTION 'Table partition name requires a suffix value';
 END IF;
 
-IF p_table_partition THEN  -- 61 characters to account for _p in partition name
-    IF char_length(p_object_name) + char_length(p_suffix) >= 61 THEN
-        v_new_length := 61 - char_length(p_suffix);
-        v_new_name := substring(p_object_name from 1 for v_new_length) || '_p' || p_suffix; 
-    ELSE
-        v_new_name := p_object_name||'_p'||p_suffix;
-    END IF;
-ELSE
-    IF char_length(p_object_name) + char_length(COALESCE(p_suffix, '')) >= 63 THEN
-        v_new_length := 63 - char_length(COALESCE(p_suffix, ''));
-        v_new_name := substring(p_object_name from 1 for v_new_length) || COALESCE(p_suffix, ''); 
-    ELSE
-        v_new_name := p_object_name||COALESCE(p_suffix, '');
-    END IF;
+
+v_suffix := format('%s%s', CASE WHEN p_table_partition THEN '_p' END, p_suffix);
+-- Use optimistic behavior: in almost all cases `v_new_name` will be less than allowed maximum.
+-- Do "heavy" work only in rare cases.
+v_new_name := p_object_name || v_suffix;
+
+-- Postgres' relation name limit is in bytes, not characters; also it can be compiled with bigger allowed length.
+-- Use its internals to detect where to cut new object name.
+IF v_new_name::name != v_new_name THEN
+    -- Here we need to detect how many chars (not bytes) we need to get from the `p_object_name`.
+    -- Use suffix as prefix and get the rest of `p_object_name`.
+    v_new_name := (v_suffix || p_object_name)::name;
+    -- `substr` starts from 1, that is why we need to add 1 below.
+    -- Edge case: `v_suffix` is empty, length is 0, but need to start from 1.
+    v_new_name := substr(v_new_name, length(v_suffix) + 1) || v_suffix;
 END IF;
 
 RETURN v_new_name;
 
 END
 $$;
-
