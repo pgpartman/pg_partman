@@ -43,7 +43,7 @@ CREATE INDEX ON partman_test.id_taptest_table (col3);
 -- TESTING CASE ONLY - create the index on the template also so that we can test excluding duplicate indexes
 CREATE INDEX ON partman_test.template_id_taptest_table (col3);
 
--- Regular unique indexes do not work on native in PG11 if the partition key isn't included
+-- Regular unique indexes do not work on native if the partition key isn't included
 CREATE UNIQUE INDEX ON partman_test.template_id_taptest_table (col4);
 
 SELECT create_parent('partman_test.id_taptest_table', 'col1', '10', p_jobmon := false, p_start_partition := '3000000000', p_template_table := 'partman_test.template_id_taptest_table');

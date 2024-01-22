@@ -151,8 +151,8 @@ CHECK (@extschema@.check_epoch_type(sub_epoch));
 /*
  * Check for valid config table partition types
  */
--- Allow list/hash in future update
-CREATE OR REPLACE FUNCTION @extschema@.check_partition_type (p_type text) RETURNS boolean
+-- Allow hash in future update
+CREATE FUNCTION @extschema@.check_partition_type (p_type text) RETURNS boolean
     LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER
     SET search_path TO pg_catalog, pg_temp
     AS $$
