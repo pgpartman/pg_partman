@@ -294,7 +294,7 @@ LOOP
         v_lock_obtained := FALSE; -- reset for reuse later
 
         IF v_partition_type = 'native' THEN
-            EXECUTE format('ALTER TABLE %I.%I DETACH PARTITION %I.%I'
+            EXECUTE format('ALTER TABLE %I.%I DETACH PARTITION %I.%I CONCURRENTLY'
                             , v_parent_schema
                             , v_parent_tablename
                             , v_parent_schema
