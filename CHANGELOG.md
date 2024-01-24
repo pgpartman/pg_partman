@@ -6,8 +6,8 @@ NEW FEATURES
  - Add explicit ordering of partition set maintenance. (Issue #497)
     - TODO Needs unit testing
     - A new column has been added to the `part_config` table: `maintenance_order`. If set, the partition sets will run in increasing numerical order
-    -- Defaults to NULL and has no requirement
-    -- NULL values will always come after numbered sets in no guaranteed order
+    - Defaults to NULL and has no requirement
+    - NULL values will always come after numbered sets in no guaranteed order
  - REPLICA IDENTITY is now automatically inherited from the parent table to all children (#502)
     - TODO Needs unit testing
     - Note for existing partition sets, this will only apply to newly created child tables. Existing child tables will need to be manually updated.
@@ -17,11 +17,13 @@ NEW FEATURES
 
 BUGFIXES
 --------
- - Remove child tables from publication during retention that keeps tables
+ - Remove child tables from publication during retention that keeps tables (Github Issue #523)
     - TODO Needs unit testing
- - Allow partition maintenance to be called on replicas without error. Calling maintenance on a replica will do nothing and exit cleanly. Allows for setting up consistent cronjobs between failover systems. (Issue #569)
- - Properly inherit tablespaces (#609)
+ - Allow partition maintenance to be called on replicas without error. Calling maintenance on a replica will do nothing and exit cleanly. Allows for setting up consistent cronjobs between failover systems. (Github Issue #569)
+ - Properly inherit tablespaces (Github Issue #609)
     - This was a regression in 5.0 that mistakenly stopped working. Tablespace inheritance still works as expected in 4.x.
+ - Allow `infinite_time_partitions` flag to work even if the partition set has no data. This can happen in partition sets with retention and low data writes (Github Issue #585)
+    - TODO Needs unit testing
 
 
 4.8.0

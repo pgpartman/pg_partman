@@ -2136,7 +2136,7 @@ LOOP
                                 , v_row_max_time.partition_tablename
                             ) INTO v_max_timestamp;
 
-            IF v_row.infinite_time_partitions AND (v_max_timestamp < CURRENT_TIMESTAMP) THEN
+            IF v_row.infinite_time_partitions AND v_max_timestamp < CURRENT_TIMESTAMP THEN
                 -- No new data has been inserted relative to "now", but keep making child tables anyway
                 v_current_partition_timestamp = CURRENT_TIMESTAMP;
                 -- Nothing else to do in this case so just end early
@@ -2147,6 +2147,12 @@ LOOP
                 EXIT;
             END IF;
         END LOOP;
+        IF v_row.infinite_time_partitions AND v_max_timestamp IS NULL THEN
+            -- If partition set is completely empty, still keep making child tables anyway
+            -- Has to be separate check outside above loop since "future" tables are likely going to be empty and make max value in that loop NULL
+            v_current_partition_timestamp = CURRENT_TIMESTAMP;
+        END IF;
+
 
         -- If not ignoring the default table, check for max values there. If they are there and greater than all child values, use that instead
         -- Note the default is NOT to care about data in the default, so maintenance will fail if new child table boundaries overlap with
