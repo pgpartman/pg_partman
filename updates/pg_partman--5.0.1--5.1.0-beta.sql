@@ -3381,7 +3381,7 @@ $$;
 
 
 -- Drop and restore gapfill function to remove analyze parameter added in version 4.8
-CREATE FUNCTION partition_gap_fill(p_parent_table text) RETURNS integer
+CREATE FUNCTION @extschema@.partition_gap_fill(p_parent_table text) RETURNS integer
     LANGUAGE plpgsql
     AS $$
 DECLARE
