@@ -2,7 +2,7 @@
 
 DROP FUNCTION IF EXISTS @extschema@.partition_gap_fill(text);
 
-CREATE FUNCTION partition_gap_fill(p_parent_table text, p_analyze boolean DEFAULT true) RETURNS integer
+CREATE FUNCTION @extschema@.partition_gap_fill(p_parent_table text, p_analyze boolean DEFAULT true) RETURNS integer
     LANGUAGE plpgsql
     AS $$
 DECLARE
