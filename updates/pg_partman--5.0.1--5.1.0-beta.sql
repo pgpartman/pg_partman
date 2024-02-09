@@ -2408,7 +2408,7 @@ LOOP
 
 END LOOP;
 
-PERFORM pg_advisory_unlock(hashtext('pg_partman run_maintenance'));
+PERFORM pg_advisory_unlock(hashtext('pg_partman run_maintenance procedure'));
 END
 $$;
 
