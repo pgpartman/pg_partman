@@ -2246,8 +2246,6 @@ LOOP
         LOOP
             -- Loop through child tables starting from highest to get current max value in partition set
             -- Avoids doing a scan on entire partition set and/or getting any values accidentally in default.
--- TODO REMOVE
-RAISE NOTICE 'before getting v_max_id';
             EXECUTE format('SELECT trunc(max(%I))::bigint FROM %I.%I'
                             , v_row.control
                             , v_row_max_id.partition_schemaname
@@ -2257,8 +2255,6 @@ RAISE NOTICE 'before getting v_max_id';
                 EXIT;
             END IF;
         END LOOP;
--- TODO REMOVE
-RAISE NOTICE 'v_max_id: %', v_max_id;
         -- If not ignoring the default table, check for max values there. If they are there and greater than all child values, use that instead
         -- Note the default is NOT to care about data in the default, so maintenance will fail if new child table boundaries overlap with
         --  data that exists in the default. This is intentional so user removes data from default to avoid larger problems.
@@ -2275,16 +2271,12 @@ RAISE NOTICE 'v_max_id: %', v_max_id;
         IF v_current_partition_id IS NULL OR (v_max_id_default > v_current_partition_id) THEN
             SELECT suffix_id INTO v_current_partition_id FROM @extschema@.show_partition_name(v_row.parent_table, v_max_id_default::text);
         END IF;
---TODO REMOVE
-RAISE NOTICE 'v_current_partition_id: %', v_current_partition_id;
 
         SELECT child_start_id INTO v_last_partition_id
             FROM @extschema@.show_partition_info(v_parent_schema||'.'||v_last_partition, v_row.partition_interval, v_row.parent_table);
         -- Determine if this table is a child of a subpartition parent. If so, get limits to see if run_maintenance even needs to run for it.
-        --TODO REMOVEEXECUTE format('SELECT sub_min::%1$s, sub_max::%1$s  FROM @extschema@.check_subpartition_limits(v_row.parent_table, ''id'')', v_exact_control_type) INTO v_sub_id_min, v_sub_id_max;
         SELECT sub_min::bigint, sub_max::bigint INTO v_sub_id_min, v_sub_id_max FROM @extschema@.check_subpartition_limits(v_row.parent_table, 'id');
-        --TODO REMOVE
-        RAISE NOTICE 'v_sub_id_min: %, v_sub_id_max: %', v_sub_id_min, v_sub_id_max;
+
         IF v_sub_id_max IS NOT NULL THEN
             SELECT suffix_id INTO v_sub_id_max_suffix FROM @extschema@.show_partition_name(v_row.parent_table, v_sub_id_max::text);
             IF v_sub_id_max_suffix = v_last_partition_id THEN
