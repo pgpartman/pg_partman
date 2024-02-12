@@ -86,6 +86,7 @@ v_parent_partition_id           bigint;
 v_parent_partition_timestamp    timestamptz;
 v_parent_schema                 text;
 v_parent_tablename              text;
+v_parent_tablespace             name;
 v_part_col                      text;
 v_part_type                     text;
 v_partattrs                     smallint[];
@@ -130,10 +131,17 @@ THEN
     RAISE EXCEPTION 'Special partition interval values from old pg_partman versions (%) are no longer supported. Please use a supported interval time value from core PostgreSQL (https://www.postgresql.org/docs/current/datatype-datetime.html#DATATYPE-INTERVAL-INPUT)', p_interval;
 END IF;
 
-SELECT n.nspname, c.relname, c.relpersistence
-INTO v_parent_schema, v_parent_tablename, v_unlogged
+SELECT n.nspname
+    , c.relname
+    , c.relpersistence
+    , t.spcname
+INTO v_parent_schema
+    , v_parent_tablename
+    , v_unlogged
+    , v_parent_tablespace
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+LEFT OUTER JOIN pg_catalog.pg_tablespace t ON c.reltablespace = t.oid
 WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
 AND c.relname = split_part(p_parent_table, '.', 2)::name;
     IF v_parent_tablename IS NULL THEN
@@ -641,6 +649,9 @@ IF p_default_table THEN
     -- Same INCLUDING list is used in create_partition_*(). INDEXES is handled when partition is attached if it's supported.
     v_sql := v_sql || format(' TABLE %I.%I (LIKE %I.%I INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING STORAGE INCLUDING COMMENTS INCLUDING GENERATED)'
         , v_parent_schema, v_default_partition, v_parent_schema, v_parent_tablename);
+    IF v_parent_tablespace IS NOT NULL THEN
+        v_sql := format('%s TABLESPACE %I ', v_sql, v_parent_tablespace);
+    END IF;
     EXECUTE v_sql;
 
     v_sql := format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I DEFAULT'
@@ -1597,7 +1608,7 @@ BEGIN
         pc.ignore_default_data,
         pc.date_trunc_interval,
         pc.default_table,
-        pc.maintenance_order
+        pc.maintenance_order,
         pc.retention_keep_publication
     INTO
         v_parent_table,
