@@ -1339,7 +1339,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
     FROM @extschema@.part_config_sub
     WHERE sub_parent = p_parent_table;
     IF v_sub_partition_type = 'range' THEN
-        v_sql :=  format(' PARTITION BY RANGE (%I) ', v_sql, v_sub_control);
+        v_sql :=  format('%s PARTITION BY RANGE (%I) ', v_sql, v_sub_control);
     END IF;
 
     RAISE DEBUG 'create_partition_time v_sql: %', v_sql;
@@ -1479,7 +1479,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             , constraint_valid = v_row.sub_constraint_valid
             , ignore_default_data = v_row.sub_ignore_default_data
             , maintenance_order = v_row.sub_maintenance_order
-            , sub_retention_keep_publication = v_row.sub_retention_keep_publication
+            , retention_keep_publication = v_row.sub_retention_keep_publication
         WHERE parent_table = v_parent_schema||'.'||v_partition_name;
 
         -- NOTE: Replication identity not automatically inherited as of PG16 (revisit in future versions)
@@ -2136,6 +2136,9 @@ LOOP
         SELECT child_start_time INTO v_last_partition_timestamp
             FROM @extschema@.show_partition_info(v_parent_schema||'.'||v_last_partition, v_row.partition_interval, v_row.parent_table);
 
+        -- Must be reset to null otherwise if the next partition set in the loop is empty, the previous partition set's value could be used
+        v_current_partition_timestamp := NULL;
+
         -- Loop through child tables starting from highest to get current max value in partition set
         -- Avoids doing a scan on entire partition set and/or getting any values accidentally in default.
         FOR v_row_max_time IN
@@ -2240,6 +2243,9 @@ LOOP
         END IF;
 
         IF v_row.sub_partition_set_full THEN CONTINUE; END IF;
+
+        -- Must be reset to null otherwise if the next partition set in the loop is empty, the previous partition set's value could be used
+        v_current_partition_id := NULL;
 
         FOR v_row_max_id IN
             SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(v_row.parent_table, 'DESC', false)

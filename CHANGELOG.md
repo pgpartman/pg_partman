@@ -24,7 +24,7 @@ BUGFIXES
     - This was a regression in 5.0 that mistakenly stopped working. Tablespace inheritance still works as expected in 4.x.
  - Allow `infinite_time_partitions` flag to work even if the partition set has no data. This can happen in partition sets with retention and low data writes (Github Issue #585)
     - TODO Needs unit testing
-
+ - Fixed edge case where partition sets with zero data would still get new partitions created. Triggered by partman maintaining multiple partition sets and maintenance running on one that had data followed by one that did not. Variable was not being reset properly in maintenance loop.
 
 4.8.0
 =====
