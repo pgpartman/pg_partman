@@ -32,8 +32,8 @@ DROP FUNCTION IF EXISTS @extschema@.partition_gap_fill(text);
 
 ALTER TABLE @extschema@.part_config ADD COLUMN maintenance_order int DEFAULT NULL;
 ALTER TABLE @extschema@.part_config_sub ADD COLUMN sub_maintenance_order int DEFAULT NULL;
-ALTER TABLE @extschema@.part_config ADD COLUMN retention_keep_publication boolean DEFAULT false;
-ALTER TABLE @extschema@.part_config_sub ADD COLUMN sub_retention_keep_publication boolean DEFAULT false;
+ALTER TABLE @extschema@.part_config ADD COLUMN retention_keep_publication boolean NOT NULL DEFAULT false;
+ALTER TABLE @extschema@.part_config_sub ADD COLUMN sub_retention_keep_publication boolean NOT NULL DEFAULT false;
 
 
 CREATE FUNCTION @extschema@.create_parent(
@@ -1066,9 +1066,9 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
         -- NOTE: Replication identity not automatically inherited as of PG16 (revisit in future versions)
         IF v_parent_replident != 'd' THEN
             CASE v_parent_replident
-                WHEN 'f' THEN v_replident_string := 'FULL'
-                WHEN 'i' THEN v_replident_string := format('USING INDEX %I', v_parent_replident_index)
-                WHEN 'n' THEN v_replident_string := 'NOTHING'
+                WHEN 'f' THEN v_replident_string := 'FULL';
+                WHEN 'i' THEN v_replident_string := format('USING INDEX %I', v_parent_replident_index);
+                WHEN 'n' THEN v_replident_string := 'NOTHING';
             ELSE
                 RAISE EXCEPTION 'create_partition: Unknown replication identity encountered. Please report as a bug on pg_partman''s github';
             END CASE;
@@ -1485,9 +1485,9 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         -- NOTE: Replication identity not automatically inherited as of PG16 (revisit in future versions)
         IF v_parent_replident != 'd' THEN
             CASE v_parent_replident
-                WHEN 'f' THEN v_replident_string := 'FULL'
-                WHEN 'i' THEN v_replident_string := format('USING INDEX %I', v_parent_replident_index)
-                WHEN 'n' THEN v_replident_string := 'NOTHING'
+                WHEN 'f' THEN v_replident_string := 'FULL';
+                WHEN 'i' THEN v_replident_string := format('USING INDEX %I', v_parent_replident_index);
+                WHEN 'n' THEN v_replident_string := 'NOTHING';
             ELSE
                 RAISE EXCEPTION 'create_partition: Unknown replication identity encountered. Please report as a bug on pg_partman''s github';
             END CASE;
@@ -1634,7 +1634,7 @@ BEGIN
         v_ignore_default_data,
         v_date_trunc_interval,
         v_default_table,
-        v_maintenance_order
+        v_maintenance_order,
         v_retention_keep_publication
     FROM @extschema@.part_config pc
     WHERE pc.parent_table = p_parent_table;
@@ -2289,7 +2289,7 @@ LOOP
         v_next_partition_id := v_last_partition_id;
         v_premade_count := ((v_last_partition_id - v_current_partition_id) / v_row.partition_interval::bigint);
         -- Loop premaking until config setting is met. Allows it to catch up if it fell behind or if premake changed.
-        RAISE DEBUG 'run_maint: before child creation loop: parent_table: %, v_premade_count: %, v_next_partition_id: %', v_row.parent_table, v_premade_count, v_next_partition_id;
+        RAISE DEBUG 'run_maint: before child creation loop: parent_table: %, v_last_partition_id: %, v_premade_count: %, v_next_partition_id: %', v_row.parent_table, v_last_partition_id, v_premade_count, v_next_partition_id;
         WHILE (v_premade_count < v_row.premake) LOOP
             RAISE DEBUG 'run_maint: parent_table: %, v_premade_count: %, v_next_partition_id: %', v_row.parent_table, v_premade_count, v_next_partition_id;
             IF v_next_partition_id < v_sub_id_min OR v_next_partition_id > v_sub_id_max THEN
@@ -2661,8 +2661,8 @@ END IF;
 
 SELECT general_type, exact_type INTO v_control_type, v_exact_control_type FROM @extschema@.check_control_type(v_child_schema, v_child_tablename, v_control);
 
-RAISE DEBUG 'show_partition_info: v_child_schema: %, v_child_tablename: %',
-            v_child_schema, v_child_tablename;
+RAISE DEBUG 'show_partition_info: v_child_schema: %, v_child_tablename: %, v_control_type: %, v_exact_control_type: %',
+            v_child_schema, v_child_tablename, v_control_type, v_exact_control_type;
 
 -- Look at actual partition bounds in catalog and pull values from there.
 IF v_partstrat = 'r' THEN
@@ -2711,7 +2711,7 @@ IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
 
 ELSIF v_control_type = 'id' THEN
 
-    IF v_exact_control_type = 'bigint' THEN
+    IF v_exact_control_type = 'int8' THEN
         child_start_id := trim(BOTH '''' FROM v_start_string)::bigint;
     ELSIF v_exact_control_type = 'numeric' THEN
         -- cast to numeric then trunc to get rid of decimal without rounding
