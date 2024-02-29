@@ -2711,7 +2711,7 @@ IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
 
 ELSIF v_control_type = 'id' THEN
 
-    IF v_exact_control_type = 'int8' THEN
+    IF v_exact_control_type IN ('int8', 'int4', 'int2') THEN
         child_start_id := trim(BOTH '''' FROM v_start_string)::bigint;
     ELSIF v_exact_control_type = 'numeric' THEN
         -- cast to numeric then trunc to get rid of decimal without rounding
