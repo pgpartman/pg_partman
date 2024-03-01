@@ -697,6 +697,9 @@ Stores all configuration data for partition sets mananged by the extension.
  - `retention_keep_table`
     - Boolean value to determine whether dropped child tables only detached or actually dropped.
     - Default is TRUE to keep the table and only uninherit it. Set to FALSE to have the child tables removed from the database completely.
+ - `retention_keep_publication`
+    - If `retention_keep_table` is set to true, determines whether to drop the table from any publications that it may be a member of.
+    - Boolean value that defaults to false, meaning that by default tables that are not completely dropped as part of retention are removed from their publications.
  - `epoch`
     - Flag the table to be partitioned by time by an integer epoch value instead of a timestamp. See `create_parent()` function for more info. Default 'none'.
  - `constraint_cols`
@@ -727,9 +730,6 @@ Stores all configuration data for partition sets mananged by the extension.
     - Integer value that determines the order that maintenance will run the partition sets. Will run sets in increasing numerical order.
     - Default value is NULL. All partition sets set to NULL will run after partition sets with a value defined. NULL partition sets run in an indeterminate order.
     - For sub-partitioned sets, the child tables by default inherit the order of their parents. Child parent tables will run in logical order when their parent table's maintenance is run if left to the default value.
- - `retention_keep_publication`
-    - If `retention_keep_table` is set to true, determines whether to drop the table from any publications that it may be a member of.
-    - Boolean value that defaults to false, meaning that by default tables that are not completely dropped as part of retention are removed from their publications.
 
 **`part_config_sub`**
 

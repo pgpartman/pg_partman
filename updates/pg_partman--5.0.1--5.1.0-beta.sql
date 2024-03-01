@@ -34,7 +34,7 @@ ALTER TABLE @extschema@.part_config ADD COLUMN maintenance_order int DEFAULT NUL
 ALTER TABLE @extschema@.part_config_sub ADD COLUMN sub_maintenance_order int DEFAULT NULL;
 ALTER TABLE @extschema@.part_config ADD COLUMN retention_keep_publication boolean NOT NULL DEFAULT false;
 ALTER TABLE @extschema@.part_config_sub ADD COLUMN sub_retention_keep_publication boolean NOT NULL DEFAULT false;
-
+ALTER TABLE @extschema@.part_config ADD COLUMN maintenance_last_run timestamptz;
 
 CREATE FUNCTION @extschema@.create_parent(
     p_parent_table text
@@ -2131,7 +2131,10 @@ LOOP
             v_drop_count := v_drop_count + @extschema@.drop_partition_time(v_row.parent_table);
         END IF;
 
-        IF v_row.sub_partition_set_full THEN CONTINUE; END IF;
+        IF v_row.sub_partition_set_full THEN
+            UPDATE @extschema@.part_config SET maintenance_last_run = clock_timestamp() WHERE parent_table = v_row.parent_table;
+            CONTINUE;
+        END IF;
 
         SELECT child_start_time INTO v_last_partition_timestamp
             FROM @extschema@.show_partition_info(v_parent_schema||'.'||v_last_partition, v_row.partition_interval, v_row.parent_table);
@@ -2180,6 +2183,7 @@ LOOP
         IF v_current_partition_timestamp IS NULL AND v_max_time_default IS NULL THEN
             -- Partition set is completely empty and infinite time partitions not set
             -- Nothing to do
+            UPDATE @extschema@.part_config SET maintenance_last_run = clock_timestamp() WHERE parent_table = v_row.parent_table;
             CONTINUE;
         END IF;
         RAISE DEBUG 'run_maint: v_max_timestamp: %, v_current_partition_timestamp: %, v_max_time_default: %', v_max_timestamp, v_current_partition_timestamp, v_max_time_default;
@@ -2193,7 +2197,9 @@ LOOP
             SELECT suffix_timestamp INTO v_sub_timestamp_max_suffix FROM @extschema@.show_partition_name(v_row.parent_table, v_sub_timestamp_max::text);
             IF v_sub_timestamp_max_suffix = v_last_partition_timestamp THEN
                 -- Final partition for this set is created. Set full and skip it
-                UPDATE @extschema@.part_config SET sub_partition_set_full = true WHERE parent_table = v_row.parent_table;
+                UPDATE @extschema@.part_config
+                SET sub_partition_set_full = true, maintenance_last_run = clock_timestamp()
+                WHERE parent_table = v_row.parent_table;
                 CONTINUE;
             END IF;
         END IF;
@@ -2242,7 +2248,10 @@ LOOP
             v_drop_count := v_drop_count + @extschema@.drop_partition_id(v_row.parent_table);
         END IF;
 
-        IF v_row.sub_partition_set_full THEN CONTINUE; END IF;
+        IF v_row.sub_partition_set_full THEN
+            UPDATE @extschema@.part_config SET maintenance_last_run = clock_timestamp() WHERE parent_table = v_row.parent_table;
+            CONTINUE;
+        END IF;
 
         -- Must be reset to null otherwise if the next partition set in the loop is empty, the previous partition set's value could be used
         v_current_partition_id := NULL;
@@ -2272,6 +2281,7 @@ LOOP
         RAISE DEBUG 'run_maint: v_max_id: %, v_current_partition_id: %, v_max_id_default: %', v_max_id, v_current_partition_id, v_max_id_default;
         IF v_current_partition_id IS NULL AND v_max_id_default IS NULL THEN
             -- Partition set is completely empty. Nothing to do
+            UPDATE @extschema@.part_config SET maintenance_last_run = clock_timestamp() WHERE parent_table = v_row.parent_table;
             CONTINUE;
         END IF;
         IF v_current_partition_id IS NULL OR (v_max_id_default > v_current_partition_id) THEN
@@ -2287,7 +2297,9 @@ LOOP
             SELECT suffix_id INTO v_sub_id_max_suffix FROM @extschema@.show_partition_name(v_row.parent_table, v_sub_id_max::text);
             IF v_sub_id_max_suffix = v_last_partition_id THEN
                 -- Final partition for this set is created. Set full and skip it
-                UPDATE @extschema@.part_config SET sub_partition_set_full = true WHERE parent_table = v_row.parent_table;
+                UPDATE @extschema@.part_config
+                SET sub_partition_set_full = true, maintenance_last_run = clock_timestamp()
+                WHERE parent_table = v_row.parent_table;
                 CONTINUE;
             END IF;
         END IF;
@@ -2324,6 +2336,8 @@ LOOP
             PERFORM update_step(v_step_id, 'OK', 'Done');
         END IF;
     END IF;
+
+    UPDATE @extschema@.part_config SET maintenance_last_run = clock_timestamp() WHERE parent_table = v_row.parent_table;
 
 END LOOP; -- end of main loop through part_config
 
@@ -2395,6 +2409,7 @@ FOR v_parent_table IN
     FROM @extschema@.part_config
     WHERE undo_in_progress = false
     AND automatic_maintenance = 'on'
+    ORDER BY maintenance_order ASC NULLS LAST
 LOOP
 /*
  * Run maintenance with a commit between each partition set

@@ -4,10 +4,10 @@ NEW FEATURES
 ------------
  - Support LIST partitioning for single value integers. (Issue #236)
  - Add explicit ordering of partition set maintenance. (Issue #497)
-    - TODO Needs unit testing
     - A new column has been added to the `part_config` table: `maintenance_order`. If set, the partition sets will run in increasing numerical order
     - Defaults to NULL and has no requirement
     - NULL values will always come after numbered sets in no guaranteed order
+ - Added new column `part_config.maintenance_last_run` to track the last datetime that maintenance was run for that partition set. Timestamp is only updated if maintenance for that partition set completed successfully so can be used as a monitoring metric.
  - REPLICA IDENTITY is now automatically inherited from the parent table to all children (#502)
     - TODO Needs unit testing
     - Note for existing partition sets, this will only apply to newly created child tables. Existing child tables will need to be manually updated.
