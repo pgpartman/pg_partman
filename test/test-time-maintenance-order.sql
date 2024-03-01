@@ -8,7 +8,7 @@
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true
 
---BEGIN;
+BEGIN;
 SELECT set_config('search_path','partman, public',false);
 
 SELECT plan(4);
@@ -52,4 +52,4 @@ SELECT results_eq(
     'Check that maintenance ran in order');
 
 SELECT * FROM finish();
---ROLLBACK;
+ROLLBACK;

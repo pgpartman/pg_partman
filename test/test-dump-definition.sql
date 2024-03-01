@@ -41,7 +41,8 @@ SELECT bag_eq(
     'default_table',
     'date_trunc_interval',
     'maintenance_order',
-    'retention_keep_publication'
+    'retention_keep_publication',
+    'maintenance_last_run'
   ]::TEXT[],
   'When adding a new column to part_config please ensure it is also added to the dump_partitioned_table_definition function and the tests in this file'
 );
