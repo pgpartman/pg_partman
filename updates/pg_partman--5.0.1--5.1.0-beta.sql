@@ -2207,7 +2207,8 @@ LOOP
         -- Check and see how many premade partitions there are.
         v_premade_count = round(EXTRACT('epoch' FROM age(v_last_partition_timestamp, v_current_partition_timestamp)) / EXTRACT('epoch' FROM v_row.partition_interval::interval));
         v_next_partition_timestamp := v_last_partition_timestamp;
-        RAISE DEBUG 'run_maint before loop: current_partition_timestamp: %, v_premade_count: %, v_sub_timestamp_min: %, v_sub_timestamp_max: %'
+        RAISE DEBUG 'run_maint before loop: last_partition_timestamp: %, current_partition_timestamp: %, v_premade_count: %, v_sub_timestamp_min: %, v_sub_timestamp_max: %'
+            , v_last_partition_timestamp
             , v_current_partition_timestamp
             , v_premade_count
             , v_sub_timestamp_min
