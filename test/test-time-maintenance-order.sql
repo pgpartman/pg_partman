@@ -1,9 +1,7 @@
 -- ########## TIME DAILY TESTS ##########
 -- Other tests:
-    -- Privilege inheritance
-    -- check that maintenance catches up if tables are missing
-    -- Test using default template table. Initial child tables will have no indexes or primary keys. New tables after template has indexes added should.
-    -- Test for native FK inheritance
+    -- Test that maintenance ordering works
+    -- Ensure that NULLs are last in order
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true

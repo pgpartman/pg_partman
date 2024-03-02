@@ -1063,22 +1063,26 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
             PERFORM update_step(v_step_id, 'OK', 'Done');
         END IF;
 
-        -- NOTE: Replication identity not automatically inherited as of PG16 (revisit in future versions)
-        IF v_parent_replident != 'd' THEN
-            CASE v_parent_replident
-                WHEN 'f' THEN v_replident_string := 'FULL';
-                WHEN 'i' THEN v_replident_string := format('USING INDEX %I', v_parent_replident_index);
-                WHEN 'n' THEN v_replident_string := 'NOTHING';
-            ELSE
-                RAISE EXCEPTION 'create_partition: Unknown replication identity encountered. Please report as a bug on pg_partman''s github';
-            END CASE;
-            EXECUTE format('ALTER TABLE %I.%I REPLICA IDENTITY %s'
-                            , v_parent_schema
-                            , v_partition_name
-                            , v_replident_string);
-        END IF;
-
     END LOOP; -- end sub partitioning LOOP
+
+    -- NOTE: Replication identity not automatically inherited as of PG16 (revisit in future versions)
+    IF v_parent_replident != 'd' THEN
+        CASE v_parent_replident
+            WHEN 'f' THEN v_replident_string := 'FULL';
+            WHEN 'i' THEN v_replident_string := format('USING INDEX %I', v_parent_replident_index);
+            WHEN 'n' THEN v_replident_string := 'NOTHING';
+        ELSE
+            RAISE EXCEPTION 'create_partition: Unknown replication identity encountered. Please report as a bug on pg_partman''s github';
+        END CASE;
+
+        v_sql := format('ALTER TABLE %I.%I REPLICA IDENTITY %s'
+                        , v_parent_schema
+                        , v_partition_name
+                        , v_replident_string);
+        RAISE DEBUG 'create_partition_id: replident v_sql: %', v_sql;
+        EXECUTE v_sql;
+    END IF;
+
 
     -- Manage additional constraints if set
     PERFORM @extschema@.apply_constraints(p_parent_table, p_job_id := v_job_id);
@@ -1482,22 +1486,24 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             , retention_keep_publication = v_row.sub_retention_keep_publication
         WHERE parent_table = v_parent_schema||'.'||v_partition_name;
 
-        -- NOTE: Replication identity not automatically inherited as of PG16 (revisit in future versions)
-        IF v_parent_replident != 'd' THEN
-            CASE v_parent_replident
-                WHEN 'f' THEN v_replident_string := 'FULL';
-                WHEN 'i' THEN v_replident_string := format('USING INDEX %I', v_parent_replident_index);
-                WHEN 'n' THEN v_replident_string := 'NOTHING';
-            ELSE
-                RAISE EXCEPTION 'create_partition: Unknown replication identity encountered. Please report as a bug on pg_partman''s github';
-            END CASE;
-            EXECUTE format('ALTER TABLE %I.%I REPLICA IDENTITY %s'
-                            , v_parent_schema
-                            , v_partition_name
-                            , v_replident_string);
-        END IF;
-
     END LOOP; -- end sub partitioning LOOP
+
+    -- NOTE: Replication identity not automatically inherited as of PG16 (revisit in future versions)
+    IF v_parent_replident != 'd' THEN
+        CASE v_parent_replident
+            WHEN 'f' THEN v_replident_string := 'FULL';
+            WHEN 'i' THEN v_replident_string := format('USING INDEX %I', v_parent_replident_index);
+            WHEN 'n' THEN v_replident_string := 'NOTHING';
+        ELSE
+            RAISE EXCEPTION 'create_partition: Unknown replication identity encountered. Please report as a bug on pg_partman''s github';
+        END CASE;
+        v_sql := format('ALTER TABLE %I.%I REPLICA IDENTITY %s'
+                        , v_parent_schema
+                        , v_partition_name
+                        , v_replident_string);
+        RAISE DEBUG 'create_partition_time: replident v_sql: %', v_sql;
+        EXECUTE v_sql;
+    END IF;
 
     -- Manage additional constraints if set
     PERFORM @extschema@.apply_constraints(p_parent_table, p_job_id := v_job_id);
@@ -2043,12 +2049,12 @@ v_tables_list_sql := 'SELECT parent_table
             WHERE undo_in_progress = false';
 
 IF p_parent_table IS NULL THEN
-    v_tables_list_sql := v_tables_list_sql || format(' AND automatic_maintenance = %L', 'on');
+    v_tables_list_sql := v_tables_list_sql || format(' AND automatic_maintenance = %L ', 'on');
 ELSE
-    v_tables_list_sql := v_tables_list_sql || format(' AND parent_table = %L', p_parent_table);
+    v_tables_list_sql := v_tables_list_sql || format(' AND parent_table = %L ', p_parent_table);
 END IF;
 
-v_tables_list_sql := v_tables_list_sql || format('ORDER BY maintenance_order ASC NULLS LAST, parent_table ASC NULLS LAST');
+v_tables_list_sql := v_tables_list_sql || format(' ORDER BY maintenance_order ASC NULLS LAST, parent_table ASC NULLS LAST ');
 
 RAISE DEBUG 'run_maint: v_tables_list_sql: %', v_tables_list_sql;
 

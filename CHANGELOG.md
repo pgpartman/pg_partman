@@ -9,7 +9,6 @@ NEW FEATURES
     - NULL values will always come after numbered sets in no guaranteed order
  - Added new column `part_config.maintenance_last_run` to track the last datetime that maintenance was run for that partition set. Timestamp is only updated if maintenance for that partition set completed successfully so can be used as a monitoring metric.
  - REPLICA IDENTITY is now automatically inherited from the parent table to all children (#502)
-    - TODO Needs unit testing
     - Note for existing partition sets, this will only apply to newly created child tables. Existing child tables will need to be manually updated.
  - EXPERIMENTAL - Support numeric partitioning (Issue #265)
     - Note that while the partition column may now be of type numeric, the partitioning interval must still be a whole integer value
@@ -23,8 +22,7 @@ BUGFIXES
  - Properly inherit tablespaces (Github Issue #609)
     - This was a regression in 5.0 that mistakenly stopped working. Tablespace inheritance still works as expected in 4.x.
  - Allow `infinite_time_partitions` flag to work even if the partition set has no data. This can happen in partition sets with retention and low data writes (Github Issue #585)
-    - TODO Needs unit testing
- - Fixed edge case where partition sets with zero data would still get new partitions created. Triggered by partman maintaining multiple partition sets and maintenance running on one that had data followed by one that did not. Variable was not being reset properly in maintenance loop.
+ - Fixed edge case where partition sets with zero data would still get new partitions created. Triggered by partman maintaining multiple partition sets and maintenance running on one that had data followed by one that did not.
 
 4.8.0
 =====
