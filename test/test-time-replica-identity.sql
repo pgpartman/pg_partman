@@ -1,6 +1,7 @@
 -- ########## TIME DAILY TESTS ##########
 -- Other tests:
     -- Test that replica identity is inherited
+    -- Ensure partition_data_proc can move data out of default when its in publication
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true
@@ -8,7 +9,7 @@
 BEGIN;
 SELECT set_config('search_path','partman, public',false);
 
-SELECT plan(26);
+SELECT plan(28);
 
 CREATE SCHEMA partman_test;
 
@@ -19,6 +20,9 @@ CREATE TABLE partman_test.time_taptest_table
     PARTITION BY RANGE (col3);
 
 ALTER TABLE partman_test.time_taptest_table REPLICA IDENTITY FULL;
+
+-- Create publication before child tables to check it was inherited
+CREATE PUBLICATION partman_test_publication FOR TABLE partman_test.time_taptest_table;
 
 SELECT create_parent('partman_test.time_taptest_table', 'col3', '1 day');
 
@@ -49,8 +53,9 @@ SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTA
 SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'5 days'::interval, 'YYYYMMDD'),
     'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'5 days'::interval, 'YYYYMMDD')||' does not exist');
 
-SELECT results_eq('SELECT c.relreplident::text FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid WHERE n.nspname = ''partman_test'' AND c.relname = ''time_taptest_table_p''||to_char(CURRENT_TIMESTAMP, ''YYYYMMDD'')', ARRAY['f'], 'Check that replica identity was inherited to time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD') );
+SELECT results_eq('SELECT c.relreplident::text FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid WHERE n.nspname = ''partman_test'' AND c.relname = ''time_taptest_table_default''', ARRAY['f'], 'Check that replica identity was inherited to time_taptest_table_default' );
 
+SELECT results_eq('SELECT c.relreplident::text FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid WHERE n.nspname = ''partman_test'' AND c.relname = ''time_taptest_table_p''||to_char(CURRENT_TIMESTAMP, ''YYYYMMDD'')', ARRAY['f'], 'Check that replica identity was inherited to time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD') );
 
 SELECT results_eq('SELECT c.relreplident::text FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid WHERE n.nspname = ''partman_test'' AND c.relname = ''time_taptest_table_p''||to_char(CURRENT_TIMESTAMP-''1 day''::interval, ''YYYYMMDD'')', ARRAY['f'], 'Check that replica identity was inherited to time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'1 day'::interval, 'YYYYMMDD') );
 
@@ -85,6 +90,15 @@ SELECT results_eq('SELECT c.relreplident::text FROM pg_catalog.pg_class c JOIN p
 SELECT results_eq('SELECT c.relreplident::text FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid WHERE n.nspname = ''partman_test'' AND c.relname = ''time_taptest_table_p''||to_char(CURRENT_TIMESTAMP+''7 day''::interval, ''YYYYMMDD'')', ARRAY['f'], 'Check that replica identity was inherited to time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'7 day'::interval, 'YYYYMMDD') );
 
 SELECT results_eq('SELECT c.relreplident::text FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid WHERE n.nspname = ''partman_test'' AND c.relname = ''time_taptest_table_p''||to_char(CURRENT_TIMESTAMP+''8 day''::interval, ''YYYYMMDD'')', ARRAY['f'], 'Check that replica identity was inherited to time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'8 day'::interval, 'YYYYMMDD') );
+
+-- Insert data outside covered children to check that default table is able to have data removed as part of publication. Also provides
+-- another test that default got the replica identity
+
+INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(200,205), CURRENT_TIMESTAMP + '20 days'::interval);
+
+SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table_default', ARRAY[6], 'Check that data outside existing child scope goes to default');
+
+SELECT partition_data_time('partman_test.time_taptest_table', 20);
 
 SELECT * FROM finish();
 ROLLBACK;

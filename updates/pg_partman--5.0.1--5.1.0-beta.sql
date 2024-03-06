@@ -179,7 +179,10 @@ IF current_setting('server_version_num')::int < 140000 THEN
     RAISE EXCEPTION 'pg_partman requires PostgreSQL 14 or greater';
 END IF;
 -- Check if given parent table has been already set up as a partitioned table
-SELECT p.partstrat, partattrs INTO v_partstrat, v_partattrs
+SELECT p.partstrat
+    , p.partattrs
+INTO v_partstrat
+    , v_partattrs
 FROM pg_catalog.pg_partitioned_table p
 JOIN pg_catalog.pg_class c ON p.partrelid = c.oid
 JOIN pg_namespace n ON c.relnamespace = n.oid
@@ -658,6 +661,8 @@ IF p_default_table THEN
         , v_parent_schema, v_parent_tablename, v_parent_schema, v_default_partition);
     EXECUTE v_sql;
 
+    PERFORM @extschema@.inherit_replica_identity(v_parent_schema, v_parent_tablename, v_default_partition);
+
     -- Manage template inherited properties
     PERFORM @extschema@.inherit_template_properties(p_parent_table, v_parent_schema, v_default_partition);
 
@@ -809,8 +814,6 @@ v_jobmon_schema                 text;
 v_new_search_path               text;
 v_old_search_path               text;
 v_parent_oid                    oid;
-v_parent_replident              char;
-v_parent_replident_index        name;
 v_parent_schema                 text;
 v_parent_tablename              text;
 v_parent_tablespace             name;
@@ -818,7 +821,6 @@ v_partition_interval            bigint;
 v_partition_created             boolean := false;
 v_partition_name                text;
 v_partition_type                text;
-v_replident_string              text;
 v_row                           record;
 v_sql                           text;
 v_step_id                       bigint;
@@ -855,27 +857,16 @@ END IF;
 SELECT n.nspname
     , c.relname
     , c.oid
-    , c.relreplident
     , t.spcname
 INTO v_parent_schema
     , v_parent_tablename
     , v_parent_oid
-    , v_parent_replident
     , v_parent_tablespace
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
 LEFT OUTER JOIN pg_catalog.pg_tablespace t ON c.reltablespace = t.oid
 WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
 AND c.relname = split_part(p_parent_table, '.', 2)::name;
-
-IF v_parent_replident = 'i' THEN
-    SELECT c.relname
-    INTO v_parent_replident_index
-    FROM pg_catalog.pg_class c
-    JOIN pg_catalog.pg_index i ON i.indexrelid = c.oid
-    WHERE i.indrelid = v_parent_oid
-    AND indisreplident;
-END IF;
 
 SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
 IF v_control_type <> 'id' THEN
@@ -1066,23 +1057,7 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
     END LOOP; -- end sub partitioning LOOP
 
     -- NOTE: Replication identity not automatically inherited as of PG16 (revisit in future versions)
-    IF v_parent_replident != 'd' THEN
-        CASE v_parent_replident
-            WHEN 'f' THEN v_replident_string := 'FULL';
-            WHEN 'i' THEN v_replident_string := format('USING INDEX %I', v_parent_replident_index);
-            WHEN 'n' THEN v_replident_string := 'NOTHING';
-        ELSE
-            RAISE EXCEPTION 'create_partition: Unknown replication identity encountered. Please report as a bug on pg_partman''s github';
-        END CASE;
-
-        v_sql := format('ALTER TABLE %I.%I REPLICA IDENTITY %s'
-                        , v_parent_schema
-                        , v_partition_name
-                        , v_replident_string);
-        RAISE DEBUG 'create_partition_id: replident v_sql: %', v_sql;
-        EXECUTE v_sql;
-    END IF;
-
+    PERFORM @extschema@.inherit_replica_identity(v_parent_schema, v_parent_tablename, v_partition_name);
 
     -- Manage additional constraints if set
     PERFORM @extschema@.apply_constraints(p_parent_table, p_job_id := v_job_id);
@@ -1154,8 +1129,6 @@ v_jobmon_schema                 text;
 v_new_search_path               text;
 v_old_search_path               text;
 v_parent_oid                    oid;
-v_parent_replident              char;
-v_parent_replident_index        name;
 v_parent_schema                 text;
 v_parent_tablename              text;
 v_parent_tablespace             name;
@@ -1166,7 +1139,6 @@ v_partition_expression          text;
 v_partition_interval            interval;
 v_partition_timestamp_end       timestamptz;
 v_partition_timestamp_start     timestamptz;
-v_replident_string              text;
 v_row                           record;
 v_sql                           text;
 v_step_id                       bigint;
@@ -1207,27 +1179,16 @@ END IF;
 SELECT n.nspname
     , c.relname
     , c.oid
-    , c.relreplident
     , t.spcname
 INTO v_parent_schema
     , v_parent_tablename
     , v_parent_oid
-    , v_parent_replident
     , v_parent_tablespace
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
 LEFT OUTER JOIN pg_catalog.pg_tablespace t ON c.reltablespace = t.oid
 WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
 AND c.relname = split_part(p_parent_table, '.', 2)::name;
-
-IF v_parent_replident = 'i' THEN
-    SELECT c.relname
-    INTO v_parent_replident_index
-    FROM pg_catalog.pg_class c
-    JOIN pg_catalog.pg_index i ON i.indexrelid = c.oid
-    WHERE i.indrelid = v_parent_oid
-    AND indisreplident;
-END IF;
 
 SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
 IF v_control_type <> 'time' THEN
@@ -1489,21 +1450,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
     END LOOP; -- end sub partitioning LOOP
 
     -- NOTE: Replication identity not automatically inherited as of PG16 (revisit in future versions)
-    IF v_parent_replident != 'd' THEN
-        CASE v_parent_replident
-            WHEN 'f' THEN v_replident_string := 'FULL';
-            WHEN 'i' THEN v_replident_string := format('USING INDEX %I', v_parent_replident_index);
-            WHEN 'n' THEN v_replident_string := 'NOTHING';
-        ELSE
-            RAISE EXCEPTION 'create_partition: Unknown replication identity encountered. Please report as a bug on pg_partman''s github';
-        END CASE;
-        v_sql := format('ALTER TABLE %I.%I REPLICA IDENTITY %s'
-                        , v_parent_schema
-                        , v_partition_name
-                        , v_replident_string);
-        RAISE DEBUG 'create_partition_time: replident v_sql: %', v_sql;
-        EXECUTE v_sql;
-    END IF;
+    PERFORM @extschema@.inherit_replica_identity(v_parent_schema, v_parent_tablename, v_partition_name);
 
     -- Manage additional constraints if set
     PERFORM @extschema@.apply_constraints(p_parent_table, p_job_id := v_job_id);
@@ -3690,6 +3637,62 @@ END
 $$;
 
 
+CREATE FUNCTION inherit_replica_identity (p_parent_schemaname text, p_parent_tablename text, p_child_tablename text) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+
+v_parent_oid                    oid;
+v_parent_replident              char;
+v_parent_replident_index        name;
+v_replident_string              text;
+v_sql                           text;
+
+BEGIN
+
+/*
+* Set the given child table's replica idenitity to the same as the parent
+ NOTE: Replication identity not automatically inherited as of PG16 (revisit in future versions)
+*/
+
+SELECT c.oid
+    , c.relreplident
+INTO v_parent_oid
+    , v_parent_replident
+FROM pg_catalog.pg_class c
+JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+WHERE n.nspname = p_parent_schemaname
+AND c.relname = p_parent_tablename;
+
+IF v_parent_replident = 'i' THEN
+    SELECT c.relname
+    INTO v_parent_replident_index
+    FROM pg_catalog.pg_class c
+    JOIN pg_catalog.pg_index i ON i.indexrelid = c.oid
+    WHERE i.indrelid = v_parent_oid
+    AND indisreplident;
+END IF;
+
+RAISE DEBUG 'inherit_replica_ident: v_parent_oid: %, v_parent_replident: %,  v_parent_replident_index: %', v_parent_oid, v_parent_replident,  v_parent_replident_index;
+
+IF v_parent_replident != 'd' THEN
+    CASE v_parent_replident
+        WHEN 'f' THEN v_replident_string := 'FULL';
+        WHEN 'i' THEN v_replident_string := format('USING INDEX %I', v_parent_replident_index);
+        WHEN 'n' THEN v_replident_string := 'NOTHING';
+    ELSE
+        RAISE EXCEPTION 'inherit_replica_identity: Unknown replication identity encountered (%). Please report as a bug on pg_partman''s github', v_parent_replident;
+    END CASE;
+    v_sql := format('ALTER TABLE %I.%I REPLICA IDENTITY %s'
+                    , p_parent_schemaname
+                    , p_child_tablename
+                    , v_replident_string);
+    RAISE DEBUG 'inherit_replica_identity: replident v_sql: %', v_sql;
+    EXECUTE v_sql;
+END IF;
+
+END
+$$;
 
 -- Restore dropped object privileges
 DO $$
