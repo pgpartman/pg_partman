@@ -5,7 +5,9 @@ About
 -----
 PostgreSQL Partition Manager is an extension to help make managing time or number/id based table partitioning easier. It has many options, but usually only a few are needed, so it's much easier to use than it may first appear (and definitely easier than implementing it yourself).
 
-As of version 5.0.1, the minimum version of PostgreSQL required is 14 and trigger-based partitioning is no longer supported. All partitioning is done using built-in declarative partitioning. Currently only ranged partitioning is supported for time- and number-based intervals. Version 4.x of pg_partman, which still has trigger-based support, is no longer in active development and will only be receiving critical bug fixes for a limited time. If partitioning is a critical part of your infrastructure, please make plans to upgrade in the near future.
+As of version 5.0.1, the minimum version of PostgreSQL required is 14 and trigger-based partitioning is no longer supported. All partitioning is done using built-in declarative partitioning. Ranged partitioning is supported for time- and number-based intervals. List partitioning is supported for number-based partitioning when the interval is 1. As of version 5.1, EXPERIMENTAL support of numeric/decimal values is available for number-based partitioning, but the interval must still be an integer. Feedback on numeric partitioning, good or bad, is appreciated to accelerate it out of experimental.
+
+Version 4.x of pg_partman, which still has trigger-based support, is no longer in active development and will only be receiving critical bug fixes until 14 is the last supported version of PostgreSQL. If partitioning is a crucial part of your infrastructure, please make plans to upgrade in the very near future.
 
 A default partition to catch data outside the existing child boundaries is automatically created for all partition sets. The `check_default()` function provides monitoring for any data getting inserted into the default table and the `partition_data_`* set of functions can easily partition that data for you if it is valid data. That is much easier than automatically creating new child tables on demand and having to clean up potentially hundreds or thousands of unwanted partitions. And also better than throwing an error and losing the data!
 
@@ -151,8 +153,8 @@ RETURNS boolean
  * `p_control` - the column that the partitioning will be based on. Must be a time or integer based column
  * `p_interval` - the time or integer range interval for each partition. No matter the partitioning type, value must be given as text.
     + *\<interval\>*      - Any valid value for the interval data type. Do not type cast the parameter value, just leave as text.
-    + *\<integer\>*       - For ID based partitions, the integer value range of the ID that should be set per partition. Enter this as an integer in text format ('100' not 100). Currently must be greater than or equal to 2.
- * `p_type` - the type of partitioning to be done. Currently only **range** is supported.
+    + *\<integer\>*       - For ID based partitions, the integer value range of the ID that should be set per partition. Enter this as an integer in text format ('100' not 100). If the interval is >=2, then the `p_type` must be `range`. If the interval equals 1, then the `p_type` must be `list`. Also note that while numeric values are supported for id-based partitioning, the interval must still be a whole number integer.
+ * `p_type` - the type of partitioning to be done. Currently only **range** and **list** are supported. See `p_interval` parameter for special conditions concerning type.
  * `p_epoch` - tells `pg_partman` that the control column is an integer type, but actually represents and epoch time value. Valid values for this option are: 'seconds', 'milliseconds', 'nanoseconds', and 'none'. The default is 'none'. All table names will be time-based. In addition to a normal index on the control column, be sure you create a functional, time-based index on the control column (to_timestamp(controlcolumn)) as well so this works efficiently.
  * `p_premake` - is how many additional partitions to always stay ahead of the current partition. Default value is 4. This will keep at minimum 5 partitions made, including the current one. For example, if today was Sept 6th, and `premake` was set to 4 for a daily partition, then partitions would be made for the 6th as well as the 7th, 8th, 9th and 10th. Note some intervals may occasionally cause an extra partition to be premade or one to be missed due to leap years, differing month lengths, etc. This usually won't hurt anything and should self-correct (see **About** section concerning timezones and non-UTC). If partitioning ever falls behind the `premake` value, normal running of `run_maintenance()` and data insertion should automatically catch things up.
  * `p_start_partition` - allows the first partition of a set to be specified instead of it being automatically determined. Must be a valid timestamp (for time-based) or positive integer (for id-based) value. Be aware, though, the actual parameter data type is text. For time-based partitioning, all partitions starting with the given timestamp up to CURRENT_TIMESTAMP (plus `premake`) will be created. For id-based partitioning, only the partition starting at the given value (plus `premake`) will be made. Note that for subpartitioning, this only applies during initial setup and not during ongoing maintenance.
@@ -161,7 +163,7 @@ RETURNS boolean
  * `p_constraint_cols` - an optional array parameter to set the columns that will have additional constraints set. See the **About** section above for more information on how this works and the **apply_constraints()** function for how this is used.
  * `p_template_table` - If you do not pass a value here, a template table will automatically be made for you in same schema that pg_partman was installed to. If you pre-create a template table and pass its name here, then the initial child tables will obtain these properties discussed in the **About** section immediately.
  * `p_jobmon` - allow `pg_partman` to use the `pg_jobmon` extension to monitor that partitioning is working correctly. Defaults to TRUE.
- * `p_date_trunc_interval` - By default, pg_partman's time-based partitioning will truncate the child table starting values to line up at the beginning of typical boundaries (midnight for daily, day 1 for monthly, Jan 1 for yearly, etc). If a custom time interval that does not fall on those boundaries is desired, this option may be required to ensure the child table has the expected boundaries (especially if you also set p_start_partition). The valid values allowed for this parameter are the interval values accepted by the built-in date_trunc() function (day, week, month, etc). For example, if you set a 9-week interval, by default pg_partman would truncate the tables by month (since the interval is greater than one month but less than 1 year) and unexpectedly start on the first of the month in some cases. Set this value to week, so that the child table start values are properly truncated on a weekly basis to line up with the 9-week interval. If you are using a custom time interval, please experiment with this option to get the expected set of child tables you desire or use a more typical partitioning interval to simplify partition management.
+ * `p_date_trunc_interval` - By default, pg_partman's time-based partitioning will truncate the child table starting values to line up at the beginning of typical boundaries (midnight for daily, day 1 for monthly, Jan 1 for yearly, etc). If a partitioning interval that does not fall on those boundaries is desired, this option may be required to ensure the child table has the expected boundaries (especially if you also set `p_start_partition`). The valid values allowed for this parameter are the interval values accepted by PostgreSQL's built-in `date_trunc()` function (day, week, month, etc). For example, if you set a 9-week interval, by default pg_partman would truncate the tables by month (since the interval is greater than one month but less than 1 year) and unexpectedly start on the first of the month in some cases. Set this parameter value to `week`, so that the child table start values are properly truncated on a weekly basis to line up with the 9-week interval. If you are using a custom time interval, please experiment with this option to get the expected set of child tables you desire or use a more typical partitioning interval to simplify partition management.
 
 ```sql
 create_sub_parent(
@@ -666,7 +668,9 @@ Stores all configuration data for partition sets mananged by the extension.
     , constraint_valid boolean DEFAULT true NOT NULL
     , subscription_refresh text
     , ignore_default_data boolean NOT NULL DEFAULT true
-
+    , maintenance_order int DEFAULT NULL
+    , retention_keep_publication boolean NOT NULL DEFAULT false
+    , maintenance_last_run timestamptz
 
  - `parent_table`
     - Parent table of the partition set
@@ -730,6 +734,12 @@ Stores all configuration data for partition sets mananged by the extension.
     - Integer value that determines the order that maintenance will run the partition sets. Will run sets in increasing numerical order.
     - Default value is NULL. All partition sets set to NULL will run after partition sets with a value defined. NULL partition sets run in an indeterminate order.
     - For sub-partitioned sets, the child tables by default inherit the order of their parents. Child parent tables will run in logical order when their parent table's maintenance is run if left to the default value.
+ - retention_keep_publication
+    - If `retention_keep_table` is set to true so that tables are not fully dropped during retention, they will be default be removed from any publication that they are a part of. If you'd like to keep detached tables as part of the old partition set's publication, set this to true.
+    - Default value is false
+ - maintenance_last_run
+    - Timestamp of the last successful run of maintenance for this partition set. Can be useful as a monitoring metric to ensure partition maintenance is running properly.
+
 
 **`part_config_sub`**
 
