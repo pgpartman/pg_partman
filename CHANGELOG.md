@@ -17,7 +17,6 @@ NEW FEATURES
 BUGFIXES
 --------
  - Remove child tables from publication during retention that keeps tables (Github Issue #523)
-    - TODO Needs unit testing
  - Allow partition maintenance to be called on replicas without error. Calling maintenance on a replica will do nothing and exit cleanly. Allows for setting up consistent cronjobs between failover systems. (Github Issue #569)
  - Properly inherit tablespaces (Github Issue #609)
     - This was a regression in 5.0 that mistakenly stopped working. Tablespace inheritance still works as expected in 4.x.
