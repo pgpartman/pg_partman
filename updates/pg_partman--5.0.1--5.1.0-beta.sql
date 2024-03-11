@@ -3637,7 +3637,7 @@ END
 $$;
 
 
-CREATE FUNCTION inherit_replica_identity (p_parent_schemaname text, p_parent_tablename text, p_child_tablename text) RETURNS void
+CREATE FUNCTION @extschema@.inherit_replica_identity (p_parent_schemaname text, p_parent_tablename text, p_child_tablename text) RETURNS void
     LANGUAGE plpgsql
     AS $$
 DECLARE
