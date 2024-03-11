@@ -5,3 +5,4 @@ ignore/*
 *.o
 *.so
 sql/*.sql
+test/not_working_yet/*
