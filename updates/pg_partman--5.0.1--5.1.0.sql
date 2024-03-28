@@ -3,13 +3,6 @@
 CREATE TEMP TABLE partman_preserve_privs_temp (statement text);
 
 INSERT INTO partman_preserve_privs_temp
-SELECT 'GRANT EXECUTE ON FUNCTION @extschema@.create_parent(text, text, text, text, text, int, text, boolean, text, text[], text, boolean, text, int) TO '||array_to_string(array_agg('"'||grantee::text||'"'), ',')||';'
-FROM information_schema.routine_privileges
-WHERE routine_schema = '@extschema@'
-AND routine_name = 'create_parent'
-AND grantee != 'PUBLIC';
-
-INSERT INTO partman_preserve_privs_temp
 SELECT 'GRANT EXECUTE ON FUNCTION @extschema@.check_subpart_sameconfig(text) TO '||array_to_string(array_agg('"'||grantee::text||'"'), ',')||';'
 FROM information_schema.routine_privileges
 WHERE routine_schema = '@extschema@'
@@ -23,7 +16,6 @@ WHERE routine_schema = '@extschema@'
 AND routine_name = 'partition_gap_fill'
 AND grantee != 'PUBLIC';
 
-DROP FUNCTION @extschema@.create_parent(text, text, text, text, text, int, text, boolean, text, text[], text, boolean, text);
 DROP FUNCTION @extschema@.check_subpart_sameconfig(text);
 
 -- Drop both function signatures to handle edge cases around upgrading from any 4.x version or 5.0
@@ -36,7 +28,7 @@ ALTER TABLE @extschema@.part_config ADD COLUMN retention_keep_publication boolea
 ALTER TABLE @extschema@.part_config_sub ADD COLUMN sub_retention_keep_publication boolean NOT NULL DEFAULT false;
 ALTER TABLE @extschema@.part_config ADD COLUMN maintenance_last_run timestamptz;
 
-CREATE FUNCTION @extschema@.create_parent(
+CREATE OR REPLACE FUNCTION @extschema@.create_parent(
     p_parent_table text
     , p_control text
     , p_interval text
@@ -50,7 +42,6 @@ CREATE FUNCTION @extschema@.create_parent(
     , p_template_table text DEFAULT NULL
     , p_jobmon boolean DEFAULT true
     , p_date_trunc_interval text DEFAULT NULL
-    , p_id_offset int DEFAULT 0
 )
     RETURNS boolean
     LANGUAGE plpgsql
@@ -540,7 +531,7 @@ IF v_control_type = 'id' AND p_epoch = 'none' THEN
         EXECUTE v_sql INTO v_max;
     END IF;
 
-    v_starting_partition_id := (v_max - (v_max % v_id_interval)) + p_id_offset;
+    v_starting_partition_id := (v_max - (v_max % v_id_interval));
     FOR i IN 0..p_premake LOOP
         -- Only make previous partitions if ID value is less than the starting value and positive (and custom start partition wasn't set)
         IF p_start_partition IS NULL AND

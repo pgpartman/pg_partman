@@ -12,7 +12,6 @@ CREATE FUNCTION @extschema@.create_parent(
     , p_template_table text DEFAULT NULL
     , p_jobmon boolean DEFAULT true
     , p_date_trunc_interval text DEFAULT NULL
-    , p_id_offset int DEFAULT 0
 )
     RETURNS boolean
     LANGUAGE plpgsql
@@ -502,7 +501,7 @@ IF v_control_type = 'id' AND p_epoch = 'none' THEN
         EXECUTE v_sql INTO v_max;
     END IF;
 
-    v_starting_partition_id := (v_max - (v_max % v_id_interval)) + p_id_offset;
+    v_starting_partition_id := (v_max - (v_max % v_id_interval));
     FOR i IN 0..p_premake LOOP
         -- Only make previous partitions if ID value is less than the starting value and positive (and custom start partition wasn't set)
         IF p_start_partition IS NULL AND

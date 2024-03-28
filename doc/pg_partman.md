@@ -735,7 +735,7 @@ Stores all configuration data for partition sets mananged by the extension.
     - Default value is NULL. All partition sets set to NULL will run after partition sets with a value defined. NULL partition sets run in an indeterminate order.
     - For sub-partitioned sets, the child tables by default inherit the order of their parents. Child parent tables will run in logical order when their parent table's maintenance is run if left to the default value.
  - retention_keep_publication
-    - If `retention_keep_table` is set to true so that tables are not fully dropped during retention, they will be default be removed from any publication that they are a part of. If you'd like to keep detached tables as part of the old partition set's publication, set this to true.
+    - If `retention_keep_table` is set to true so that tables are not fully dropped during retention, they will by default be removed from any publication that they are a part of. If you'd like to keep detached tables as part of the old partition set's publication, set this to true.
     - Default value is false
  - maintenance_last_run
     - Timestamp of the last successful run of maintenance for this partition set. Can be useful as a monitoring metric to ensure partition maintenance is running properly.
