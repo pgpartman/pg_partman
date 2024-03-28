@@ -24,12 +24,13 @@ BUGFIXES
  - Fixed edge case where partition sets with zero data would still get new partitions created. Triggered by partman maintaining multiple partition sets and maintenance running on one that had data followed by one that did not.
  - Fixed `partition_data` functions throwing an error if the source table was not in the same schema as the parent table. (Github Issue #639)
 
+
 4.8.0
 =====
 BUG FIXES
 ---------
  - Added `pg_analyze` parameter to `partition_gap_fill` function to allow skipping the analyze of a partition set if the gap fill actually creates new partitions. Note this is not an option in 5.x since the analyze step was refactored and never runs automatically during a call to the gap fill function anymore.
-
+ - Note that there is no way to directly install version 4.8.0. A prior version must be installed first and then upgraded to 4.8.0. It is recommended that you migrate to the latest major version for continued support of pg_partman.
 
 
 5.0.0 & 5.0.1

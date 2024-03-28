@@ -23,8 +23,10 @@ v_jobmon                        boolean;
 v_jobmon_schema                 text;
 v_new_search_path               text;
 v_old_search_path               text;
+v_parent_oid                    oid;
 v_parent_schema                 text;
 v_parent_tablename              text;
+v_parent_tablespace             name;
 v_partition_created             boolean := false;
 v_partition_name                text;
 v_partition_suffix              text;
@@ -69,10 +71,17 @@ IF NOT FOUND THEN
     RAISE EXCEPTION 'ERROR: no config found for %', p_parent_table;
 END IF;
 
-SELECT n.nspname, c.relname
-INTO v_parent_schema, v_parent_tablename
+SELECT n.nspname
+    , c.relname
+    , c.oid
+    , t.spcname
+INTO v_parent_schema
+    , v_parent_tablename
+    , v_parent_oid
+    , v_parent_tablespace
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+LEFT OUTER JOIN pg_catalog.pg_tablespace t ON c.reltablespace = t.oid
 WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
 AND c.relname = split_part(p_parent_table, '.', 2)::name;
 
@@ -163,7 +172,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
     /*
     -- As of PG12, the unlogged/logged status of a parent table cannot be changed via an ALTER TABLE in order to affect its children.
     -- As of partman v4.2x, the unlogged state will be managed via the template table
-    -- TODO Test UNLOGGED status in PG16 to see if this can be done without template yet. Add to create_partition_id then as well.
+    -- TODO Test UNLOGGED status in PG17 to see if this can be done without template yet. Add to create_partition_id then as well.
     SELECT relpersistence INTO v_unlogged
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
@@ -175,21 +184,22 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
     END IF;
     */
 
-    -- Close parentheses on LIKE are below due to differing requirements of subpartitioning
     -- Same INCLUDING list is used in create_parent()
-    v_sql := v_sql || format(' TABLE %I.%I (LIKE %I.%I INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING STORAGE INCLUDING COMMENTS INCLUDING GENERATED '
+    v_sql := v_sql || format(' TABLE %I.%I (LIKE %I.%I INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING STORAGE INCLUDING COMMENTS INCLUDING GENERATED) '
                                 , v_parent_schema
                                 , v_partition_name
                                 , v_parent_schema
                                 , v_parent_tablename);
 
+    IF v_parent_tablespace IS NOT NULL THEN
+        v_sql := format('%s TABLESPACE %I ', v_sql, v_parent_tablespace);
+    END IF;
+
     SELECT sub_partition_type, sub_control INTO v_sub_partition_type, v_sub_control
     FROM @extschema@.part_config_sub
     WHERE sub_parent = p_parent_table;
     IF v_sub_partition_type = 'range' THEN
-        v_sql := v_sql || format(') PARTITION BY RANGE (%I) ', v_sub_control);
-    ELSE
-        v_sql := v_sql || format(')');
+        v_sql :=  format('%s PARTITION BY RANGE (%I) ', v_sql, v_sub_control);
     END IF;
 
     RAISE DEBUG 'create_partition_time v_sql: %', v_sql;
@@ -281,6 +291,8 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             , sub_date_trunc_interval
             , sub_ignore_default_data
             , sub_default_table
+            , sub_maintenance_order
+            , sub_retention_keep_publication
         FROM @extschema@.part_config_sub
         WHERE sub_parent = p_parent_table
     LOOP
@@ -326,9 +338,14 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             , inherit_privileges = v_row.sub_inherit_privileges
             , constraint_valid = v_row.sub_constraint_valid
             , ignore_default_data = v_row.sub_ignore_default_data
+            , maintenance_order = v_row.sub_maintenance_order
+            , retention_keep_publication = v_row.sub_retention_keep_publication
         WHERE parent_table = v_parent_schema||'.'||v_partition_name;
 
     END LOOP; -- end sub partitioning LOOP
+
+    -- NOTE: Replication identity not automatically inherited as of PG16 (revisit in future versions)
+    PERFORM @extschema@.inherit_replica_identity(v_parent_schema, v_parent_tablename, v_partition_name);
 
     -- Manage additional constraints if set
     PERFORM @extschema@.apply_constraints(p_parent_table, p_job_id := v_job_id);

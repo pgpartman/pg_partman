@@ -11,6 +11,7 @@ DECLARE
 
 v_control               text;
 v_control_type          text;
+v_exact_control_type    text;
 v_datetime_string       text;
 v_default_sql           text;
 v_epoch                 text;
@@ -56,9 +57,14 @@ IF v_parent_tablename IS NULL THEN
     RAISE EXCEPTION 'Given parent table not found in system catalogs: %', p_parent_table;
 END IF;
 
-SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
+SELECT general_type, exact_type INTO v_control_type, v_exact_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
 
-RAISE DEBUG 'show_partitions: v_parent_schema: %, v_parent_tablename: %, v_datetime_string: %', v_parent_schema, v_parent_tablename, v_datetime_string;
+RAISE DEBUG 'show_partitions: v_parent_schema: %, v_parent_tablename: %, v_datetime_string: %, v_control_type: %, v_exact_control_type: %'
+    , v_parent_schema
+    , v_parent_tablename
+    , v_datetime_string
+    , v_control_type
+    , v_exact_control_type;
 
 v_sql := format('SELECT n.nspname::text AS partition_schemaname
         , c.relname::text AS partition_name
@@ -68,7 +74,6 @@ v_sql := format('SELECT n.nspname::text AS partition_schemaname
         WHERE h.inhparent = ''%I.%I''::regclass'
     , v_parent_schema
     , v_parent_tablename);
-
 
 IF p_include_default THEN
     -- Return the default partition immediately as first item in list
@@ -106,15 +111,21 @@ ELSIF v_control_type = 'id' AND v_epoch <> 'none' THEN
 
 ELSIF v_control_type = 'id' THEN
 
-    -- Have to do a trim here because of inconsistency in quoting different integer types. Ex: bigint boundary values are quoted but int values are not
-    v_sql := v_sql || format('
-        ORDER BY trim( BOTH $QUOTE$''$QUOTE$ from (regexp_match(pg_get_expr(c.relpartbound, c.oid, true), $REGEX$\(([^)]+)\) TO \(([^)]+)\)$REGEX$))[1]::text )::bigint %s '
-        , p_order);
+    IF v_partition_type = 'range' THEN
+        -- Have to do a trim here because of inconsistency in quoting different integer types. Ex: bigint boundary values are quoted but int values are not
+        v_sql := v_sql || format('
+            ORDER BY trim( BOTH $QUOTE$''$QUOTE$ from (regexp_match(pg_get_expr(c.relpartbound, c.oid, true), $REGEX$\(([^)]+)\) TO \(([^)]+)\)$REGEX$))[1]::text )::%s %s '
+            , v_exact_control_type, p_order);
+    ELSIF v_partition_type = 'list' THEN
+        v_sql := v_sql || format('
+            ORDER BY trim((regexp_match(pg_get_expr(c.relpartbound, c.oid, true), $REGEX$FOR VALUES IN \(([^)])\)$REGEX$))[1])::%s %s '
+            , v_exact_control_type , p_order);
+    ELSE
+        RAISE EXCEPTION 'show_partitions: Unsupported partition type found: %', v_partition_type;
+    END IF;
 
 ELSE
-
     RAISE EXCEPTION 'show_partitions: Unexpected code path in sort order determination. Please report the steps that lead to this error to extension maintainers.';
-
 END IF;
 
 RAISE DEBUG 'show_partitions: v_sql: %', v_sql;

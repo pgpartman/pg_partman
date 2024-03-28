@@ -11,34 +11,36 @@ CREATE FUNCTION @extschema@.drop_partition_time(
     AS $$
 DECLARE
 
-ex_context                  text;
-ex_detail                   text;
-ex_hint                     text;
-ex_message                  text;
-v_adv_lock                  boolean;
-v_control                   text;
-v_control_type              text;
-v_count                     int;
-v_drop_count                int := 0;
-v_epoch                     text;
-v_index                     record;
-v_job_id                    bigint;
-v_jobmon                    boolean;
-v_jobmon_schema             text;
-v_new_search_path           text;
-v_old_search_path           text;
-v_parent_schema             text;
-v_parent_tablename          text;
-v_partition_interval        interval;
-v_partition_timestamp       timestamptz;
-v_retention                 interval;
-v_retention_keep_index      boolean;
-v_retention_keep_table      boolean;
-v_retention_schema          text;
-v_row                       record;
-v_sql                       text;
-v_step_id                   bigint;
-v_sub_parent                text;
+ex_context                          text;
+ex_detail                           text;
+ex_hint                             text;
+ex_message                          text;
+v_adv_lock                          boolean;
+v_control                           text;
+v_control_type                      text;
+v_count                             int;
+v_drop_count                        int := 0;
+v_epoch                             text;
+v_index                             record;
+v_job_id                            bigint;
+v_jobmon                            boolean;
+v_jobmon_schema                     text;
+v_new_search_path                   text;
+v_old_search_path                   text;
+v_parent_schema                     text;
+v_parent_tablename                  text;
+v_partition_interval                interval;
+v_partition_timestamp               timestamptz;
+v_pubname_row                       record;
+v_retention                         interval;
+v_retention_keep_index              boolean;
+v_retention_keep_table              boolean;
+v_retention_keep_publication        boolean;
+v_retention_schema                  text;
+v_row                               record;
+v_sql                               text;
+v_step_id                           bigint;
+v_sub_parent                        text;
 
 BEGIN
 /*
@@ -61,6 +63,7 @@ IF p_retention IS NULL THEN
         , retention::interval
         , retention_keep_table
         , retention_keep_index
+        , retention_keep_publication
         , retention_schema
         , jobmon
     INTO
@@ -70,6 +73,7 @@ IF p_retention IS NULL THEN
         , v_retention
         , v_retention_keep_table
         , v_retention_keep_index
+        , v_retention_keep_publication
         , v_retention_schema
         , v_jobmon
     FROM @extschema@.part_config
@@ -85,6 +89,7 @@ ELSE
         , epoch
         , retention_keep_table
         , retention_keep_index
+        , retention_keep_publication
         , retention_schema
         , jobmon
     INTO
@@ -92,6 +97,7 @@ ELSE
         , v_epoch
         , v_retention_keep_table
         , v_retention_keep_index
+        , v_retention_keep_publication
         , v_retention_schema
         , v_jobmon
     FROM @extschema@.part_config
@@ -217,6 +223,25 @@ LOOP
                         END IF;
                     END LOOP;
             END IF; -- end v_retention_keep_index IF
+
+
+            -- Remove table from publication(s) if desired
+            IF v_retention_keep_publication = false THEN
+
+                FOR v_pubname_row IN
+                    SELECT p.pubname
+                    FROM pg_catalog.pg_publication_rel pr
+                    JOIN pg_catalog.pg_publication p ON p.oid = pr.prpubid
+                    JOIN pg_catalog.pg_class c ON c.oid = pr.prrelid
+                    JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                    WHERE n.nspname = v_row.partition_schemaname
+                    AND c.relname = v_row.partition_tablename
+                LOOP
+                    EXECUTE format('ALTER PUBLICATION %I DROP TABLE %I.%I', v_pubname_row.pubname, v_row.partition_schemaname, v_row.partition_tablename);
+                END LOOP;
+
+            END IF;
+
         END IF;
 
         IF v_jobmon_schema IS NOT NULL THEN

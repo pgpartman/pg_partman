@@ -55,7 +55,8 @@ IF p_type = v_top_control_type THEN
         INTO sub_min, sub_max
         FROM @extschema@.show_partition_info(p_parent_table, v_top_interval, v_top_schema||'.'||v_top_tablename);
     ELSIF p_type = 'id' THEN
-        SELECT child_start_id::text, child_end_id::text
+        -- Trunc to handle numeric values
+        SELECT trunc(child_start_id)::text, trunc(child_end_id)::text
         INTO sub_min, sub_max
         FROM @extschema@.show_partition_info(p_parent_table, v_top_interval, v_top_schema||'.'||v_top_tablename);
     ELSE
@@ -67,5 +68,3 @@ RETURN;
 
 END
 $$;
-
-

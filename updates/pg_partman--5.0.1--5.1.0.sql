@@ -2416,7 +2416,6 @@ SELECT CASE
 $$;
 
 
-
 CREATE OR REPLACE FUNCTION @extschema@.show_partitions (
     p_parent_table text
     , p_order text DEFAULT 'ASC'
@@ -2705,7 +2704,6 @@ END
 $$;
 
 
--- TODO update function in tables.sql
 CREATE OR REPLACE FUNCTION @extschema@.check_partition_type (p_type text) RETURNS boolean
     LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER
     SET search_path TO pg_catalog, pg_temp
@@ -4158,7 +4156,7 @@ FOR i IN 1..p_batch_count LOOP
         EXECUTE format('WITH partition_data AS (
                 DELETE FROM partman_temp_data_storage RETURNING *)
             INSERT INTO %I.%I (%3$s) SELECT %3$s FROM partition_data'
-            , v_parent_schemaname
+            , v_parent_schema
             , v_current_partition_name
             , v_column_list);
 

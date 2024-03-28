@@ -8,33 +8,36 @@ CREATE FUNCTION @extschema@.create_partition_id(
     AS $$
 DECLARE
 
-ex_context              text;
-ex_detail               text;
-ex_hint                 text;
-ex_message              text;
-v_control               text;
-v_control_type          text;
-v_exists                text;
-v_id                    bigint;
-v_inherit_privileges    boolean;
-v_job_id                bigint;
-v_jobmon                boolean;
-v_jobmon_schema         text;
-v_new_search_path       text;
-v_old_search_path       text;
-v_parent_schema         text;
-v_parent_tablename      text;
-v_partition_interval    bigint;
-v_partition_created     boolean := false;
-v_partition_name        text;
-v_row                   record;
-v_sql                   text;
-v_step_id               bigint;
-v_sub_control           text;
-v_sub_partition_type    text;
-v_sub_id_max            bigint;
-v_sub_id_min            bigint;
-v_template_table        text;
+ex_context                      text;
+ex_detail                       text;
+ex_hint                         text;
+ex_message                      text;
+v_control                       text;
+v_control_type                  text;
+v_exists                        text;
+v_id                            bigint;
+v_inherit_privileges            boolean;
+v_job_id                        bigint;
+v_jobmon                        boolean;
+v_jobmon_schema                 text;
+v_new_search_path               text;
+v_old_search_path               text;
+v_parent_oid                    oid;
+v_parent_schema                 text;
+v_parent_tablename              text;
+v_parent_tablespace             name;
+v_partition_interval            bigint;
+v_partition_created             boolean := false;
+v_partition_name                text;
+v_partition_type                text;
+v_row                           record;
+v_sql                           text;
+v_step_id                       bigint;
+v_sub_control                   text;
+v_sub_partition_type            text;
+v_sub_id_max                    bigint;
+v_sub_id_min                    bigint;
+v_template_table                text;
 
 BEGIN
 /*
@@ -43,11 +46,13 @@ BEGIN
 
 SELECT control
     , partition_interval::bigint -- this shared field also used in partition_time as interval
+    , partition_type
     , jobmon
     , template_table
     , inherit_privileges
 INTO v_control
     , v_partition_interval
+    , v_partition_type
     , v_jobmon
     , v_template_table
     , v_inherit_privileges
@@ -58,12 +63,18 @@ IF NOT FOUND THEN
     RAISE EXCEPTION 'ERROR: no config found for %', p_parent_table;
 END IF;
 
-SELECT n.nspname, c.relname
-INTO v_parent_schema, v_parent_tablename
+SELECT n.nspname
+    , c.relname
+    , c.oid
+    , t.spcname
+INTO v_parent_schema
+    , v_parent_tablename
+    , v_parent_oid
+    , v_parent_tablespace
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+LEFT OUTER JOIN pg_catalog.pg_tablespace t ON c.reltablespace = t.oid
 WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
-
 AND c.relname = split_part(p_parent_table, '.', 2)::name;
 
 SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
@@ -117,19 +128,23 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
 
     -- Close parentheses on LIKE are below due to differing requirements of subpartitioning
     -- Same INCLUDING list is used in create_parent()
-    v_sql := format('CREATE TABLE %I.%I (LIKE %I.%I INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING STORAGE INCLUDING COMMENTS INCLUDING GENERATED '
+    v_sql := format('CREATE TABLE %I.%I (LIKE %I.%I INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING STORAGE INCLUDING COMMENTS INCLUDING GENERATED) '
             , v_parent_schema
             , v_partition_name
             , v_parent_schema
             , v_parent_tablename);
 
+    IF v_parent_tablespace IS NOT NULL THEN
+        v_sql := format('%s TABLESPACE %I ', v_sql, v_parent_tablespace);
+    END IF;
+
     SELECT sub_partition_type, sub_control INTO v_sub_partition_type, v_sub_control
     FROM @extschema@.part_config_sub
     WHERE sub_parent = p_parent_table;
     IF v_sub_partition_type = 'range' THEN
-        v_sql := v_sql || format(') PARTITION BY RANGE (%I) ', v_sub_control);
-    ELSE
-        v_sql := v_sql || format(')');
+        v_sql :=  format('%s PARTITION BY RANGE (%I) ', v_sql, v_sub_control);
+    ELSIF v_sub_partition_type = 'list' THEN
+        v_sql :=  format('%s PARTITION BY LIST (%I) ', v_sql, v_sub_control);
     END IF;
 
     RAISE DEBUG 'create_partition_id v_sql: %', v_sql;
@@ -139,14 +154,24 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
         PERFORM @extschema@.inherit_template_properties(p_parent_table, v_parent_schema, v_partition_name);
     END IF;
 
-    EXECUTE format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I FOR VALUES FROM (%L) TO (%L)'
-        , v_parent_schema
-        , v_parent_tablename
-        , v_parent_schema
-        , v_partition_name
-        , v_id
-        , v_id + v_partition_interval);
-
+    IF v_partition_type = 'range' THEN
+        EXECUTE format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I FOR VALUES FROM (%L) TO (%L)'
+            , v_parent_schema
+            , v_parent_tablename
+            , v_parent_schema
+            , v_partition_name
+            , v_id
+            , v_id + v_partition_interval);
+    ELSIF v_partition_type = 'list' THEN
+        EXECUTE format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I FOR VALUES IN (%L)'
+            , v_parent_schema
+            , v_parent_tablename
+            , v_parent_schema
+            , v_partition_name
+            , v_id);
+    ELSE
+        RAISE EXCEPTION 'create_partition_id: Unexpected partition type (%) encountered in part_config table for parent table %', v_partition_type, p_parent_table;
+    END IF;
 
     -- NOTE: Privileges not automatically inherited. Only do so if config flag is set
     IF v_inherit_privileges = TRUE THEN
@@ -184,6 +209,8 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
             , sub_date_trunc_interval
             , sub_ignore_default_data
             , sub_default_table
+            , sub_maintenance_order
+            , sub_retention_keep_publication
         FROM @extschema@.part_config_sub
         WHERE sub_parent = p_parent_table
     LOOP
@@ -228,6 +255,8 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
             , inherit_privileges = v_row.sub_inherit_privileges
             , constraint_valid = v_row.sub_constraint_valid
             , ignore_default_data = v_row.sub_ignore_default_data
+            , maintenance_order = v_row.sub_maintenance_order
+            , retention_keep_publication = v_row.sub_retention_keep_publication
         WHERE parent_table = v_parent_schema||'.'||v_partition_name;
 
         IF v_jobmon_schema IS NOT NULL THEN
@@ -236,28 +265,15 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
 
     END LOOP; -- end sub partitioning LOOP
 
+    -- NOTE: Replication identity not automatically inherited as of PG16 (revisit in future versions)
+    PERFORM @extschema@.inherit_replica_identity(v_parent_schema, v_parent_tablename, v_partition_name);
+
     -- Manage additional constraints if set
     PERFORM @extschema@.apply_constraints(p_parent_table, p_job_id := v_job_id);
 
     v_partition_created := true;
 
 END LOOP;
-
--- v_analyze is a local check if a new table is made.
--- p_analyze is a parameter to say whether to run the analyze at all. Used by create_parent() to avoid long exclusive lock or run_maintenence() to avoid long creation runs.
-/** REMOVE
-IF v_analyze AND p_analyze THEN
-    IF v_jobmon_schema IS NOT NULL THEN
-        v_step_id := add_step(v_job_id, format('Analyzing partition set: %s', p_parent_table));
-    END IF;
-
-    EXECUTE format('ANALYZE %I.%I', v_parent_schema, v_parent_tablename);
-
-    IF v_jobmon_schema IS NOT NULL THEN
-        PERFORM update_step(v_step_id, 'OK', 'Done');
-    END IF;
-END IF;
-REMOVE **/
 
 IF v_jobmon_schema IS NOT NULL THEN
     IF v_partition_created = false THEN

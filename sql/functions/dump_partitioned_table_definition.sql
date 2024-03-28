@@ -31,7 +31,9 @@ DECLARE
     v_constraint_valid boolean; -- DEFAULT true NOT NULL
     v_ignore_default_data boolean; -- DEFAULT false NOT NULL
     v_date_trunc_interval text;
-    v_default_table boolean ;
+    v_default_table boolean;
+    v_maintenance_order int;
+    v_retention_keep_publication boolean;
 BEGIN
     SELECT
         pc.parent_table,
@@ -56,7 +58,9 @@ BEGIN
         pc.constraint_valid,
         pc.ignore_default_data,
         pc.date_trunc_interval,
-        pc.default_table
+        pc.default_table,
+        pc.maintenance_order,
+        pc.retention_keep_publication
     INTO
         v_parent_table,
         v_control,
@@ -80,7 +84,9 @@ BEGIN
         v_constraint_valid,
         v_ignore_default_data,
         v_date_trunc_interval,
-        v_default_table
+        v_default_table,
+        v_maintenance_order,
+        v_retention_keep_publication
     FROM @extschema@.part_config pc
     WHERE pc.parent_table = p_parent_table;
 
@@ -133,7 +139,9 @@ E'UPDATE @extschema@.part_config SET
 \tsub_partition_set_full = %L,
 \tinherit_privileges = %L,
 \tconstraint_valid = %L,
-\tignore_default_data = %L
+\tignore_default_data = %L,
+\tmaintenance_order = %L,
+\tretention_keep_publication = %L
 WHERE parent_table = %L;',
         v_optimize_constraint,
         v_retention,
@@ -146,6 +154,8 @@ WHERE parent_table = %L;',
         v_inherit_privileges,
         v_constraint_valid,
         v_ignore_default_data,
+        v_maintenance_order,
+        v_retention_keep_publication,
         v_parent_table
     );
 

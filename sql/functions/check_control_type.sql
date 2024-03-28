@@ -3,13 +3,13 @@ CREATE FUNCTION @extschema@.check_control_type(p_parent_schema text, p_parent_ta
 AS $$
 /*
  * Return column type for given table & column in that table
- * Returns NULL of objects don't exist
+ * Returns NULL if objects don't match compatible types
  */
 
 SELECT CASE
         WHEN typname IN ('timestamptz', 'timestamp', 'date') THEN
             'time'
-        WHEN typname IN ('int2', 'int4', 'int8') THEN
+        WHEN typname IN ('int2', 'int4', 'int8', 'numeric' ) THEN
             'id'
        END
     , typname::text
@@ -21,5 +21,3 @@ SELECT CASE
     AND c.relname = p_parent_tablename::name
     AND a.attname = p_control::name
 $$;
-
-

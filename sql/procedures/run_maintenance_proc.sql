@@ -14,9 +14,14 @@ v_sql                   text;
 
 BEGIN
 
-v_adv_lock := pg_try_advisory_lock(hashtext('pg_partman run_maintenance'));
+v_adv_lock := pg_try_advisory_lock(hashtext('pg_partman run_maintenance procedure'));
 IF v_adv_lock = false THEN
-    RAISE NOTICE 'Partman maintenance already running or another session has not released its advisory lock.';
+    RAISE NOTICE 'Partman maintenance procedure already running or another session has not released its advisory lock.';
+    RETURN;
+END IF;
+
+IF pg_is_in_recovery() THEN
+    RAISE DEBUG 'pg_partmain maintenance procedure called on replica. Doing nothing.';
     RETURN;
 END IF;
 
@@ -25,6 +30,7 @@ FOR v_parent_table IN
     FROM @extschema@.part_config
     WHERE undo_in_progress = false
     AND automatic_maintenance = 'on'
+    ORDER BY maintenance_order ASC NULLS LAST
 LOOP
 /*
  * Run maintenance with a commit between each partition set
@@ -47,6 +53,6 @@ LOOP
 
 END LOOP;
 
-PERFORM pg_advisory_unlock(hashtext('pg_partman run_maintenance'));
+PERFORM pg_advisory_unlock(hashtext('pg_partman run_maintenance procedure'));
 END
 $$;
