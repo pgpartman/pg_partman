@@ -12,7 +12,7 @@ NEW FEATURES
     - Note for existing partition sets, this will only apply to newly created child tables. Existing child tables will need to be manually updated.
  - EXPERIMENTAL - Support numeric partitioning (Issue #265)
     - Note that while the partition column may now be of type numeric, the partitioning interval must still be a whole integer value
-    - This is currently only experimental but would like to have it available in a public release to get feedback on it for those that are able to evaluated it. Please open issues or discussions on the Github repository for both positive and negative feedback.
+    - Please evaluate this feature carefully before using in production and feel free to open issues or discussions on the Github repository for both positive and negative feedback. Positive feedback will speed up moving this feature out of experimental.
 
 BUGFIXES
 --------
