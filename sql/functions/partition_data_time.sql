@@ -1,4 +1,4 @@
-CREATE FUNCTION @extschema@.partition_data_time(
+CREATE OR REPLACE FUNCTION @extschema@.partition_data_time(
     p_parent_table text
     , p_batch_count int DEFAULT 1
     , p_batch_interval interval DEFAULT NULL
@@ -257,7 +257,7 @@ FOR i IN 1..p_batch_count LOOP
         EXECUTE format('WITH partition_data AS (
                 DELETE FROM partman_temp_data_storage RETURNING *)
             INSERT INTO %I.%I (%3$s) SELECT %3$s FROM partition_data'
-            , v_source_schemaname
+            , v_parent_schema
             , v_current_partition_name
             , v_column_list);
 
@@ -268,12 +268,13 @@ FOR i IN 1..p_batch_count LOOP
 
         EXECUTE format('WITH partition_data AS (
                             DELETE FROM ONLY %I.%I WHERE %s >= %L AND %3$s < %5$L RETURNING *)
-                         INSERT INTO %1$I.%6$I (%7$s) SELECT %7$s FROM partition_data'
+                         INSERT INTO %6$I.%7$I (%8$s) SELECT %8$s FROM partition_data'
                             , v_source_schemaname
                             , v_source_tablename
                             , v_partition_expression
                             , v_min_partition_timestamp
                             , v_max_partition_timestamp
+                            , v_parent_schema
                             , v_current_partition_name
                             , v_column_list);
     END IF;

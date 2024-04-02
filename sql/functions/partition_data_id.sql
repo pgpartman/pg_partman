@@ -215,7 +215,7 @@ IF v_default_exists THEN
     EXECUTE format('WITH partition_data AS (
             DELETE FROM partman_temp_data_storage RETURNING *)
         INSERT INTO %1$I.%2$I (%3$s) SELECT %3$s FROM partition_data'
-        , v_source_schemaname
+        , v_parent_schema
         , v_current_partition_name
         , v_column_list);
 
@@ -226,12 +226,13 @@ ELSE
 
     EXECUTE format('WITH partition_data AS (
             DELETE FROM ONLY %1$I.%2$I WHERE %3$I >= %4$s AND %3$I < %5$s RETURNING *)
-        INSERT INTO %1$I.%6$I (%7$s) SELECT %7$s FROM partition_data'
+        INSERT INTO %6$I.%7$I (%8$s) SELECT %8$s FROM partition_data'
         , v_source_schemaname
         , v_source_tablename
         , v_control
         , v_min_partition_id
         , v_max_partition_id
+        , v_parent_schema
         , v_current_partition_name
         , v_column_list);
 

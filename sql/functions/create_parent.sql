@@ -22,7 +22,6 @@ ex_context                      text;
 ex_detail                       text;
 ex_hint                         text;
 ex_message                      text;
-v_partattrs                     smallint[];
 v_base_timestamp                timestamptz;
 v_count                         int := 1;
 v_control_type                  text;
@@ -48,8 +47,10 @@ v_parent_partition_id           bigint;
 v_parent_partition_timestamp    timestamptz;
 v_parent_schema                 text;
 v_parent_tablename              text;
+v_parent_tablespace             name;
 v_part_col                      text;
 v_part_type                     text;
+v_partattrs                     smallint[];
 v_partition_time                timestamptz;
 v_partition_time_array          timestamptz[];
 v_partition_id_array            bigint[];
@@ -91,10 +92,17 @@ THEN
     RAISE EXCEPTION 'Special partition interval values from old pg_partman versions (%) are no longer supported. Please use a supported interval time value from core PostgreSQL (https://www.postgresql.org/docs/current/datatype-datetime.html#DATATYPE-INTERVAL-INPUT)', p_interval;
 END IF;
 
-SELECT n.nspname, c.relname, c.relpersistence
-INTO v_parent_schema, v_parent_tablename, v_unlogged
+SELECT n.nspname
+    , c.relname
+    , c.relpersistence
+    , t.spcname
+INTO v_parent_schema
+    , v_parent_tablename
+    , v_unlogged
+    , v_parent_tablespace
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+LEFT OUTER JOIN pg_catalog.pg_tablespace t ON c.reltablespace = t.oid
 WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
 AND c.relname = split_part(p_parent_table, '.', 2)::name;
     IF v_parent_tablename IS NULL THEN
@@ -116,7 +124,7 @@ SELECT general_type, exact_type INTO v_control_type, v_control_exact_type
 FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, p_control);
 
 IF v_control_type IS NULL THEN
-    RAISE EXCEPTION 'pg_partman only supports partitioning of data types that are integer or date/timestamp. Supplied column is of type %', v_control_exact_type;
+    RAISE EXCEPTION 'pg_partman only supports partitioning of data types that are integer, numeric or date/timestamp. Supplied column is of type %', v_control_exact_type;
 END IF;
 
 IF (p_epoch <> 'none' AND v_control_type <> 'id') THEN
@@ -131,16 +139,19 @@ END IF;
 IF current_setting('server_version_num')::int < 140000 THEN
     RAISE EXCEPTION 'pg_partman requires PostgreSQL 14 or greater';
 END IF;
--- Check if given parent table has been already set up as a partitioned table and is ranged
-SELECT p.partstrat, partattrs INTO v_partstrat, v_partattrs
+-- Check if given parent table has been already set up as a partitioned table
+SELECT p.partstrat
+    , p.partattrs
+INTO v_partstrat
+    , v_partattrs
 FROM pg_catalog.pg_partitioned_table p
 JOIN pg_catalog.pg_class c ON p.partrelid = c.oid
 JOIN pg_namespace n ON c.relnamespace = n.oid
 WHERE n.nspname = v_parent_schema::name
 AND c.relname = v_parent_tablename::name;
 
-IF v_partstrat <> 'r' OR v_partstrat IS NULL THEN
-    RAISE EXCEPTION 'You must have created the given parent table as ranged (not list) partitioned already. Ex: CREATE TABLE ... PARTITION BY RANGE ...)';
+IF v_partstrat NOT IN ('r', 'l') OR v_partstrat IS NULL THEN
+    RAISE EXCEPTION 'You must have created the given parent table as ranged or list partitioned already. Ex: CREATE TABLE ... PARTITION BY [RANGE|LIST] ...)';
 END IF;
 
 IF array_length(v_partattrs, 1) > 1 THEN
@@ -256,6 +267,7 @@ FOR v_row IN
         , a.sub_date_trunc_interval
         , a.sub_ignore_default_data
         , a.sub_default_table
+        , a.sub_retention_keep_publication
     FROM @extschema@.part_config_sub a
     JOIN sibling_children b on a.sub_parent = b.tablename LIMIT 1
 LOOP
@@ -279,7 +291,8 @@ LOOP
         , sub_inherit_privileges
         , sub_constraint_valid
         , sub_date_trunc_interval
-        , sub_ignore_default_data)
+        , sub_ignore_default_data
+        , sub_retention_keep_publication)
     VALUES (
         p_parent_table
         , v_row.sub_partition_type
@@ -300,7 +313,8 @@ LOOP
         , v_row.sub_inherit_privileges
         , v_row.sub_constraint_valid
         , v_row.sub_date_trunc_interval
-        , v_row.sub_ignore_default_data);
+        , v_row.sub_ignore_default_data
+        , v_row.sub_retention_keep_publication);
 
     -- Set this equal to sibling configs so that newly created child table
     -- privileges are set properly below during initial setup.
@@ -440,10 +454,9 @@ END IF;
 
 IF v_control_type = 'id' AND p_epoch = 'none' THEN
     v_id_interval := p_interval::bigint;
-    -- TODO: When list partitioning is supported, do not support interval less than 2 for ranged
-    -- IF v_id_interval < 2 THEN
-    --    RAISE EXCEPTION 'Interval for range partitioning must be greater than or equal to 2. Use LIST partitioning for single value partitions.';
-    -- END IF;
+    IF v_id_interval < 2 AND p_type != 'list' THEN
+       RAISE EXCEPTION 'Interval for range partitioning must be greater than or equal to 2. Use LIST partitioning for single value partitions. (Values given: p_interval: %, p_type: %)', p_interval, p_type;
+    END IF;
 
     -- Check if parent table is a subpartition of an already existing id partition set managed by pg_partman.
     WHILE v_higher_parent_table IS NOT NULL LOOP -- initially set in DECLARE
@@ -481,14 +494,14 @@ IF v_control_type = 'id' AND p_epoch = 'none' THEN
     IF p_start_partition IS NOT NULL THEN
         v_max := p_start_partition::bigint;
     ELSE
-        v_sql := format('SELECT COALESCE(max(%I)::bigint, 0) FROM %I.%I LIMIT 1'
+        v_sql := format('SELECT COALESCE(trunc(max(%I))::bigint, 0) FROM %I.%I LIMIT 1'
                     , p_control
                     , v_top_parent_schema
                     , v_top_parent_table);
         EXECUTE v_sql INTO v_max;
     END IF;
 
-    v_starting_partition_id := v_max - (v_max % v_id_interval);
+    v_starting_partition_id := (v_max - (v_max % v_id_interval));
     FOR i IN 0..p_premake LOOP
         -- Only make previous partitions if ID value is less than the starting value and positive (and custom start partition wasn't set)
         IF p_start_partition IS NULL AND
@@ -600,11 +613,16 @@ IF p_default_table THEN
     -- Same INCLUDING list is used in create_partition_*(). INDEXES is handled when partition is attached if it's supported.
     v_sql := v_sql || format(' TABLE %I.%I (LIKE %I.%I INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING STORAGE INCLUDING COMMENTS INCLUDING GENERATED)'
         , v_parent_schema, v_default_partition, v_parent_schema, v_parent_tablename);
+    IF v_parent_tablespace IS NOT NULL THEN
+        v_sql := format('%s TABLESPACE %I ', v_sql, v_parent_tablespace);
+    END IF;
     EXECUTE v_sql;
 
     v_sql := format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I DEFAULT'
         , v_parent_schema, v_parent_tablename, v_parent_schema, v_default_partition);
     EXECUTE v_sql;
+
+    PERFORM @extschema@.inherit_replica_identity(v_parent_schema, v_parent_tablename, v_default_partition);
 
     -- Manage template inherited properties
     PERFORM @extschema@.inherit_template_properties(p_parent_table, v_parent_schema, v_default_partition);

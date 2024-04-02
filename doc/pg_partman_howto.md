@@ -262,7 +262,7 @@ ALTER TABLE partman_test.id_taptest_table_p40 ADD PRIMARY KEY (col2);
 
 Partitioning an existing table with native partitioning is not as straight forward as just altering a table. As stated above, you cannot turn an already existing table into the parent table of a native partition set. The parent of a native partitioned table must be declared partitioned at the time of its creation. However, there are still methods to take an existing table and partition it natively. Two of those are presented below.
 
-One tip that may possibly help with the speed/load of partitioning a table would be to run a CLUSTER on the original source table using the partition key's index shortly before the partitioning is done. Since the data will be read sequentially from the source table, having it be in order could potentially help with IO efficiency on very large tables. See the PostgreSQL documentation - https://www.postgresql.org/docs/current/sql-cluster.html
+One tip that may possibly help with the speed/load of partitioning a table would be to run a CLUSTER on the original source table using the partition key's index shortly before the partitioning is done. Since the data will be read sequentially from the source table, having it be in order could potentially help with IO efficiency on very large tables. Just note that this does take an access exclusive lock on the table, but you can do this one child table at a time. See the PostgreSQL documentation - https://www.postgresql.org/docs/current/sql-cluster.html
 
 #### Offline Partitioning
 

@@ -10,35 +10,37 @@ CREATE FUNCTION @extschema@.drop_partition_id(
     AS $$
 DECLARE
 
-ex_context                  text;
-ex_detail                   text;
-ex_hint                     text;
-ex_message                  text;
-v_adv_lock                  boolean;
-v_control                   text;
-v_control_type              text;
-v_count                     int;
-v_drop_count                int := 0;
-v_index                     record;
-v_job_id                    bigint;
-v_jobmon                    boolean;
-v_jobmon_schema             text;
-v_max                       bigint;
-v_new_search_path           text;
-v_old_search_path           text;
-v_parent_schema             text;
-v_parent_tablename          text;
-v_partition_interval        bigint;
-v_partition_id              bigint;
-v_retention                 bigint;
-v_retention_keep_index      boolean;
-v_retention_keep_table      boolean;
-v_retention_schema          text;
-v_row                       record;
-v_row_max_id                record;
-v_sql                       text;
-v_step_id                   bigint;
-v_sub_parent                text;
+ex_context                          text;
+ex_detail                           text;
+ex_hint                             text;
+ex_message                          text;
+v_adv_lock                          boolean;
+v_control                           text;
+v_control_type                      text;
+v_count                             int;
+v_drop_count                        int := 0;
+v_index                             record;
+v_job_id                            bigint;
+v_jobmon                            boolean;
+v_jobmon_schema                     text;
+v_max                               bigint;
+v_new_search_path                   text;
+v_old_search_path                   text;
+v_parent_schema                     text;
+v_parent_tablename                  text;
+v_partition_interval                bigint;
+v_partition_id                      bigint;
+v_pubname_row                       record;
+v_retention                         bigint;
+v_retention_keep_index              boolean;
+v_retention_keep_table              boolean;
+v_retention_keep_publication        boolean;
+v_retention_schema                  text;
+v_row                               record;
+v_row_max_id                        record;
+v_sql                               text;
+v_step_id                           bigint;
+v_sub_parent                        text;
 
 BEGIN
 /*
@@ -59,6 +61,7 @@ IF p_retention IS NULL THEN
         , retention::bigint
         , retention_keep_table
         , retention_keep_index
+        , retention_keep_publication
         , retention_schema
         , jobmon
     INTO
@@ -67,6 +70,7 @@ IF p_retention IS NULL THEN
         , v_retention
         , v_retention_keep_table
         , v_retention_keep_index
+        , v_retention_keep_publication
         , v_retention_schema
         , v_jobmon
     FROM @extschema@.part_config
@@ -82,6 +86,7 @@ ELSE -- Allow override of configuration options
         , control
         , retention_keep_table
         , retention_keep_index
+        , retention_keep_publication
         , retention_schema
         , jobmon
     INTO
@@ -89,6 +94,7 @@ ELSE -- Allow override of configuration options
         , v_control
         , v_retention_keep_table
         , v_retention_keep_index
+        , v_retention_keep_publication
         , v_retention_schema
         , v_jobmon
     FROM @extschema@.part_config
@@ -139,7 +145,7 @@ AND tablename = split_part(p_parent_table, '.', 2)::name;
 FOR v_row_max_id IN
     SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(p_parent_table, 'DESC')
 LOOP
-        EXECUTE format('SELECT max(%I) FROM %I.%I', v_control, v_row_max_id.partition_schemaname, v_row_max_id.partition_tablename) INTO v_max;
+        EXECUTE format('SELECT trunc(max(%I)) FROM %I.%I', v_control, v_row_max_id.partition_schemaname, v_row_max_id.partition_tablename) INTO v_max;
         IF v_max IS NOT NULL THEN
             EXIT;
         END IF;
@@ -156,7 +162,8 @@ LOOP
         , v_partition_interval::text
         , p_parent_table);
 
-    -- Add one interval since partition names contain the start of the constraint period
+    -- Add one interval to the start of the constraint period
+    RAISE DEBUG 'drop_partition_id: v_retention: %, v_max: %, v_partition_id: %, v_partition_interval: %', v_retention, v_max, v_partition_id, v_partition_interval;
     IF v_retention <= (v_max - (v_partition_id + v_partition_interval)) THEN
 
         -- Do not allow final partition to be dropped if it is not a sub-partition parent
@@ -218,6 +225,22 @@ LOOP
                     END IF;
                 END LOOP;
             END IF; -- end v_retention_keep_index IF
+
+            -- Remove table from publication(s) if desired
+            IF v_retention_keep_publication = false THEN
+                FOR v_pubname_row IN
+                    SELECT p.pubname
+                    FROM pg_catalog.pg_publication_rel pr
+                    JOIN pg_catalog.pg_publication p ON p.oid = pr.prpubid
+                    JOIN pg_catalog.pg_class c ON c.oid = pr.prrelid
+                    JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+                    WHERE n.nspname = v_row.partition_schemaname
+                    AND c.relname = v_row.partition_tablename
+                LOOP
+                    EXECUTE format('ALTER PUBLICATION %I DROP TABLE %I.%I', v_pubname_row.pubname, v_row.partition_schemaname, v_row.partition_tablename);
+                END LOOP;
+            END IF;
+
         END IF;
 
         IF v_retention_schema IS NULL THEN

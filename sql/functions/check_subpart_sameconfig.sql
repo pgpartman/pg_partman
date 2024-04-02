@@ -20,6 +20,8 @@ CREATE FUNCTION @extschema@.check_subpart_sameconfig(p_parent_table text)
         , sub_date_trunc_interval text
         , sub_ignore_default_data boolean
         , sub_default_table boolean
+        , sub_maintenance_order int
+        , sub_retention_keep_publication boolean
         )
     LANGUAGE sql STABLE
     SET search_path = @extschema@,pg_temp
@@ -70,6 +72,8 @@ AS $$
         , a.sub_date_trunc_interval
         , a.sub_ignore_default_data
         , a.sub_default_table
+        , a.sub_maintenance_order
+        , a.sub_retention_keep_publication
     FROM @extschema@.part_config_sub a
     JOIN child_tables b on a.sub_parent = b.tablename;
 $$;

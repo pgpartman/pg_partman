@@ -18,7 +18,9 @@ v_child_tablename       text;
 v_control               text;
 v_control_type          text;
 v_epoch                 text;
+v_exact_control_type    text;
 v_parent_table          text;
+v_partstrat             char;
 v_partition_interval    text;
 v_start_string          text;
 
@@ -53,6 +55,13 @@ ELSE
     v_parent_table := p_parent_table;
 END IF;
 
+SELECT p.partstrat INTO v_partstrat
+FROM pg_catalog.pg_class c
+JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+JOIN pg_catalog.pg_partitioned_table p ON c.oid = p.partrelid
+WHERE n.nspname = split_part(v_parent_table, '.', 1)::name
+AND c.relname = split_part(v_parent_table, '.', 2)::name;
+
 IF p_partition_interval IS NULL THEN
     SELECT control, partition_interval, epoch
     INTO v_control, v_partition_interval, v_epoch
@@ -68,23 +77,33 @@ IF v_control IS NULL THEN
     RAISE EXCEPTION 'Parent table of given child not managed by pg_partman: %', v_parent_table;
 END IF;
 
-SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_child_schema, v_child_tablename, v_control);
+SELECT general_type, exact_type INTO v_control_type, v_exact_control_type FROM @extschema@.check_control_type(v_child_schema, v_child_tablename, v_control);
 
-RAISE DEBUG 'show_partition_info: v_child_schema: %, v_child_tablename: %',
-            v_child_schema, v_child_tablename;
+RAISE DEBUG 'show_partition_info: v_child_schema: %, v_child_tablename: %, v_control_type: %, v_exact_control_type: %',
+            v_child_schema, v_child_tablename, v_control_type, v_exact_control_type;
 
 -- Look at actual partition bounds in catalog and pull values from there.
-SELECT (regexp_match(pg_get_expr(c.relpartbound, c.oid, true)
-    , $REGEX$\(([^)]+)\) TO \(([^)]+)\)$REGEX$))[1]::text
-INTO v_start_string
-FROM pg_catalog.pg_class c
-JOIN pg_catalog.pg_namespace n
-ON c.relnamespace = n.oid
-WHERE c.relname = v_child_tablename
-AND n.nspname = v_child_schema;
+IF v_partstrat = 'r' THEN
+    SELECT (regexp_match(pg_get_expr(c.relpartbound, c.oid, true)
+        , $REGEX$\(([^)]+)\) TO \(([^)]+)\)$REGEX$))[1]::text
+    INTO v_start_string
+    FROM pg_catalog.pg_class c
+    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+    WHERE c.relname = v_child_tablename
+    AND n.nspname = v_child_schema;
+ELSIF v_partstrat = 'l' THEN
+    SELECT (regexp_match(pg_get_expr(c.relpartbound, c.oid, true)
+        , $REGEX$FOR VALUES IN \(([^)])\)$REGEX$))[1]::text
+    INTO v_start_string
+    FROM pg_catalog.pg_class c
+    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+    WHERE c.relname = v_child_tablename
+    AND n.nspname = v_child_schema;
+ELSE
+    RAISE EXCEPTION 'partman functions only work with list partitioning with integers and ranged partitioning with time or integers. Found partition strategy "%" for given partition set', v_partstrat;
+END IF;
 
 IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
-
 
     IF v_control_type = 'time' THEN
         child_start_time := v_start_string::timestamptz;
@@ -110,13 +129,18 @@ IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
 
 ELSIF v_control_type = 'id' THEN
 
-    child_start_id := trim(BOTH '''' FROM v_start_string)::bigint;
+    IF v_exact_control_type IN ('int8', 'int4', 'int2') THEN
+        child_start_id := trim(BOTH '''' FROM v_start_string)::bigint;
+    ELSIF v_exact_control_type = 'numeric' THEN
+        -- cast to numeric then trunc to get rid of decimal without rounding
+        child_start_id := trunc(trim(BOTH '''' FROM v_start_string)::numeric)::bigint;
+    END IF;
+
     child_end_id := (child_start_id + v_partition_interval::bigint) - 1;
 
 ELSE
     RAISE EXCEPTION 'Invalid partition type encountered in show_partition_info()';
 END IF;
-
 
 RETURN;
 

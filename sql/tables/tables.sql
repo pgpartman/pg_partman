@@ -1,4 +1,3 @@
--- TODO Redo part_config and part_config sub with new column ordering to be consistent
 CREATE TABLE @extschema@.part_config (
     parent_table text NOT NULL
     , control text NOT NULL
@@ -24,6 +23,9 @@ CREATE TABLE @extschema@.part_config (
     , ignore_default_data boolean NOT NULL DEFAULT true
     , default_table boolean DEFAULT true
     , date_trunc_interval text
+    , maintenance_order int
+    , retention_keep_publication boolean NOT NULL DEFAULT false
+    , maintenance_last_run timestamptz
     , CONSTRAINT part_config_parent_table_pkey PRIMARY KEY (parent_table)
     , CONSTRAINT positive_premake_check CHECK (premake > 0)
 );
@@ -55,6 +57,8 @@ CREATE TABLE @extschema@.part_config_sub (
     , sub_ignore_default_data boolean NOT NULL DEFAULT true
     , sub_default_table boolean default true
     , sub_date_trunc_interval TEXT
+    , sub_maintenance_order int
+    , sub_retention_keep_publication boolean NOT NULL DEFAULT false
     , CONSTRAINT part_config_sub_pkey PRIMARY KEY (sub_parent)
     , CONSTRAINT part_config_sub_sub_parent_fkey FOREIGN KEY (sub_parent) REFERENCES @extschema@.part_config (parent_table) ON DELETE CASCADE ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED
     , CONSTRAINT positive_premake_check CHECK (sub_premake > 0)
@@ -151,18 +155,19 @@ CHECK (@extschema@.check_epoch_type(sub_epoch));
 /*
  * Check for valid config table partition types
  */
--- Allow list/hash in future update
-CREATE OR REPLACE FUNCTION @extschema@.check_partition_type (p_type text) RETURNS boolean
+-- Allow hash in future update
+CREATE FUNCTION @extschema@.check_partition_type (p_type text) RETURNS boolean
     LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER
     SET search_path TO pg_catalog, pg_temp
     AS $$
 DECLARE
 v_result    boolean;
 BEGIN
-    SELECT p_type IN ('range') INTO v_result;
+    SELECT p_type IN ('range', 'list') INTO v_result;
     RETURN v_result;
 END
 $$;
+
 
 ALTER TABLE @extschema@.part_config
 ADD CONSTRAINT part_config_type_check

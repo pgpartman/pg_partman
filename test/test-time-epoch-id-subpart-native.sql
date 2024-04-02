@@ -352,7 +352,6 @@ SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMES
 SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'10 days'::interval, 'YYYYMMDD')||'_p0',
     'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'10 days'::interval, 'YYYYMMDD')||'_p0 does not exist');
 
-
 -- insert batch 2
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(36,50), extract('epoch' from CURRENT_TIMESTAMP)::int);
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(36,50), extract('epoch' from CURRENT_TIMESTAMP + '1 day'::interval)::int);

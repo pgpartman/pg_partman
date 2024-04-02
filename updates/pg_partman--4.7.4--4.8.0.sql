@@ -1,4 +1,8 @@
-CREATE FUNCTION @extschema@.partition_gap_fill(p_parent_table text) RETURNS integer
+-- SEE CHANGELOG.md for all notes and details on this update
+
+DROP FUNCTION IF EXISTS @extschema@.partition_gap_fill(text);
+
+CREATE FUNCTION @extschema@.partition_gap_fill(p_parent_table text, p_analyze boolean DEFAULT true) RETURNS integer
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -90,7 +94,7 @@ IF v_control_type = 'time'  OR (v_control_type = 'id' AND v_epoch <> 'none') THE
         RAISE DEBUG 'v_current_child_start_timestamp: %', v_current_child_start_timestamp;
 
         IF v_expected_next_child_timestamp != v_current_child_start_timestamp THEN
-            v_child_created :=  @extschema@.create_partition_time(v_parent_table, ARRAY[v_expected_next_child_timestamp]);
+            v_child_created :=  @extschema@.create_partition_time(v_parent_table, ARRAY[v_expected_next_child_timestamp], p_analyze);
             IF v_child_created THEN
                 v_children_created_count := v_children_created_count + 1;
                 v_child_created := false;
@@ -109,7 +113,7 @@ IF v_control_type = 'time'  OR (v_control_type = 'id' AND v_epoch <> 'none') THE
         RAISE DEBUG 'inner loop: v_previous_child_start_timestamp: %, v_expected_next_child_timestamp: %, v_children_created_count: %'
                 , v_previous_child_start_timestamp, v_expected_next_child_timestamp, v_children_created_count;
 
-                    v_child_created := @extschema@.create_partition_time(v_parent_table, ARRAY[v_expected_next_child_timestamp]);
+                    v_child_created := @extschema@.create_partition_time(v_parent_table, ARRAY[v_expected_next_child_timestamp], p_analyze);
                     IF v_child_created THEN
                         v_children_created_count := v_children_created_count + 1;
                         v_child_created := false;
@@ -161,7 +165,7 @@ ELSIF v_control_type = 'id' THEN
         RAISE DEBUG 'v_current_child_start_id: %', v_current_child_start_id;
 
         IF v_expected_next_child_id != v_current_child_start_id THEN
-            v_child_created :=  @extschema@.create_partition_id(v_parent_table, ARRAY[v_expected_next_child_id]);
+            v_child_created :=  @extschema@.create_partition_id(v_parent_table, ARRAY[v_expected_next_child_id], p_analyze);
             IF v_child_created THEN
                 v_children_created_count := v_children_created_count + 1;
                 v_child_created := false;
@@ -180,7 +184,7 @@ ELSIF v_control_type = 'id' THEN
         RAISE DEBUG 'inner loop: v_previous_child_start_id: %, v_expected_next_child_id: %, v_children_created_count: %'
                 , v_previous_child_start_id, v_expected_next_child_id, v_children_created_count;
 
-                    v_child_created := @extschema@.create_partition_id(v_parent_table, ARRAY[v_expected_next_child_id]);
+                    v_child_created := @extschema@.create_partition_id(v_parent_table, ARRAY[v_expected_next_child_id], p_analyze);
                     IF v_child_created THEN
                         v_children_created_count := v_children_created_count + 1;
                         v_child_created := false;
@@ -202,4 +206,3 @@ RETURN v_children_created_count;
 
 END
 $$;
-

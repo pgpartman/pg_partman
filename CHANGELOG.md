@@ -1,3 +1,38 @@
+5.1.0
+=====
+NEW FEATURES
+------------
+ - Support LIST partitioning for single value integers. (Issue #236)
+ - Add explicit ordering of partition set maintenance. (Issue #497)
+    - A new column has been added to the `part_config` table: `maintenance_order`. If set, the partition sets will run in increasing numerical order
+    - Defaults to NULL and has no requirement
+    - NULL values will always come after numbered sets in no guaranteed order
+ - Added new column `part_config.maintenance_last_run` to track the last datetime that maintenance was run for that partition set. Timestamp is only updated if maintenance for that partition set completed successfully so can be used as a monitoring metric.
+ - REPLICA IDENTITY is now automatically inherited from the parent table to all children (#502)
+    - Note for existing partition sets, this will only apply to newly created child tables. Existing child tables will need to be manually updated.
+ - EXPERIMENTAL - Support numeric partitioning (Issue #265)
+    - Note that while the partition column may now be of type numeric, the partitioning interval must still be a whole integer value
+    - Please evaluate this feature carefully before using in production and feel free to open issues or discussions on the Github repository for both positive and negative feedback. Positive feedback will speed up moving this feature out of experimental.
+
+BUGFIXES
+--------
+ - Remove child tables from publication during retention that keeps tables (Github Issue #523)
+ - Allow partition maintenance to be called on replicas without error. Calling maintenance on a replica will do nothing and exit cleanly. Allows for setting up consistent cronjobs between failover systems. (Github Issue #569)
+ - Properly inherit tablespaces (Github Issue #609)
+    - This was a regression in 5.0 that mistakenly stopped working. Tablespace inheritance still works as expected in 4.x.
+ - Allow `infinite_time_partitions` flag to work even if the partition set has no data. This can happen in partition sets with retention and low data writes (Github Issue #585)
+ - Fixed edge case where partition sets with zero data would still get new partitions created. Triggered by partman maintaining multiple partition sets and maintenance running on one that had data followed by one that did not.
+ - Fixed `partition_data` functions throwing an error if the source table was not in the same schema as the parent table. (Github Issue #639)
+
+
+4.8.0
+=====
+BUG FIXES
+---------
+ - Added `pg_analyze` parameter to `partition_gap_fill` function to allow skipping the analyze of a partition set if the gap fill actually creates new partitions. Note this is not an option in 5.x since the analyze step was refactored and never runs automatically during a call to the gap fill function anymore.
+ - Note that there is no way to directly install version 4.8.0. A prior version must be installed first and then upgraded to 4.8.0. It is recommended that you migrate to the latest major version for continued support of pg_partman.
+
+
 5.0.0 & 5.0.1
 =============
 UPGRADE NOTES
