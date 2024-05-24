@@ -99,6 +99,8 @@ ELSIF v_control_type = 'id' AND v_epoch <> 'none' THEN
         v_epoch_divisor := 1;
     ELSIF v_epoch = 'milliseconds' THEN
         v_epoch_divisor := 1000;
+    ELSIF v_epoch = 'microseconds' THEN
+        v_epoch_divisor := 1000000;
     ELSIF v_epoch = 'nanoseconds' THEN
         v_epoch_divisor := 1000000000;
     END IF;
