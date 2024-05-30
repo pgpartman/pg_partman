@@ -219,7 +219,7 @@ LOOP
         FOR v_row_max_time IN
             SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(v_row.parent_table, 'DESC', false)
         LOOP
-            EXECUTE format('SELECT max(%s)::text FROM %I.%I'
+            EXECUTE format('SELECT %s::text FROM %I.%I LIMIT 1'
                                 , v_partition_expression
                                 , v_row_max_time.partition_schemaname
                                 , v_row_max_time.partition_tablename
