@@ -33,7 +33,7 @@ v_last_partition_timestamp      timestamptz;
 v_max_id                        bigint;
 v_max_id_default                bigint;
 v_max_time_default              timestamptz;
-v_max_timestamp                 timestamptz;
+v_child_timestamp               timestamptz;
 v_new_search_path               text;
 v_next_partition_id             bigint;
 v_next_partition_timestamp      timestamptz;
@@ -223,20 +223,20 @@ LOOP
                                 , v_partition_expression
                                 , v_row_max_time.partition_schemaname
                                 , v_row_max_time.partition_tablename
-                            ) INTO v_max_timestamp;
+                            ) INTO v_child_timestamp;
 
-            IF v_row.infinite_time_partitions AND v_max_timestamp < CURRENT_TIMESTAMP THEN
+            IF v_row.infinite_time_partitions AND v_child_timestamp < CURRENT_TIMESTAMP THEN
                 -- No new data has been inserted relative to "now", but keep making child tables anyway
                 v_current_partition_timestamp = CURRENT_TIMESTAMP;
                 -- Nothing else to do in this case so just end early
                 EXIT;
             END IF;
-            IF v_max_timestamp IS NOT NULL THEN
-                SELECT suffix_timestamp INTO v_current_partition_timestamp FROM @extschema@.show_partition_name(v_row.parent_table, v_max_timestamp::text);
+            IF v_child_timestamp IS NOT NULL THEN
+                SELECT suffix_timestamp INTO v_current_partition_timestamp FROM @extschema@.show_partition_name(v_row.parent_table, v_child_timestamp::text);
                 EXIT;
             END IF;
         END LOOP;
-        IF v_row.infinite_time_partitions AND v_max_timestamp IS NULL THEN
+        IF v_row.infinite_time_partitions AND v_child_timestamp IS NULL THEN
             -- If partition set is completely empty, still keep making child tables anyway
             -- Has to be separate check outside above loop since "future" tables are likely going to be empty and make max value in that loop NULL
             v_current_partition_timestamp = CURRENT_TIMESTAMP;
@@ -258,7 +258,7 @@ LOOP
             UPDATE @extschema@.part_config SET maintenance_last_run = clock_timestamp() WHERE parent_table = v_row.parent_table;
             CONTINUE;
         END IF;
-        RAISE DEBUG 'run_maint: v_max_timestamp: %, v_current_partition_timestamp: %, v_max_time_default: %', v_max_timestamp, v_current_partition_timestamp, v_max_time_default;
+        RAISE DEBUG 'run_maint: v_child_timestamp: %, v_current_partition_timestamp: %, v_max_time_default: %', v_child_timestamp, v_current_partition_timestamp, v_max_time_default;
         IF v_current_partition_timestamp IS NULL OR (v_max_time_default > v_current_partition_timestamp) THEN
             SELECT suffix_timestamp INTO v_current_partition_timestamp FROM @extschema@.show_partition_name(v_row.parent_table, v_max_time_default::text);
         END IF;
