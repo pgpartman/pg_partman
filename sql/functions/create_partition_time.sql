@@ -116,6 +116,7 @@ END IF;
 v_partition_expression := CASE
     WHEN v_epoch = 'seconds' THEN format('to_timestamp(%I)', v_control)
     WHEN v_epoch = 'milliseconds' THEN format('to_timestamp((%I/1000)::float)', v_control)
+    WHEN v_epoch = 'microseconds' THEN format('to_timestamp((%I/1000000)::float)', v_control)
     WHEN v_epoch = 'nanoseconds' THEN format('to_timestamp((%I/1000000000)::float)', v_control)
     ELSE format('%I', v_control)
 END;
@@ -236,6 +237,14 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
                 , v_partition_name
                 , EXTRACT('epoch' FROM v_partition_timestamp_start)::bigint * 1000
                 , EXTRACT('epoch' FROM v_partition_timestamp_end)::bigint * 1000);
+        ELSIF v_epoch = 'microseconds' THEN
+            EXECUTE format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I FOR VALUES FROM (%L) TO (%L)'
+                , v_parent_schema
+                , v_parent_tablename
+                , v_parent_schema
+                , v_partition_name
+                , EXTRACT('epoch' FROM v_partition_timestamp_start)::bigint * 1000000
+                , EXTRACT('epoch' FROM v_partition_timestamp_end)::bigint * 1000000);
         ELSIF v_epoch = 'nanoseconds' THEN
             EXECUTE format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I FOR VALUES FROM (%L) TO (%L)'
                 , v_parent_schema
