@@ -3,11 +3,11 @@
 
 CREATE TEMP TABLE partman_preserve_privs_temp (statement text);
 
-INSERT INTO partman_preserve_privs_temp 
-SELECT 'GRANT EXECUTE ON FUNCTION @extschema@.apply_foreign_keys(text, text, boolean) TO '||array_to_string(array_agg(grantee::text), ',')||';' 
+INSERT INTO partman_preserve_privs_temp
+SELECT 'GRANT EXECUTE ON FUNCTION @extschema@.apply_foreign_keys(text, text, boolean) TO '||array_to_string(array_agg(grantee::text), ',')||';'
 FROM information_schema.routine_privileges
 WHERE routine_schema = '@extschema@'
-AND routine_name = 'apply_foreign_keys'; 
+AND routine_name = 'apply_foreign_keys';
 
 DROP FUNCTION @extschema@.apply_foreign_keys(text, text, boolean);
 
@@ -51,8 +51,8 @@ IF v_jobmon_schema IS NOT NULL THEN
     v_step_id := add_step(v_job_id, 'Checking if target child table exists');
 END IF;
 
-SELECT schemaname, tablename INTO v_schemaname, v_tablename 
-FROM pg_catalog.pg_tables 
+SELECT schemaname, tablename INTO v_schemaname, v_tablename
+FROM pg_catalog.pg_tables
 WHERE schemaname||'.'||tablename = p_child_table;
 
 IF v_tablename IS NULL THEN
@@ -113,9 +113,9 @@ $$;
  * If p_parent_table is passed, will only run run_maintenance() on that one table (no matter what the configuration table may have set for it)
  * Otherwise, will run on all tables in the config table with p_run_maintenance() set to true.
  * For large partition sets, running analyze can cause maintenance to take longer than expected. Can set p_analyze to false to avoid a forced analyze run.
- * Be aware that constraint exclusion may not work properly until an analyze on the partition set is run. 
+ * Be aware that constraint exclusion may not work properly until an analyze on the partition set is run.
  */
-CREATE OR REPLACE FUNCTION run_maintenance(p_parent_table text DEFAULT NULL, p_analyze boolean DEFAULT true, p_jobmon boolean DEFAULT true) RETURNS void 
+CREATE OR REPLACE FUNCTION run_maintenance(p_parent_table text DEFAULT NULL, p_analyze boolean DEFAULT true, p_jobmon boolean DEFAULT true) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -204,10 +204,10 @@ LOOP
         IF v_row.type = 'time-static' OR v_row.type = 'time-dynamic' THEN
             CASE
                 WHEN v_row.part_interval::interval = '15 mins' THEN
-                    v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+                    v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                         '15min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 15.0);
                 WHEN v_row.part_interval::interval = '30 mins' THEN
-                    v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+                    v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                         '30min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 30.0);
                 WHEN v_row.part_interval::interval = '1 hour' THEN
                     v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP);
@@ -223,7 +223,7 @@ LOOP
                     v_current_partition_timestamp := date_trunc('year', CURRENT_TIMESTAMP);
             END CASE;
         ELSIF v_row.type = 'time-custom' THEN
-            SELECT child_table INTO v_current_partition FROM @extschema@.custom_time_partitions 
+            SELECT child_table INTO v_current_partition FROM @extschema@.custom_time_partitions
                 WHERE parent_table = v_row.parent_table AND partition_range @> CURRENT_TIMESTAMP;
             IF v_current_partition IS NULL THEN
                 RAISE EXCEPTION 'Current time partition missing from custom_time_partitions config table for table % and timestamp %',
@@ -235,7 +235,7 @@ LOOP
 
         -- Determine if this table is a child of a subpartition parent. If so, get limits of what child tables can be created based on parent suffix
         SELECT sub_min::timestamp, sub_max::timestamp INTO v_sub_timestamp_min, v_sub_timestamp_max FROM @extschema@.check_subpartition_limits(v_row.parent_table, 'time');
-        -- No need to run maintenance if it's outside the bounds of the top parent. 
+        -- No need to run maintenance if it's outside the bounds of the top parent.
         IF v_sub_timestamp_min IS NOT NULL THEN
             IF v_current_partition_timestamp < v_sub_timestamp_min OR v_current_partition_timestamp > v_sub_timestamp_max THEN
                 CONTINUE;
@@ -269,7 +269,7 @@ LOOP
             BEGIN
                 v_next_partition_timestamp := v_next_partition_timestamp + v_row.part_interval::interval;
             EXCEPTION WHEN datetime_field_overflow THEN
-                v_premade_count := v_row.premake; -- do this so it can exit the premake check loop and continue in the outer for loop 
+                v_premade_count := v_row.premake; -- do this so it can exit the premake check loop and continue in the outer for loop
                 IF v_jobmon_schema IS NOT NULL THEN
                     v_step_overflow_id := add_step(v_job_id, 'Attempted partition time interval is outside PostgreSQL''s supported time range.');
                     PERFORM update_step(v_step_overflow_id, 'CRITICAL', 'Child partition creation skippd for parent table '||v_partition_time);
@@ -278,7 +278,7 @@ LOOP
                 CONTINUE;
             END;
 
-            v_last_partition_created := @extschema@.create_partition_time(v_row.parent_table, ARRAY[v_next_partition_timestamp], p_analyze); 
+            v_last_partition_created := @extschema@.create_partition_time(v_row.parent_table, ARRAY[v_next_partition_timestamp], p_analyze);
             v_create_count := v_create_count + 1;
             IF v_row.type = 'time-static' AND v_last_partition_created THEN
                 PERFORM @extschema@.create_function_time(v_row.parent_table);
@@ -306,7 +306,7 @@ LOOP
 
         -- Determine if this table is a child of a subpartition parent. If so, get limits to see if run_maintenance even needs to run for it.
         SELECT sub_min::bigint, sub_max::bigint INTO v_sub_id_min, v_sub_id_max FROM @extschema@.check_subpartition_limits(v_row.parent_table, 'id');
-        -- No need to run maintenance if it's outside the bounds of the top parent. 
+        -- No need to run maintenance if it's outside the bounds of the top parent.
         IF v_sub_id_min IS NOT NULL THEN
             IF v_current_partition_id < v_sub_id_min OR v_current_partition_id > v_sub_id_max THEN
                 CONTINUE;
@@ -316,8 +316,8 @@ LOOP
         v_id_position := (length(v_last_partition) - position('p_' in reverse(v_last_partition))) + 2;
         v_last_partition_id = substring(v_last_partition from v_id_position)::bigint;
         v_next_partition_id := v_last_partition_id + v_row.part_interval::bigint;
-        WHILE ((v_next_partition_id - v_current_partition_id) / v_row.part_interval::bigint) <= v_row.premake 
-        LOOP 
+        WHILE ((v_next_partition_id - v_current_partition_id) / v_row.part_interval::bigint) <= v_row.premake
+        LOOP
             v_last_partition_created := @extschema@.create_partition_id(v_row.parent_table, ARRAY[v_next_partition_id], p_analyze);
             IF v_last_partition_created THEN
                 PERFORM @extschema@.create_function_id(v_row.parent_table);
@@ -331,24 +331,24 @@ LOOP
 END LOOP; -- end of creation loop
 
 -- Manage dropping old partitions if retention option is set
-FOR v_row IN 
-    SELECT parent_table FROM @extschema@.part_config WHERE retention IS NOT NULL AND undo_in_progress = false AND 
+FOR v_row IN
+    SELECT parent_table FROM @extschema@.part_config WHERE retention IS NOT NULL AND undo_in_progress = false AND
         (type = 'time-static' OR type = 'time-dynamic' OR type = 'time-custom')
 LOOP
     IF p_parent_table IS NULL THEN
-        v_drop_count := v_drop_count + @extschema@.drop_partition_time(v_row.parent_table);   
+        v_drop_count := v_drop_count + @extschema@.drop_partition_time(v_row.parent_table);
     ELSE -- Only run retention on table given in parameter
         IF p_parent_table <> v_row.parent_table THEN
             CONTINUE;
         ELSE
-            v_drop_count := v_drop_count + @extschema@.drop_partition_time(v_row.parent_table);   
+            v_drop_count := v_drop_count + @extschema@.drop_partition_time(v_row.parent_table);
         END IF;
     END IF;
     IF v_drop_count > 0 THEN
         PERFORM @extschema@.create_function_time(v_row.parent_table);
     END IF;
-END LOOP; 
-FOR v_row IN 
+END LOOP;
+FOR v_row IN
     SELECT parent_table FROM @extschema@.part_config WHERE retention IS NOT NULL AND undo_in_progress = false AND (type = 'id-static' OR type = 'id-dynamic')
 LOOP
     IF p_parent_table IS NULL THEN
@@ -363,7 +363,7 @@ LOOP
     IF v_drop_count > 0 THEN
         PERFORM @extschema@.create_function_id(v_row.parent_table);
     END IF;
-END LOOP; 
+END LOOP;
 
 IF v_jobmon_schema IS NOT NULL THEN
     PERFORM update_step(v_step_id, 'OK', 'Partition maintenance finished. '||v_create_count||' partitions made. '||v_drop_count||' partitions dropped.');

@@ -55,7 +55,7 @@ INTO v_type
     , v_control
     , v_premake
     , v_datetime_string
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (type = 'time-static' OR type = 'time-dynamic');
 
@@ -67,10 +67,10 @@ IF v_type = 'time-static' THEN
 
     CASE
         WHEN v_part_interval = '15 mins' THEN
-            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '15min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 15.0);
         WHEN v_part_interval = '30 mins' THEN
-            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '30min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 30.0);
         WHEN v_part_interval = '1 hour' THEN
             v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP);
@@ -85,14 +85,14 @@ IF v_type = 'time-static' THEN
         WHEN v_part_interval = '1 year' THEN
             v_current_partition_timestamp := date_trunc('year', CURRENT_TIMESTAMP);
     END CASE;
-    
+
     v_current_partition_name := p_parent_table || '_p' || to_char(v_current_partition_timestamp, v_datetime_string);
     v_next_partition_timestamp := v_current_partition_timestamp + v_part_interval::interval;
 
-    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$ 
-        BEGIN 
-        IF TG_OP = ''INSERT'' THEN 
-            IF NEW.'||v_control||' >= '||quote_literal(v_current_partition_timestamp)||' AND NEW.'||v_control||' < '||quote_literal(v_next_partition_timestamp)|| ' THEN 
+    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$
+        BEGIN
+        IF TG_OP = ''INSERT'' THEN
+            IF NEW.'||v_control||' >= '||quote_literal(v_current_partition_timestamp)||' AND NEW.'||v_control||' < '||quote_literal(v_next_partition_timestamp)|| ' THEN
                 INSERT INTO '||v_current_partition_name||' VALUES (NEW.*); ';
     FOR i IN 1..v_premake LOOP
         v_prev_partition_timestamp := v_current_partition_timestamp - (v_part_interval::interval * i);
@@ -103,18 +103,18 @@ IF v_type = 'time-static' THEN
 
         v_trig_func := v_trig_func ||'
             ELSIF NEW.'||v_control||' >= '||quote_literal(v_prev_partition_timestamp)||' AND NEW.'||v_control||' < '||
-                    quote_literal(v_prev_partition_timestamp + v_part_interval::interval)|| ' THEN 
-                INSERT INTO '||v_prev_partition_name||' VALUES (NEW.*); 
+                    quote_literal(v_prev_partition_timestamp + v_part_interval::interval)|| ' THEN
+                INSERT INTO '||v_prev_partition_name||' VALUES (NEW.*);
             ELSIF NEW.'||v_control||' >= '||quote_literal(v_next_partition_timestamp)||' AND NEW.'||v_control||' < '||
-                    quote_literal(v_final_partition_timestamp)|| ' THEN 
+                    quote_literal(v_final_partition_timestamp)|| ' THEN
                 INSERT INTO '||v_next_partition_name||' VALUES (NEW.*); ';
     END LOOP;
-    v_trig_func := v_trig_func ||' 
-            ELSE 
-                RETURN NEW; 
-            END IF; 
-        END IF; 
-        RETURN NULL; 
+    v_trig_func := v_trig_func ||'
+            ELSE
+                RETURN NEW;
+            END IF;
+        END IF;
+        RETURN NULL;
         END $t$;';
 
     EXECUTE v_trig_func;
@@ -126,22 +126,22 @@ IF v_type = 'time-static' THEN
 
 ELSIF v_type = 'time-dynamic' THEN
 
-    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$ 
+    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$
         DECLARE
             v_count                 int;
             v_partition_name        text;
             v_partition_timestamp   timestamp;
             v_schemaname            text;
             v_tablename             text;
-        BEGIN 
-        IF TG_OP = ''INSERT'' THEN 
+        BEGIN
+        IF TG_OP = ''INSERT'' THEN
             ';
         CASE
-            WHEN v_part_interval = '15 mins' THEN 
-                v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||') + 
+            WHEN v_part_interval = '15 mins' THEN
+                v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||') +
                     ''15min''::interval * floor(date_part(''minute'', NEW.'||v_control||') / 15.0);';
             WHEN v_part_interval = '30 mins' THEN
-                v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||') + 
+                v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||') +
                     ''30min''::interval * floor(date_part(''minute'', NEW.'||v_control||') / 30.0);';
             WHEN v_part_interval = '1 hour' THEN
                 v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||');';
@@ -159,17 +159,17 @@ ELSIF v_type = 'time-dynamic' THEN
 
         v_trig_func := v_trig_func||'
             v_partition_name := '''||p_parent_table||'_p''|| to_char(v_partition_timestamp, '||quote_literal(v_datetime_string)||');
-            v_schemaname := split_part(v_partition_name, ''.'', 1); 
+            v_schemaname := split_part(v_partition_name, ''.'', 1);
             v_tablename := split_part(v_partition_name, ''.'', 2);
             SELECT count(*) INTO v_count FROM pg_tables WHERE schemaname = v_schemaname AND tablename = v_tablename;
-            IF v_count > 0 THEN 
+            IF v_count > 0 THEN
                 EXECUTE ''INSERT INTO ''||v_partition_name||'' VALUES($1.*)'' USING NEW;
             ELSE
                 RETURN NEW;
             END IF;
         END IF;
-        
-        RETURN NULL; 
+
+        RETURN NULL;
         END $t$;';
 
     EXECUTE v_trig_func;
@@ -256,7 +256,7 @@ INTO v_type
     , v_control
     , v_premake
     , v_last_partition
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (type = 'id-static' OR type = 'id-dynamic');
 
@@ -269,15 +269,15 @@ IF v_type = 'id-static' THEN
     v_next_partition_id := v_current_partition_id + v_part_interval;
     v_current_partition_name := p_parent_table || '_p' || v_current_partition_id::text;
 
-    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$ 
+    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$
         DECLARE
             v_current_partition_id  bigint;
             v_last_partition        text := '||quote_literal(v_last_partition)||';
             v_next_partition_id     bigint;
-            v_next_partition_name   text;         
+            v_next_partition_name   text;
         BEGIN
-        IF TG_OP = ''INSERT'' THEN 
-            IF NEW.'||v_control||' >= '||v_current_partition_id||' AND NEW.'||v_control||' < '||v_next_partition_id|| ' THEN 
+        IF TG_OP = ''INSERT'' THEN
+            IF NEW.'||v_control||' >= '||v_current_partition_id||' AND NEW.'||v_control||' < '||v_next_partition_id|| ' THEN
                 INSERT INTO '||v_current_partition_name||' VALUES (NEW.*); ';
 
         FOR i IN 1..v_premake LOOP
@@ -289,11 +289,11 @@ IF v_type = 'id-static' THEN
             -- Only make previous partitions if they're starting above zero
             IF v_prev_partition_id >= 0 THEN
                 v_trig_func := v_trig_func ||'
-            ELSIF NEW.'||v_control||' >= '||v_prev_partition_id||' AND NEW.'||v_control||' < '||v_prev_partition_id + v_part_interval|| ' THEN 
+            ELSIF NEW.'||v_control||' >= '||v_prev_partition_id||' AND NEW.'||v_control||' < '||v_prev_partition_id + v_part_interval|| ' THEN
                 INSERT INTO '||v_prev_partition_name||' VALUES (NEW.*); ';
             END IF;
             v_trig_func := v_trig_func ||'
-            ELSIF NEW.'||v_control||' >= '||v_next_partition_id||' AND NEW.'||v_control||' < '||v_final_partition_id|| ' THEN 
+            ELSIF NEW.'||v_control||' >= '||v_next_partition_id||' AND NEW.'||v_control||' < '||v_final_partition_id|| ' THEN
                 INSERT INTO '||v_next_partition_name||' VALUES (NEW.*); ';
         END LOOP;
 
@@ -304,15 +304,15 @@ IF v_type = 'id-static' THEN
             v_current_partition_id := NEW.'||v_control||' - (NEW.'||v_control||' % '||v_part_interval||');
             IF (NEW.'||v_control||' % '||v_part_interval||') > ('||v_part_interval||' / 2) THEN
                 v_next_partition_id := (substring(v_last_partition from char_length('||quote_literal(p_parent_table||'_p')||')+1)::bigint) + '||v_part_interval||';
-                IF ((v_next_partition_id - v_current_partition_id) / '||v_part_interval||') <= '||v_premake||' THEN 
+                IF ((v_next_partition_id - v_current_partition_id) / '||v_part_interval||') <= '||v_premake||' THEN
                     v_next_partition_name := @extschema@.create_id_partition('||quote_literal(p_parent_table)||', '||quote_literal(v_control)||','
                         ||v_part_interval||', ARRAY[v_next_partition_id]);
                     UPDATE @extschema@.part_config SET last_partition = v_next_partition_name WHERE parent_table = '||quote_literal(p_parent_table)||';
                     PERFORM @extschema@.create_id_function('||quote_literal(p_parent_table)||', NEW.'||v_control||');
                 END IF;
             END IF;
-        END IF; 
-        RETURN NULL; 
+        END IF;
+        RETURN NULL;
         END $t$;';
 
     EXECUTE v_trig_func;
@@ -323,7 +323,7 @@ IF v_type = 'id-static' THEN
 
 ELSIF v_type = 'id-dynamic' THEN
 
-    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$ 
+    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$
         DECLARE
             v_count                     int;
             v_current_partition_id      bigint;
@@ -331,11 +331,11 @@ ELSIF v_type = 'id-dynamic' THEN
             v_last_partition            text := '||quote_literal(v_last_partition)||';
             v_last_partition_id         bigint;
             v_next_partition_id         bigint;
-            v_next_partition_name       text;   
+            v_next_partition_name       text;
             v_schemaname                text;
             v_tablename                 text;
-        BEGIN 
-        IF TG_OP = ''INSERT'' THEN 
+        BEGIN
+        IF TG_OP = ''INSERT'' THEN
             v_current_partition_id := NEW.'||v_control||' - (NEW.'||v_control||' % '||v_part_interval||');
             v_current_partition_name := '''||p_parent_table||'_p''||v_current_partition_id;
             IF (NEW.'||v_control||' % '||v_part_interval||') > ('||v_part_interval||' / 2) THEN
@@ -344,7 +344,7 @@ ELSIF v_type = 'id-dynamic' THEN
                 IF NEW.'||v_control||' >= v_next_partition_id THEN
                     RETURN NEW;
                 END IF;
-                IF ((v_next_partition_id - v_current_partition_id) / '||quote_literal(v_part_interval)||') <= '||quote_literal(v_premake)||' THEN 
+                IF ((v_next_partition_id - v_current_partition_id) / '||quote_literal(v_part_interval)||') <= '||quote_literal(v_premake)||' THEN
                     v_next_partition_name := @extschema@.create_id_partition('||quote_literal(p_parent_table)||', '||quote_literal(v_control)||','
                         ||quote_literal(v_part_interval)||', ARRAY[v_next_partition_id]);
                     IF v_next_partition_name IS NOT NULL THEN
@@ -353,17 +353,17 @@ ELSIF v_type = 'id-dynamic' THEN
                     END IF;
                 END IF;
             END IF;
-            v_schemaname := split_part(v_current_partition_name, ''.'', 1); 
+            v_schemaname := split_part(v_current_partition_name, ''.'', 1);
             v_tablename := split_part(v_current_partition_name, ''.'', 2);
             SELECT count(*) INTO v_count FROM pg_tables WHERE schemaname = v_schemaname AND tablename = v_tablename;
-            IF v_count > 0 THEN 
+            IF v_count > 0 THEN
                 EXECUTE ''INSERT INTO ''||v_current_partition_name||'' VALUES($1.*)'' USING NEW;
             ELSE
                 RETURN NEW;
             END IF;
         END IF;
-        
-        RETURN NULL; 
+
+        RETURN NULL;
         END $t$;';
 
     EXECUTE v_trig_func;
@@ -517,7 +517,7 @@ IF p_type = 'id-static' OR p_type = 'id-dynamic' THEN
         -- Only make previous partitions if ID value is less than the starting value and positive
         IF (v_starting_partition_id - (v_id_interval*i)) > 0 AND (v_starting_partition_id - (v_id_interval*i)) < v_starting_partition_id THEN
             v_partition_id = array_append(v_partition_id, (v_starting_partition_id - v_id_interval*i));
-        END IF; 
+        END IF;
         v_partition_id = array_append(v_partition_id, (v_id_interval*i) + v_starting_partition_id);
     END LOOP;
 
@@ -531,7 +531,7 @@ IF p_type = 'id-static' OR p_type = 'id-dynamic' THEN
     IF v_jobmon_schema IS NOT NULL THEN
         PERFORM update_step(v_step_id, 'OK', 'ID partitions premade: '||p_premake);
     END IF;
-    
+
 END IF;
 
 IF v_jobmon_schema IS NOT NULL THEN
@@ -544,8 +544,8 @@ IF p_type = 'time-static' OR p_type = 'time-dynamic' THEN
         PERFORM update_step(v_step_id, 'OK', 'Time function created');
     END IF;
 ELSIF p_type = 'id-static' OR p_type = 'id-dynamic' THEN
-    v_current_id := COALESCE(v_max, 0);    
-    EXECUTE 'SELECT @extschema@.create_id_function('||quote_literal(p_parent_table)||','||v_current_id||')';  
+    v_current_id := COALESCE(v_max, 0);
+    EXECUTE 'SELECT @extschema@.create_id_function('||quote_literal(p_parent_table)||','||v_current_id||')';
     IF v_jobmon_schema IS NOT NULL THEN
         PERFORM update_step(v_step_id, 'OK', 'ID function created');
     END IF;

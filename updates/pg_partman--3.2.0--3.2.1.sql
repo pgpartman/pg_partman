@@ -34,7 +34,7 @@ IF v_parent_table IS NULL THEN
 ELSIF v_template_table IS NULL THEN
     RAISE EXCEPTION 'No template table set in configuration for given parent table: %', p_parent_table;
 END IF;
- 
+
 SELECT c.oid INTO v_parent_oid
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
@@ -43,7 +43,7 @@ AND c.relname = split_part(p_parent_table, '.', 2)::name;
     IF v_parent_oid IS NULL THEN
         RAISE EXCEPTION 'Unable to find given parent table in system catalogs: %', p_parent_table;
     END IF;
- 
+
 SELECT n.nspname, c.relname, c.relkind INTO v_child_schema, v_child_tablename, v_child_relkind
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
@@ -52,7 +52,7 @@ AND c.relname = p_child_tablename::name;
     IF v_child_tablename IS NULL THEN
         RAISE EXCEPTION 'Unable to find given child table in system catalogs: %.%', v_child_schema, v_child_tablename;
     END IF;
-       
+
 IF v_child_relkind = 'p' THEN
     -- Subpartitioned parent, do not apply properties
     RAISE DEBUG 'inherit_template_properties: found given child is subpartition parent, so properties not inherited';
@@ -72,7 +72,7 @@ AND c.relname = split_part(v_template_table, '.', 2)::name;
 -- Index creation (Required for all indexes in PG10. Only for non-unique, non-partition key indexes in PG11)
 -- TODO Add check here for PG11 to only allow unique, non-partition key indexes on template
 IF current_setting('server_version_num')::int > 100000 AND current_setting('server_version_num')::int < 110000 THEN
-    FOR v_index_list IN 
+    FOR v_index_list IN
         SELECT
         array_to_string(regexp_matches(pg_get_indexdef(indexrelid), ' USING .*'),',') AS statement
         , i.indisprimary
@@ -116,13 +116,13 @@ IF current_setting('server_version_num')::int > 100000 AND current_setting('serv
         END IF;
 
     END LOOP;
-END IF; 
+END IF;
 -- End index creation
 
 -- Foreign key creation (PG10 only)
 -- TODO Add check in for PG11 to not allow FK inheritance from template
 IF v_inherit_fk THEN
-    FOR v_fk_list IN 
+    FOR v_fk_list IN
         SELECT pg_get_constraintdef(con.oid) AS constraint_def
         FROM pg_catalog.pg_constraint con
         JOIN pg_catalog.pg_class c ON con.conrelid = c.oid
@@ -147,5 +147,3 @@ RETURN true;
 
 END
 $$;
-
-

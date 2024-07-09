@@ -11,11 +11,11 @@ This is how our partition set currently looks before migration:
 ```sql
 \d+ partman_test.time_taptest_table
                                          Table "partman_test.time_taptest_table"
- Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description 
+ Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description
 --------+--------------------------+-----------+----------+---------+----------+-------------+--------------+-------------
- col1   | integer                  |           | not null |         | plain    |             |              | 
- col2   | text                     |           |          |         | extended |             |              | 
- col3   | timestamp with time zone |           | not null | now()   | plain    |             |              | 
+ col1   | integer                  |           | not null |         | plain    |             |              |
+ col2   | text                     |           |          |         | extended |             |              |
+ col3   | timestamp with time zone |           | not null | now()   | plain    |             |              |
 Indexes:
     "time_taptest_table_pkey" PRIMARY KEY, btree (col1)
 Triggers:
@@ -48,31 +48,31 @@ If it is not managed by pg_partman and you have some other method of automated m
 Next, we need to create a new parent table using native partitioning since you cannot currently convert an existing table into a native partition parent. Note in this case our original table had a primary key on `col1`. Since `col1` is not part of the partition key, native partitioning does not allow us to declare it as a primary key on the top level table. If you still need this as a primary key, pg_partman provides a template table you can set this on, but it will still not enforce uniqueness across the entire partition set, only on a per-child basis similar to how it worked before native.
 
 Please see the `Child Table Property Inheritance` section of `docs/pg_partman.md` for which properties can be set on the native parent and which must be managed via the template .
-  
+
 ```sql
-CREATE TABLE partman_test.time_taptest_table_native 
-    (col1 int, col2 text default 'stuff', col3 timestamptz NOT NULL DEFAULT now()) 
+CREATE TABLE partman_test.time_taptest_table_native
+    (col1 int, col2 text default 'stuff', col3 timestamptz NOT NULL DEFAULT now())
     PARTITION BY RANGE (col3);
 
 CREATE INDEX ON partman_test.time_taptest_table_native (col3);
 ```
 
-Next check what the ownership and privileges on your original table were and ensure they exist on the new parent table. This will ensure all access to the table works the same after the migration. By default with native partitioning, privileges are no longer granted on child tables to provide direct access to them. If you'd like to keep that behavior, set the `inherit_privileges` column in `part_config` (and part_config_sub if needed) to true. 
+Next check what the ownership and privileges on your original table were and ensure they exist on the new parent table. This will ensure all access to the table works the same after the migration. By default with native partitioning, privileges are no longer granted on child tables to provide direct access to them. If you'd like to keep that behavior, set the `inherit_privileges` column in `part_config` (and part_config_sub if needed) to true.
 ```sql
 \dt partman_test.time_taptest_table
                      List of relations
-    Schema    |        Name        | Type  |     Owner     
+    Schema    |        Name        | Type  |     Owner  
 --------------+--------------------+-------+---------------
  partman_test | time_taptest_table | table | partman_owner
 (1 row)
 
 \dp+ partman_test.time_taptest_table
                                                Access privileges
-    Schema    |        Name        | Type  |          Access privileges          | Column privileges | Policies 
+    Schema    |        Name        | Type  |          Access privileges          | Column privileges | Policies
 --------------+--------------------+-------+-------------------------------------+-------------------+----------
- partman_test | time_taptest_table | table | partman_owner=arwdDxt/partman_owner+|                   | 
-              |                    |       | partman_basic=arwd/partman_owner   +|                   | 
-              |                    |       | testing=r/partman_owner             |                   | 
+ partman_test | time_taptest_table | table | partman_owner=arwdDxt/partman_owner+|                   |
+              |                    |       | partman_basic=arwd/partman_owner   +|                   |
+              |                    |       | testing=r/partman_owner             |                   |
 (1 row)
 ```
 ```sql
@@ -94,9 +94,9 @@ DO NOT RUN THE RESULTING STATEMENTS YET. A future query will not work if the chi
 
 ```sql
 SELECT format('ALTER TABLE %s NO INHERIT %s;', inhrelid::regclass, inhparent::regclass)
-FROM pg_inherits 
+FROM pg_inherits
 WHERE inhparent::regclass = 'partman_test.time_taptest_table'::regclass;
-                                              ?column?                                               
+                                              ?column?  
 -----------------------------------------------------------------------------------------------------
  ALTER TABLE partman_test.time_taptest_table_p2023_03_26 NO INHERIT partman_test.time_taptest_table;
  ALTER TABLE partman_test.time_taptest_table_p2023_03_27 NO INHERIT partman_test.time_taptest_table;
@@ -120,12 +120,12 @@ Again, DO NOT RUN THESE STATEMENTS YET. The following query will not work if the
 
 For any partition sets, even those not managed by pg_partman, the next step is that you need to figure out the boundary values of your existing child tables and feed those to the ATTACH PARTITION command used in native partitioning. You will have to figure out a method to determine the boundaries of your child tables to be able to convert them to the syntax needed for PostgreSQL's declarative commands. In our case here, our child table's suffixes have a fixed naming pattern (`YYYY_MM_DD`) that can be parsed to determine the starting boundary value. In this case we'll also need to know the partitioning interval (`1 day`) to be able to calculate the boundary end time.
 
-If your child table names do not have a usable pattern like this, you'll have to figure out some method of determining each child table's boundaries. 
+If your child table names do not have a usable pattern like this, you'll have to figure out some method of determining each child table's boundaries.
 
 Again, we can use some sql to generate statements to re-attach the children to the new parent:
 ```sql
 WITH child_tables AS (
-    SELECT 
+    SELECT
           inhrelid::regclass::text AS child_tablename_safe
         , relname AS child_tablename  -- need unquoted name for parsing
     FROM pg_inherits
@@ -140,7 +140,7 @@ SELECT format(
     , to_timestamp(right(x.child_tablename, 10), 'YYYY_MM_DD')+'1 day'::interval
 )
 FROM child_tables x;
-                                                                                         ?column?                                                                                          
+                                                                                         ?column?  
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  ALTER TABLE partman_test.time_taptest_table_native ATTACH PARTITION partman_test.time_taptest_table_p2023_03_26 FOR VALUES FROM ('2023-03-26 00:00:00-04') TO ('2023-03-27 00:00:00-04');
  ALTER TABLE partman_test.time_taptest_table_native ATTACH PARTITION partman_test.time_taptest_table_p2023_03_27 FOR VALUES FROM ('2023-03-27 00:00:00-04') TO ('2023-03-28 00:00:00-04');
@@ -165,11 +165,11 @@ We can now run these two sets of ALTER TABLE statements to first uninherit them 
 \d+ partman_test.time_taptest_table
 
                                          Table "partman_test.time_taptest_table"
- Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description 
+ Column |           Type           | Collation | Nullable | Default | Storage  | Compression | Stats target | Description
 --------+--------------------------+-----------+----------+---------+----------+-------------+--------------+-------------
- col1   | integer                  |           | not null |         | plain    |             |              | 
- col2   | text                     |           |          |         | extended |             |              | 
- col3   | timestamp with time zone |           | not null | now()   | plain    |             |              | 
+ col1   | integer                  |           | not null |         | plain    |             |              |
+ col2   | text                     |           |          |         | extended |             |              |
+ col3   | timestamp with time zone |           | not null | now()   | plain    |             |              |
 Indexes:
     "time_taptest_table_pkey" PRIMARY KEY, btree (col1)
 Triggers:
@@ -180,11 +180,11 @@ And our new native parent should have now adopted all its new children:
 ```sql
 \d+ partman_test.time_taptest_table_native
                                    Partitioned table "partman_test.time_taptest_table_native"
- Column |           Type           | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description 
+ Column |           Type           | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description
 --------+--------------------------+-----------+----------+---------------+----------+-------------+--------------+-------------
- col1   | integer                  |           |          |               | plain    |             |              | 
- col2   | text                     |           |          | 'stuff'::text | extended |             |              | 
- col3   | timestamp with time zone |           | not null | now()         | plain    |             |              | 
+ col1   | integer                  |           |          |               | plain    |             |              |
+ col2   | text                     |           |          | 'stuff'::text | extended |             |              |
+ col3   | timestamp with time zone |           | not null | now()         | plain    |             |              |
 Partition key: RANGE (col3)
 Indexes:
     "time_taptest_table_native_col3_idx" btree (col3)
@@ -205,7 +205,7 @@ Partitions: partman_test.time_taptest_table_p2023_03_26 FOR VALUES FROM ('2023-0
             partman_test.time_taptest_table_p2023_04_09 FOR VALUES FROM ('2023-04-09 00:00:00-04') TO ('2023-04-10 00:00:00-04')
 
 ```
-Next is to swap the names of your old trigger-based parent and the new native parent. 
+Next is to swap the names of your old trigger-based parent and the new native parent.
 ```sql
 ALTER TABLE partman_test.time_taptest_table RENAME TO time_taptest_table_old;
 ALTER TABLE partman_test.time_taptest_table_native RENAME TO time_taptest_table;

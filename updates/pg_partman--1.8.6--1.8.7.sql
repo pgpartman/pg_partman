@@ -10,12 +10,12 @@ SELECT set_config('search_path','partman, "$user", public',false);
 
 CREATE TEMP TABLE partman_trigfix_temp (statement text);
 
-INSERT INTO partman_trigfix_temp 
+INSERT INTO partman_trigfix_temp
 SELECT format('SELECT create_function_id(%L);', parent_table)
 FROM part_config
 WHERE type like 'id%';
 
-INSERT INTO partman_trigfix_temp 
+INSERT INTO partman_trigfix_temp
 SELECT format('SELECT create_function_time(%L);', parent_table)
 FROM part_config
 WHERE type like 'time%';
@@ -36,5 +36,3 @@ DROP TABLE IF EXISTS partman_trigfix_temp;
 
 -- End code to fix partition functions
 ************************************************************/
-
-

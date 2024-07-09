@@ -2,7 +2,7 @@
 
 
 CREATE OR REPLACE FUNCTION partition_gap_fill(p_parent_table text) RETURNS integer
-    LANGUAGE plpgsql 
+    LANGUAGE plpgsql
     AS $$
 DECLARE
 
@@ -52,7 +52,7 @@ AND c.relname = split_part(p_parent_table, '.', 2)::name;
 
 SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
 
-SELECT partition_schemaname, partition_tablename 
+SELECT partition_schemaname, partition_tablename
 INTO v_final_child_schemaname, v_final_child_tablename
 FROM @extschema@.show_partitions(v_parent_table, 'DESC')
 LIMIT 1;
@@ -64,8 +64,8 @@ IF v_control_type = 'time'  OR (v_control_type = 'id' AND v_epoch <> 'none') THE
     SELECT child_start_time INTO v_final_child_start_timestamp
         FROM @extschema@.show_partition_info(format('%s', v_final_child_schemaname||'.'||v_final_child_tablename), p_parent_table := v_parent_table);
 
-    FOR v_row IN 
-        SELECT partition_schemaname, partition_tablename 
+    FOR v_row IN
+        SELECT partition_schemaname, partition_tablename
         FROM @extschema@.show_partitions(v_parent_table, 'ASC')
     LOOP
 
@@ -78,7 +78,7 @@ IF v_control_type = 'time'  OR (v_control_type = 'id' AND v_epoch <> 'none') THE
                 FROM @extschema@.show_partition_info(format('%s', v_previous_child_schemaname||'.'||v_previous_child_tablename), p_parent_table := v_parent_table);
             CONTINUE;
         END IF;
-        
+
         v_expected_next_child_timestamp := v_previous_child_start_timestamp + v_interval_time;
 
         RAISE DEBUG 'v_expected_next_child_timestamp: %', v_expected_next_child_timestamp;
@@ -93,7 +93,7 @@ IF v_control_type = 'time'  OR (v_control_type = 'id' AND v_epoch <> 'none') THE
         RAISE DEBUG 'v_current_child_start_timestamp: %', v_current_child_start_timestamp;
 
         IF v_expected_next_child_timestamp != v_current_child_start_timestamp THEN
-            v_child_created :=  @extschema@.create_partition_time(v_parent_table, ARRAY[v_expected_next_child_timestamp]); 
+            v_child_created :=  @extschema@.create_partition_time(v_parent_table, ARRAY[v_expected_next_child_timestamp]);
             IF v_child_created THEN
                 v_children_created_count := v_children_created_count + 1;
                 v_child_created := false;
@@ -112,7 +112,7 @@ IF v_control_type = 'time'  OR (v_control_type = 'id' AND v_epoch <> 'none') THE
         RAISE DEBUG 'inner loop: v_previous_child_start_timestamp: %, v_expected_next_child_timestamp: %, v_children_created_count: %'
                 , v_previous_child_start_timestamp, v_expected_next_child_timestamp, v_children_created_count;
 
-                    v_child_created := @extschema@.create_partition_time(v_parent_table, ARRAY[v_expected_next_child_timestamp]); 
+                    v_child_created := @extschema@.create_partition_time(v_parent_table, ARRAY[v_expected_next_child_timestamp]);
                     IF v_child_created THEN
                         v_children_created_count := v_children_created_count + 1;
                         v_child_created := false;
@@ -120,7 +120,7 @@ IF v_control_type = 'time'  OR (v_control_type = 'id' AND v_epoch <> 'none') THE
                 END IF;
             END LOOP; -- end expected child loop
         END IF;
-        
+
         v_previous_child_schemaname := v_row.partition_schemaname;
         v_previous_child_tablename := v_row.partition_tablename;
         SELECT child_start_time INTO v_previous_child_start_timestamp
@@ -129,14 +129,14 @@ IF v_control_type = 'time'  OR (v_control_type = 'id' AND v_epoch <> 'none') THE
     END LOOP; -- end time loop
 
 ELSIF v_control_type = 'id' THEN
-    
+
     v_interval_id := v_partition_interval::bigint;
 
     SELECT child_start_id INTO v_final_child_start_id
         FROM @extschema@.show_partition_info(format('%s', v_final_child_schemaname||'.'||v_final_child_tablename), p_parent_table := v_parent_table);
 
-    FOR v_row IN 
-        SELECT partition_schemaname, partition_tablename 
+    FOR v_row IN
+        SELECT partition_schemaname, partition_tablename
         FROM @extschema@.show_partitions(v_parent_table, 'ASC')
     LOOP
 
@@ -149,7 +149,7 @@ ELSIF v_control_type = 'id' THEN
                 FROM @extschema@.show_partition_info(format('%s', v_previous_child_schemaname||'.'||v_previous_child_tablename), p_parent_table := v_parent_table);
             CONTINUE;
         END IF;
- 
+
         v_expected_next_child_id := v_previous_child_start_id + v_interval_id;
 
         RAISE DEBUG 'v_expected_next_child_id: %', v_expected_next_child_id;
@@ -164,7 +164,7 @@ ELSIF v_control_type = 'id' THEN
         RAISE DEBUG 'v_current_child_start_id: %', v_current_child_start_id;
 
         IF v_expected_next_child_id != v_current_child_start_id THEN
-            v_child_created :=  @extschema@.create_partition_id(v_parent_table, ARRAY[v_expected_next_child_id]); 
+            v_child_created :=  @extschema@.create_partition_id(v_parent_table, ARRAY[v_expected_next_child_id]);
             IF v_child_created THEN
                 v_children_created_count := v_children_created_count + 1;
                 v_child_created := false;
@@ -183,7 +183,7 @@ ELSIF v_control_type = 'id' THEN
         RAISE DEBUG 'inner loop: v_previous_child_start_id: %, v_expected_next_child_id: %, v_children_created_count: %'
                 , v_previous_child_start_id, v_expected_next_child_id, v_children_created_count;
 
-                    v_child_created := @extschema@.create_partition_id(v_parent_table, ARRAY[v_expected_next_child_id]); 
+                    v_child_created := @extschema@.create_partition_id(v_parent_table, ARRAY[v_expected_next_child_id]);
                     IF v_child_created THEN
                         v_children_created_count := v_children_created_count + 1;
                         v_child_created := false;
@@ -205,4 +205,3 @@ RETURN v_children_created_count;
 
 END
 $$;
-

@@ -1,8 +1,8 @@
 -- Updated creation of child partition, function & trigger names to take into account the max object length an object can have to guarentee the partition suffix. Involved extensive rewrite of many core functions.
--- WARNING: If your table names were already long enough to be causing name truncation (over 63 characters), you may get duplicate child tables, functions & triggers created. Please check your object name lengths on your partition sets before installing this update to see if you may be affected by this edge case and its subsequent fix. 
+-- WARNING: If your table names were already long enough to be causing name truncation (over 63 characters), you may get duplicate child tables, functions & triggers created. Please check your object name lengths on your partition sets before installing this update to see if you may be affected by this edge case and its subsequent fix.
 -- New python script (reapply-indexes.py) to re-apply indexes to child tables when they have changed on the parent. See docs for more info.
 -- New function to check the uniqueness of a column in a partition set (check_unique_column()). Helps to overcome the inability of a unique constraint to be applied efficiently across all partitions in a set. Does not prevent a unique violation, but provides a method to monitor for it happening.
--- More pgTAP tests to ensure name trunucation process is working. 
+-- More pgTAP tests to ensure name trunucation process is working.
 -- Changed pgTAP tests to assume pgTAP is installed in public schema to try and avoid issues when it isn't.
 
 
@@ -26,14 +26,14 @@ END IF;
 IF p_table_partition THEN  -- 61 characters to account for _p in partition name
     IF char_length(p_object_name) + char_length(p_suffix) >= 61 THEN
         v_new_length := 61 - char_length(p_suffix);
-        v_new_name := p_object_schema ||'.'|| substring(p_object_name from 1 for v_new_length) || '_p' || p_suffix; 
+        v_new_name := p_object_schema ||'.'|| substring(p_object_name from 1 for v_new_length) || '_p' || p_suffix;
     ELSE
         v_new_name := p_object_schema ||'.'||p_object_name||'_p'||p_suffix;
     END IF;
 ELSE
     IF char_length(p_object_name) + char_length(COALESCE(p_suffix, '')) >= 63 THEN
         v_new_length := 63 - char_length(COALESCE(p_suffix, ''));
-        v_new_name := COALESCE(p_object_schema ||'.', '') || substring(p_object_name from 1 for v_new_length) || COALESCE(p_suffix, ''); 
+        v_new_name := COALESCE(p_object_schema ||'.', '') || substring(p_object_name from 1 for v_new_length) || COALESCE(p_suffix, '');
     ELSE
         v_new_name := COALESCE(p_object_schema ||'.', '') || p_object_name||COALESCE(p_suffix, '');
     END IF;
@@ -48,7 +48,7 @@ $$;
 CREATE TYPE check_unique_table AS (column_value text, count bigint);
 /*
  * Function to check uniqueness of a column in a partition set.
- * First draft that runs within database in a single transaction. 
+ * First draft that runs within database in a single transaction.
  * Working on version that will dump data out to perform a quicker check with less impact on DB.
  */
 CREATE FUNCTION check_unique_column(p_parent_table text, p_column text) RETURNS SETOF check_unique_table
@@ -127,15 +127,15 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
 
     EXECUTE 'CREATE TABLE '||v_partition_name||' (LIKE '||p_parent_table||' INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES INCLUDING STORAGE INCLUDING COMMENTS)';
     SELECT tablename INTO v_tablename FROM pg_catalog.pg_tables WHERE schemaname ||'.'|| tablename = v_partition_name;
-    EXECUTE 'ALTER TABLE '||v_partition_name||' ADD CONSTRAINT '||v_tablename||'_partition_check 
+    EXECUTE 'ALTER TABLE '||v_partition_name||' ADD CONSTRAINT '||v_tablename||'_partition_check
         CHECK ('||p_control||'>='||quote_literal(v_id)||' AND '||p_control||'<'||quote_literal(v_id + p_interval)||')';
     EXECUTE 'ALTER TABLE '||v_partition_name||' INHERIT '||p_parent_table;
 
-    FOR v_parent_grant IN 
+    FOR v_parent_grant IN
         SELECT array_agg(DISTINCT privilege_type::text ORDER BY privilege_type::text) AS types, grantee
-        FROM information_schema.table_privileges 
+        FROM information_schema.table_privileges
         WHERE table_schema ||'.'|| table_name = p_parent_table
-        GROUP BY grantee 
+        GROUP BY grantee
     LOOP
         EXECUTE 'GRANT '||array_to_string(v_parent_grant.types, ',')||' ON '||v_partition_name||' TO '||v_parent_grant.grantee;
         SELECT array_agg(r) INTO v_revoke FROM (SELECT unnest(v_all) AS r EXCEPT SELECT unnest(v_parent_grant.types)) x;
@@ -228,9 +228,9 @@ END IF;
 
 SELECT tableowner, schemaname, tablename INTO v_parent_owner, v_parent_schema, v_parent_tablename FROM pg_tables WHERE schemaname ||'.'|| tablename = p_parent_table;
 
-FOREACH v_time IN ARRAY p_partition_times LOOP    
+FOREACH v_time IN ARRAY p_partition_times LOOP
 
-    IF p_interval <= '1 year' AND p_interval <> '3 months' AND p_interval <> '1 week' THEN            
+    IF p_interval <= '1 year' AND p_interval <> '3 months' AND p_interval <> '1 week' THEN
         v_partition_suffix := to_char(v_time, 'YYYY');
         v_trunc_value := 'year';
 
@@ -266,7 +266,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
                         END IF;
                         v_trunc_value := 'minute';
                     END IF;
-                END IF; -- end hour IF      
+                END IF; -- end hour IF
             END IF; -- end day IF
         END IF; -- end month IF
     ELSIF p_interval = '1 week' THEN
@@ -274,14 +274,14 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         v_trunc_value := 'week';
     END IF; -- end year/week IF
 
-    
+
     -- "Q" is ignored in to_timestamp, so handle special case
     IF p_interval = '3 months' THEN
         v_year := to_char(v_time, 'YYYY');
         v_quarter := to_char(v_time, 'Q');
         v_partition_suffix := v_year || 'q' || v_quarter;
         v_trunc_value := 'quarter';
-        CASE 
+        CASE
             WHEN v_quarter = '1' THEN
                 v_partition_timestamp_start := date_trunc(v_trunc_value, to_timestamp(v_year || '-01-01', 'YYYY-MM-DD'));
             WHEN v_quarter = '2' THEN
@@ -318,11 +318,11 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         CHECK ('||p_control||'>='||quote_literal(v_partition_timestamp_start)||' AND '||p_control||'<'||quote_literal(v_partition_timestamp_end)||')';
     EXECUTE 'ALTER TABLE '||v_partition_name||' INHERIT '||p_parent_table;
 
-    FOR v_parent_grant IN 
+    FOR v_parent_grant IN
         SELECT array_agg(DISTINCT privilege_type::text ORDER BY privilege_type::text) AS types, grantee
-        FROM information_schema.table_privileges 
+        FROM information_schema.table_privileges
         WHERE table_schema ||'.'|| table_name = p_parent_table
-        GROUP BY grantee 
+        GROUP BY grantee
     LOOP
         EXECUTE 'GRANT '||array_to_string(v_parent_grant.types, ',')||' ON '||v_partition_name||' TO '||v_parent_grant.grantee;
         SELECT array_agg(r) INTO v_revoke FROM (SELECT unnest(v_all) AS r EXCEPT SELECT unnest(v_parent_grant.types)) x;
@@ -430,7 +430,7 @@ INTO v_type
     , v_control
     , v_premake
     , v_last_partition
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (type = 'id-static' OR type = 'id-dynamic');
 
@@ -446,16 +446,16 @@ IF v_type = 'id-static' THEN
     v_next_partition_id := v_current_partition_id + v_part_interval;
     v_current_partition_name := @extschema@.check_name_length(v_parent_tablename, v_parent_schema, v_current_partition_id::text, TRUE);
 
-    v_trig_func := 'CREATE OR REPLACE FUNCTION '||v_function_name||'() RETURNS trigger LANGUAGE plpgsql AS $t$ 
+    v_trig_func := 'CREATE OR REPLACE FUNCTION '||v_function_name||'() RETURNS trigger LANGUAGE plpgsql AS $t$
         DECLARE
             v_current_partition_id  bigint;
             v_last_partition        text := '||quote_literal(v_last_partition)||';
             v_id_position           int;
             v_next_partition_id     bigint;
-            v_next_partition_name   text;         
+            v_next_partition_name   text;
         BEGIN
-        IF TG_OP = ''INSERT'' THEN 
-            IF NEW.'||v_control||' >= '||v_current_partition_id||' AND NEW.'||v_control||' < '||v_next_partition_id|| ' THEN 
+        IF TG_OP = ''INSERT'' THEN
+            IF NEW.'||v_control||' >= '||v_current_partition_id||' AND NEW.'||v_control||' < '||v_next_partition_id|| ' THEN
                 INSERT INTO '||v_current_partition_name||' VALUES (NEW.*); ';
 
         FOR i IN 1..v_premake LOOP
@@ -464,23 +464,23 @@ IF v_type = 'id-static' THEN
             v_final_partition_id := v_next_partition_id + v_part_interval;
             v_prev_partition_name := @extschema@.check_name_length(v_parent_tablename, v_parent_schema, v_prev_partition_id::text, TRUE);
             v_next_partition_name := @extschema@.check_name_length(v_parent_tablename, v_parent_schema, v_next_partition_id::text, TRUE);
-            
+
             -- Check that child table exist before making a rule to insert to them.
-            -- Handles edge case of changing premake immediately after running create_parent(). 
+            -- Handles edge case of changing premake immediately after running create_parent().
             SELECT count(*) INTO v_count FROM pg_catalog.pg_tables WHERE schemaname ||'.'||tablename = v_prev_partition_name;
             IF v_count > 0 THEN
                 -- Only handle previous partitions if they're starting above zero
                 IF v_prev_partition_id >= 0 THEN
                     v_trig_func := v_trig_func ||'
-            ELSIF NEW.'||v_control||' >= '||v_prev_partition_id||' AND NEW.'||v_control||' < '||v_prev_partition_id + v_part_interval|| ' THEN 
+            ELSIF NEW.'||v_control||' >= '||v_prev_partition_id||' AND NEW.'||v_control||' < '||v_prev_partition_id + v_part_interval|| ' THEN
                 INSERT INTO '||v_prev_partition_name||' VALUES (NEW.*); ';
                 END IF;
             END IF;
-            
+
             SELECT count(*) INTO v_count FROM pg_catalog.pg_tables WHERE schemaname ||'.'||tablename = v_next_partition_name;
             IF v_count > 0 THEN
                 v_trig_func := v_trig_func ||'
-            ELSIF NEW.'||v_control||' >= '||v_next_partition_id||' AND NEW.'||v_control||' < '||v_final_partition_id|| ' THEN 
+            ELSIF NEW.'||v_control||' >= '||v_next_partition_id||' AND NEW.'||v_control||' < '||v_final_partition_id|| ' THEN
                 INSERT INTO '||v_next_partition_name||' VALUES (NEW.*); ';
             END IF;
         END LOOP;
@@ -493,7 +493,7 @@ IF v_type = 'id-static' THEN
             IF (NEW.'||v_control||' % '||v_part_interval||') > ('||v_part_interval||' / 2) THEN
                 v_id_position := (length(v_last_partition) - position(''p_'' in reverse(v_last_partition))) + 2;
                 v_next_partition_id := (substring(v_last_partition from v_id_position)::bigint) + '||v_part_interval||';
-                WHILE ((v_next_partition_id - v_current_partition_id) / '||v_part_interval||') <= '||v_premake||' LOOP 
+                WHILE ((v_next_partition_id - v_current_partition_id) / '||v_part_interval||') <= '||v_premake||' LOOP
                     v_next_partition_name := @extschema@.create_id_partition('||quote_literal(p_parent_table)||', '||quote_literal(v_control)||','
                         ||v_part_interval||', ARRAY[v_next_partition_id]);
                     UPDATE @extschema@.part_config SET last_partition = v_next_partition_name WHERE parent_table = '||quote_literal(p_parent_table)||';
@@ -501,8 +501,8 @@ IF v_type = 'id-static' THEN
                     v_next_partition_id := v_next_partition_id + '||v_part_interval||';
                 END LOOP;
             END IF;
-        END IF; 
-        RETURN NULL; 
+        END IF;
+        RETURN NULL;
         END $t$;';
 
     EXECUTE v_trig_func;
@@ -513,7 +513,7 @@ IF v_type = 'id-static' THEN
 
 ELSIF v_type = 'id-dynamic' THEN
     -- The return inside the partition creation check is there to keep really high ID values from creating new partitions.
-    v_trig_func := 'CREATE OR REPLACE FUNCTION '||v_function_name||'() RETURNS trigger LANGUAGE plpgsql AS $t$ 
+    v_trig_func := 'CREATE OR REPLACE FUNCTION '||v_function_name||'() RETURNS trigger LANGUAGE plpgsql AS $t$
         DECLARE
             v_count                     int;
             v_current_partition_id      bigint;
@@ -522,9 +522,9 @@ ELSIF v_type = 'id-dynamic' THEN
             v_last_partition            text := '||quote_literal(v_last_partition)||';
             v_last_partition_id         bigint;
             v_next_partition_id         bigint;
-            v_next_partition_name       text;   
-        BEGIN 
-        IF TG_OP = ''INSERT'' THEN 
+            v_next_partition_name       text;
+        BEGIN
+        IF TG_OP = ''INSERT'' THEN
             v_current_partition_id := NEW.'||v_control||' - (NEW.'||v_control||' % '||v_part_interval||');
             v_current_partition_name := @extschema@.check_name_length('''||v_parent_tablename||''', '''||v_parent_schema||''', v_current_partition_id::text, TRUE);
             IF (NEW.'||v_control||' % '||v_part_interval||') > ('||v_part_interval||' / 2) THEN
@@ -534,7 +534,7 @@ ELSIF v_type = 'id-dynamic' THEN
                 IF NEW.'||v_control||' >= v_next_partition_id THEN
                     RETURN NEW;
                 END IF;
-                WHILE ((v_next_partition_id - v_current_partition_id) / '||v_part_interval||') <= '||v_premake||' LOOP 
+                WHILE ((v_next_partition_id - v_current_partition_id) / '||v_part_interval||') <= '||v_premake||' LOOP
                     v_next_partition_name := @extschema@.create_id_partition('||quote_literal(p_parent_table)||', '||quote_literal(v_control)||','
                         ||quote_literal(v_part_interval)||', ARRAY[v_next_partition_id]);
                     IF v_next_partition_name IS NOT NULL THEN
@@ -545,14 +545,14 @@ ELSIF v_type = 'id-dynamic' THEN
                 END LOOP;
             END IF;
             SELECT count(*) INTO v_count FROM pg_tables WHERE schemaname ||''.''|| tablename = v_current_partition_name;
-            IF v_count > 0 THEN 
+            IF v_count > 0 THEN
                 EXECUTE ''INSERT INTO ''||v_current_partition_name||'' VALUES($1.*)'' USING NEW;
             ELSE
                 RETURN NEW;
             END IF;
         END IF;
-        
-        RETURN NULL; 
+
+        RETURN NULL;
         END $t$;';
 
     EXECUTE v_trig_func;
@@ -643,7 +643,7 @@ INTO v_type
     , v_control
     , v_premake
     , v_datetime_string
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (type = 'time-static' OR type = 'time-dynamic');
 
@@ -658,10 +658,10 @@ v_function_name := @extschema@.check_name_length(v_parent_tablename, v_parent_sc
 IF v_type = 'time-static' THEN
     CASE
         WHEN v_part_interval = '15 mins' THEN
-            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '15min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 15.0);
         WHEN v_part_interval = '30 mins' THEN
-            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '30min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 30.0);
         WHEN v_part_interval = '1 hour' THEN
             v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP);
@@ -677,13 +677,13 @@ IF v_type = 'time-static' THEN
             v_current_partition_timestamp := date_trunc('year', CURRENT_TIMESTAMP);
     END CASE;
 
-    v_current_partition_name := @extschema@.check_name_length(v_parent_tablename, v_parent_schema, to_char(v_current_partition_timestamp, v_datetime_string), TRUE); 
+    v_current_partition_name := @extschema@.check_name_length(v_parent_tablename, v_parent_schema, to_char(v_current_partition_timestamp, v_datetime_string), TRUE);
     v_next_partition_timestamp := v_current_partition_timestamp + v_part_interval::interval;
 
-    v_trig_func := 'CREATE OR REPLACE FUNCTION '||v_function_name||'() RETURNS trigger LANGUAGE plpgsql AS $t$ 
-        BEGIN 
-        IF TG_OP = ''INSERT'' THEN 
-            IF NEW.'||v_control||' >= '||quote_literal(v_current_partition_timestamp)||' AND NEW.'||v_control||' < '||quote_literal(v_next_partition_timestamp)|| ' THEN 
+    v_trig_func := 'CREATE OR REPLACE FUNCTION '||v_function_name||'() RETURNS trigger LANGUAGE plpgsql AS $t$
+        BEGIN
+        IF TG_OP = ''INSERT'' THEN
+            IF NEW.'||v_control||' >= '||quote_literal(v_current_partition_timestamp)||' AND NEW.'||v_control||' < '||quote_literal(v_next_partition_timestamp)|| ' THEN
                 INSERT INTO '||v_current_partition_name||' VALUES (NEW.*); ';
     FOR i IN 1..v_premake LOOP
         v_prev_partition_timestamp := v_current_partition_timestamp - (v_part_interval::interval * i);
@@ -693,29 +693,29 @@ IF v_type = 'time-static' THEN
         v_next_partition_name := @extschema@.check_name_length(v_parent_tablename, v_parent_schema, to_char(v_next_partition_timestamp, v_datetime_string), TRUE);
 
         -- Check that child table exist before making a rule to insert to them.
-        -- Handles edge case of changing premake immediately after running create_parent(). 
+        -- Handles edge case of changing premake immediately after running create_parent().
         SELECT count(*) INTO v_count FROM pg_catalog.pg_tables WHERE schemaname ||'.'||tablename = v_prev_partition_name;
         IF v_count > 0 THEN
             v_trig_func := v_trig_func ||'
                 ELSIF NEW.'||v_control||' >= '||quote_literal(v_prev_partition_timestamp)||' AND NEW.'||v_control||' < '||
-                        quote_literal(v_prev_partition_timestamp + v_part_interval::interval)|| ' THEN 
+                        quote_literal(v_prev_partition_timestamp + v_part_interval::interval)|| ' THEN
                     INSERT INTO '||v_prev_partition_name||' VALUES (NEW.*);';
         END IF;
         SELECT count(*) INTO v_count FROM pg_catalog.pg_tables WHERE schemaname ||'.'||tablename = v_next_partition_name;
         IF v_count > 0 THEN
-            v_trig_func := v_trig_func ||' 
+            v_trig_func := v_trig_func ||'
                 ELSIF NEW.'||v_control||' >= '||quote_literal(v_next_partition_timestamp)||' AND NEW.'||v_control||' < '||
-                    quote_literal(v_final_partition_timestamp)|| ' THEN 
+                    quote_literal(v_final_partition_timestamp)|| ' THEN
                 INSERT INTO '||v_next_partition_name||' VALUES (NEW.*);';
         END IF;
 
     END LOOP;
-    v_trig_func := v_trig_func ||' 
-            ELSE 
-                RETURN NEW; 
-            END IF; 
-        END IF; 
-        RETURN NULL; 
+    v_trig_func := v_trig_func ||'
+            ELSE
+                RETURN NEW;
+            END IF;
+        END IF;
+        RETURN NULL;
         END $t$;';
 
     EXECUTE v_trig_func;
@@ -727,20 +727,20 @@ IF v_type = 'time-static' THEN
 
 ELSIF v_type = 'time-dynamic' THEN
 
-    v_trig_func := 'CREATE OR REPLACE FUNCTION '||v_function_name||'() RETURNS trigger LANGUAGE plpgsql AS $t$ 
+    v_trig_func := 'CREATE OR REPLACE FUNCTION '||v_function_name||'() RETURNS trigger LANGUAGE plpgsql AS $t$
         DECLARE
             v_count                 int;
             v_partition_name        text;
             v_partition_timestamp   timestamptz;
-        BEGIN 
-        IF TG_OP = ''INSERT'' THEN 
+        BEGIN
+        IF TG_OP = ''INSERT'' THEN
             ';
         CASE
-            WHEN v_part_interval = '15 mins' THEN 
-                v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||') + 
+            WHEN v_part_interval = '15 mins' THEN
+                v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||') +
                     ''15min''::interval * floor(date_part(''minute'', NEW.'||v_control||') / 15.0);';
             WHEN v_part_interval = '30 mins' THEN
-                v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||') + 
+                v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||') +
                     ''30min''::interval * floor(date_part(''minute'', NEW.'||v_control||') / 30.0);';
             WHEN v_part_interval = '1 hour' THEN
                 v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||');';
@@ -758,14 +758,14 @@ ELSIF v_type = 'time-dynamic' THEN
         v_trig_func := v_trig_func||'
             v_partition_name := @extschema@.check_name_length('''||v_parent_tablename||''', '''||v_parent_schema||''', to_char(v_partition_timestamp, '||quote_literal(v_datetime_string)||'), TRUE);
             SELECT count(*) INTO v_count FROM pg_tables WHERE schemaname ||''.''|| tablename = v_partition_name;
-            IF v_count > 0 THEN 
+            IF v_count > 0 THEN
                 EXECUTE ''INSERT INTO ''||v_partition_name||'' VALUES($1.*)'' USING NEW;
             ELSE
                 RETURN NEW;
             END IF;
         END IF;
-        
-        RETURN NULL; 
+
+        RETURN NULL;
         END $t$;';
 
     EXECUTE v_trig_func;
@@ -817,7 +817,7 @@ v_trig_sql              text;
 BEGIN
 
 SELECT schemaname, tablename INTO v_parent_schema, v_parent_tablename FROM pg_tables WHERE schemaname ||'.'|| tablename = p_parent_table;
-v_trig_name := @extschema@.check_name_length(p_object_name := v_parent_tablename, p_suffix := '_part_trig'); 
+v_trig_name := @extschema@.check_name_length(p_object_name := v_parent_tablename, p_suffix := '_part_trig');
 -- Ensure function name matches the naming pattern
 v_function_name := @extschema@.check_name_length(v_parent_tablename, v_parent_schema, '_part_trig_func', FALSE);
 v_trig_sql := 'CREATE TRIGGER '||v_trig_name||' BEFORE INSERT ON '||p_parent_table||
@@ -833,7 +833,7 @@ $$;
  * Function to manage pre-creation of the next partitions in a time-based partition set.
  * Also manages dropping old partitions if the retention option is set.
  */
-CREATE OR REPLACE FUNCTION run_maintenance() RETURNS void 
+CREATE OR REPLACE FUNCTION run_maintenance() RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -873,7 +873,7 @@ IF v_jobmon_schema IS NOT NULL THEN
     v_step_id := add_step(v_job_id, 'Running maintenance loop');
 END IF;
 
-FOR v_row IN 
+FOR v_row IN
 SELECT parent_table
     , type
     , part_interval::interval
@@ -886,13 +886,13 @@ FROM @extschema@.part_config WHERE type = 'time-static' OR type = 'time-dynamic'
 LOOP
 
     CONTINUE WHEN v_row.undo_in_progress;
-    
+
     CASE
         WHEN v_row.part_interval = '15 mins' THEN
-            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '15min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 15.0);
         WHEN v_row.part_interval = '30 mins' THEN
-            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '30min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 30.0);
         WHEN v_row.part_interval = '1 hour' THEN
             v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP);
@@ -944,16 +944,16 @@ LOOP
 END LOOP; -- end of creation loop
 
 -- Manage dropping old partitions if retention option is set
-FOR v_row IN 
+FOR v_row IN
     SELECT parent_table FROM @extschema@.part_config WHERE retention IS NOT NULL AND undo_in_progress = false AND (type = 'time-static' OR type = 'time-dynamic')
 LOOP
-    v_drop_count := v_drop_count + @extschema@.drop_partition_time(v_row.parent_table);   
-END LOOP; 
-FOR v_row IN 
+    v_drop_count := v_drop_count + @extschema@.drop_partition_time(v_row.parent_table);
+END LOOP;
+FOR v_row IN
     SELECT parent_table FROM @extschema@.part_config WHERE retention IS NOT NULL AND undo_in_progress = false AND (type = 'id-static' OR type = 'id-dynamic')
 LOOP
     v_drop_count := v_drop_count + @extschema@.drop_partition_id(v_row.parent_table);
-END LOOP; 
+END LOOP;
 
 IF v_jobmon_schema IS NOT NULL THEN
     PERFORM update_step(v_step_id, 'OK', 'Partition maintenance finished. '||v_create_count||' partitions made. '||v_drop_count||' partitions dropped.');
@@ -1014,7 +1014,7 @@ SELECT type
     , control
     , datetime_string
     , last_partition
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (type = 'time-static' OR type = 'time-dynamic')
 INTO v_type, v_part_interval, v_control, v_datetime_string, v_last_partition;
@@ -1039,7 +1039,7 @@ IF v_part_interval != '3 months' THEN
 ELSE
     -- to_timestamp doesn't recognize 'Q' date string formater. Handle it
     v_year := split_part(substring(v_last_partition from v_time_position), 'q', 1);
-    v_next_year := extract('year' from to_date(v_year, 'YYYY')+'1year'::interval); 
+    v_next_year := extract('year' from to_date(v_year, 'YYYY')+'1year'::interval);
     v_quarter := split_part(substring(v_last_partition from v_time_position), 'q', 2);
     CASE
         WHEN v_quarter = '1' THEN
@@ -1054,7 +1054,7 @@ ELSE
 END IF;
 
 EXECUTE 'SELECT @extschema@.create_time_partition('||quote_literal(p_parent_table)||','||quote_literal(v_control)||','||quote_literal(v_part_interval)||','
-    ||quote_literal(v_datetime_string)||','||quote_literal(ARRAY[v_next_partition_timestamp])||')' INTO v_last_partition; 
+    ||quote_literal(v_datetime_string)||','||quote_literal(ARRAY[v_next_partition_timestamp])||')' INTO v_last_partition;
 
 IF v_last_partition IS NOT NULL THEN
     UPDATE @extschema@.part_config SET last_partition = v_last_partition WHERE parent_table = p_parent_table;
@@ -1107,8 +1107,8 @@ SELECT part_interval::interval
     , control
 INTO v_part_interval
     , v_control
-FROM @extschema@.part_config 
-WHERE parent_table = p_parent_table 
+FROM @extschema@.part_config
+WHERE parent_table = p_parent_table
 AND (type = 'time-static' OR type = 'time-dynamic');
 
 IF v_part_interval IS NULL THEN
@@ -1134,7 +1134,7 @@ END IF;
 UPDATE @extschema@.part_config SET undo_in_progress = true WHERE parent_table = p_parent_table;
 -- Stop data going into child tables.
 SELECT schemaname, tablename INTO v_parent_schema, v_parent_tablename FROM pg_tables WHERE schemaname ||'.'|| tablename = p_parent_table;
-v_trig_name := @extschema@.check_name_length(p_object_name := v_parent_tablename, p_suffix := '_part_trig'); 
+v_trig_name := @extschema@.check_name_length(p_object_name := v_parent_tablename, p_suffix := '_part_trig');
 v_function_name := @extschema@.check_name_length(v_parent_tablename, v_parent_schema, '_part_trig_func', FALSE);
 EXECUTE 'DROP TRIGGER IF EXISTS '||v_trig_name||' ON '||p_parent_table;
 EXECUTE 'DROP FUNCTION IF EXISTS '||v_function_name||'()';
@@ -1144,12 +1144,12 @@ IF v_jobmon_schema IS NOT NULL THEN
 END IF;
 
 <<outer_child_loop>>
-WHILE v_batch_loop_count < p_batch_count LOOP 
+WHILE v_batch_loop_count < p_batch_count LOOP
     SELECT n.nspname||'.'||c.relname INTO v_child_table
-    FROM pg_inherits i 
-    JOIN pg_class c ON i.inhrelid = c.oid 
-    JOIN pg_namespace n ON c.relnamespace = n.oid 
-    WHERE i.inhparent::regclass = p_parent_table::regclass 
+    FROM pg_inherits i
+    JOIN pg_class c ON i.inhrelid = c.oid
+    JOIN pg_namespace n ON c.relnamespace = n.oid
+    WHERE i.inhparent::regclass = p_parent_table::regclass
     ORDER BY i.inhrelid ASC;
 
     EXIT WHEN v_child_table IS NULL;
@@ -1282,8 +1282,8 @@ SELECT part_interval::bigint
     , control
 INTO v_part_interval
     , v_control
-FROM @extschema@.part_config 
-WHERE parent_table = p_parent_table 
+FROM @extschema@.part_config
+WHERE parent_table = p_parent_table
 AND (type = 'id-static' OR type = 'id-dynamic');
 
 IF v_part_interval IS NULL THEN
@@ -1309,7 +1309,7 @@ END IF;
 UPDATE @extschema@.part_config SET undo_in_progress = true WHERE parent_table = p_parent_table;
 -- Stop data going into child tables and stop new id partitions from being made.
 SELECT schemaname, tablename INTO v_parent_schema, v_parent_tablename FROM pg_tables WHERE schemaname ||'.'|| tablename = p_parent_table;
-v_trig_name := @extschema@.check_name_length(p_object_name := v_parent_tablename, p_suffix := '_part_trig'); 
+v_trig_name := @extschema@.check_name_length(p_object_name := v_parent_tablename, p_suffix := '_part_trig');
 v_function_name := @extschema@.check_name_length(v_parent_tablename, v_parent_schema, '_part_trig_func', FALSE);
 EXECUTE 'DROP TRIGGER IF EXISTS '||v_trig_name||' ON '||p_parent_table;
 EXECUTE 'DROP FUNCTION IF EXISTS '||v_function_name||'()';
@@ -1319,12 +1319,12 @@ IF v_jobmon_schema IS NOT NULL THEN
 END IF;
 
 <<outer_child_loop>>
-WHILE v_batch_loop_count < p_batch_count LOOP 
+WHILE v_batch_loop_count < p_batch_count LOOP
     SELECT n.nspname||'.'||c.relname INTO v_child_table
-    FROM pg_inherits i 
-    JOIN pg_class c ON i.inhrelid = c.oid 
-    JOIN pg_namespace n ON c.relnamespace = n.oid 
-    WHERE i.inhparent::regclass = p_parent_table::regclass 
+    FROM pg_inherits i
+    JOIN pg_class c ON i.inhrelid = c.oid
+    JOIN pg_namespace n ON c.relnamespace = n.oid
+    WHERE i.inhparent::regclass = p_parent_table::regclass
     ORDER BY i.inhrelid ASC;
 
     EXIT WHEN v_child_table IS NULL;
@@ -1416,7 +1416,7 @@ $$;
 
 
 /*
- * Function to undo partitioning. 
+ * Function to undo partitioning.
  * Will actually work on any parent/child table set, not just ones created by pg_partman.
  */
 CREATE OR REPLACE FUNCTION undo_partition(p_parent_table text, p_batch_count int DEFAULT 1, p_keep_table boolean DEFAULT true) RETURNS bigint
@@ -1465,7 +1465,7 @@ END IF;
 UPDATE @extschema@.part_config SET undo_in_progress = true WHERE parent_table = p_parent_table;
 -- Stop data going into child tables and stop new id partitions from being made.
 SELECT schemaname, tablename INTO v_parent_schema, v_parent_tablename FROM pg_tables WHERE schemaname ||'.'|| tablename = p_parent_table;
-v_trig_name := @extschema@.check_name_length(p_object_name := v_parent_tablename, p_suffix := '_part_trig'); 
+v_trig_name := @extschema@.check_name_length(p_object_name := v_parent_tablename, p_suffix := '_part_trig');
 v_function_name := @extschema@.check_name_length(v_parent_tablename, v_parent_schema, '_part_trig_func', FALSE);
 EXECUTE 'DROP TRIGGER IF EXISTS '||v_trig_name||' ON '||p_parent_table;
 EXECUTE 'DROP FUNCTION IF EXISTS '||v_function_name||'()';
@@ -1474,12 +1474,12 @@ IF v_jobmon_schema IS NOT NULL THEN
     PERFORM update_step(v_step_id, 'OK', 'Stopped partition creation process. Removed trigger & trigger function');
 END IF;
 
-WHILE v_batch_loop_count < p_batch_count LOOP 
+WHILE v_batch_loop_count < p_batch_count LOOP
     SELECT n.nspname||'.'||c.relname INTO v_child_table
-    FROM pg_inherits i 
-    JOIN pg_class c ON i.inhrelid = c.oid 
-    JOIN pg_namespace n ON c.relnamespace = n.oid 
-    WHERE i.inhparent::regclass = p_parent_table::regclass 
+    FROM pg_inherits i
+    JOIN pg_class c ON i.inhrelid = c.oid
+    JOIN pg_namespace n ON c.relnamespace = n.oid
+    WHERE i.inhparent::regclass = p_parent_table::regclass
     ORDER BY i.inhrelid ASC;
 
     EXIT WHEN v_child_table IS NULL;
@@ -1505,7 +1505,7 @@ WHILE v_batch_loop_count < p_batch_count LOOP
     IF v_jobmon_schema IS NOT NULL THEN
         v_step_id := add_step(v_job_id, 'Removing child partition: '||v_child_table);
     END IF;
-   
+
     v_copy_sql := 'INSERT INTO '||p_parent_table||' SELECT * FROM '||v_child_table;
     EXECUTE v_copy_sql;
     GET DIAGNOSTICS v_rowcount = ROW_COUNT;
@@ -1523,7 +1523,7 @@ WHILE v_batch_loop_count < p_batch_count LOOP
         END IF;
     END IF;
     v_batch_loop_count := v_batch_loop_count + 1;
-    v_undo_count := v_undo_count + 1;         
+    v_undo_count := v_undo_count + 1;
 END LOOP;
 
 IF v_undo_count = 0 THEN
@@ -1570,7 +1570,7 @@ $$;
 
 
 /*
- * Function to drop child tables from a time-based partition set. 
+ * Function to drop child tables from a time-based partition set.
  * Options to move table to different schema, drop only indexes or actually drop the table from the database.
  */
 CREATE OR REPLACE FUNCTION drop_partition_id(p_parent_table text, p_retention bigint DEFAULT NULL, p_keep_table boolean DEFAULT NULL, p_keep_index boolean DEFAULT NULL, p_retention_schema text DEFAULT NULL) RETURNS int
@@ -1613,7 +1613,7 @@ END IF;
 
 -- Allow override of configuration options
 IF p_retention IS NULL THEN
-    SELECT  
+    SELECT
         part_interval::bigint
         , control
         , retention::bigint
@@ -1627,16 +1627,16 @@ IF p_retention IS NULL THEN
         , v_retention_keep_table
         , v_retention_keep_index
         , v_retention_schema
-    FROM @extschema@.part_config 
-    WHERE parent_table = p_parent_table 
-    AND (type = 'id-static' OR type = 'id-dynamic') 
+    FROM @extschema@.part_config
+    WHERE parent_table = p_parent_table
+    AND (type = 'id-static' OR type = 'id-dynamic')
     AND retention IS NOT NULL;
 
     IF v_part_interval IS NULL THEN
         RAISE EXCEPTION 'Configuration for given parent table with a retention period not found: %', p_parent_table;
     END IF;
 ELSE
-     SELECT  
+     SELECT
         part_interval::bigint
         , control
         , retention_keep_table
@@ -1648,9 +1648,9 @@ ELSE
         , v_retention_keep_table
         , v_retention_keep_index
         , v_retention_schema
-    FROM @extschema@.part_config 
-    WHERE parent_table = p_parent_table 
-    AND (type = 'id-static' OR type = 'id-dynamic'); 
+    FROM @extschema@.part_config
+    WHERE parent_table = p_parent_table
+    AND (type = 'id-static' OR type = 'id-dynamic');
     v_retention := p_retention;
 
     IF v_part_interval IS NULL THEN
@@ -1675,7 +1675,7 @@ END IF;
 EXECUTE 'SELECT max('||v_control||') FROM '||p_parent_table INTO v_max;
 
 -- Loop through child tables of the given parent
-FOR v_child_table IN 
+FOR v_child_table IN
     SELECT n.nspname||'.'||c.relname FROM pg_inherits i join pg_class c ON i.inhrelid = c.oid join pg_namespace n ON c.relnamespace = n.oid WHERE i.inhparent::regclass = p_parent_table::regclass ORDER BY i.inhrelid ASC
 LOOP
     v_id_position := (length(v_child_table) - position('p_' in reverse(v_child_table))) + 2;
@@ -1700,11 +1700,11 @@ LOOP
                     PERFORM update_step(v_step_id, 'OK', 'Done');
                 END IF;
             ELSIF v_retention_keep_index = false THEN
-                FOR v_index IN 
+                FOR v_index IN
                     SELECT i.indexrelid::regclass AS name
                     , c.conname
                     FROM pg_catalog.pg_index i
-                    LEFT JOIN pg_catalog.pg_constraint c ON i.indexrelid = c.conindid 
+                    LEFT JOIN pg_catalog.pg_constraint c ON i.indexrelid = c.conindid
                     WHERE i.indrelid = v_child_table::regclass
                 LOOP
                     IF v_jobmon_schema IS NOT NULL THEN
@@ -1725,13 +1725,13 @@ LOOP
                 v_step_id := add_step(v_job_id, 'Moving table '||v_child_table||' to schema '||v_retention_schema);
             END IF;
 
-            EXECUTE 'ALTER TABLE '||v_child_table||' SET SCHEMA '||v_retention_schema; 
-            
+            EXECUTE 'ALTER TABLE '||v_child_table||' SET SCHEMA '||v_retention_schema;
+
             IF v_jobmon_schema IS NOT NULL THEN
                 PERFORM update_step(v_step_id, 'OK', 'Done');
             END IF;
         END IF; -- End retention schema if
-        
+
         v_drop_count := v_drop_count + 1;
     END IF; -- End retention check IF
 
@@ -1816,7 +1816,7 @@ END IF;
 
 -- Allow override of configuration options
 IF p_retention IS NULL THEN
-    SELECT  
+    SELECT
         part_interval::interval
         , retention::interval
         , retention_keep_table
@@ -1830,16 +1830,16 @@ IF p_retention IS NULL THEN
         , v_retention_keep_index
         , v_datetime_string
         , v_retention_schema
-    FROM @extschema@.part_config 
-    WHERE parent_table = p_parent_table 
-    AND (type = 'time-static' OR type = 'time-dynamic') 
+    FROM @extschema@.part_config
+    WHERE parent_table = p_parent_table
+    AND (type = 'time-static' OR type = 'time-dynamic')
     AND retention IS NOT NULL;
-    
+
     IF v_part_interval IS NULL THEN
         RAISE EXCEPTION 'Configuration for given parent table with a retention period not found: %', p_parent_table;
     END IF;
 ELSE
-    SELECT  
+    SELECT
         part_interval::interval
         , retention_keep_table
         , retention_keep_index
@@ -1851,11 +1851,11 @@ ELSE
         , v_retention_keep_index
         , v_datetime_string
         , v_retention_schema
-    FROM @extschema@.part_config 
-    WHERE parent_table = p_parent_table 
-    AND (type = 'time-static' OR type = 'time-dynamic'); 
+    FROM @extschema@.part_config
+    WHERE parent_table = p_parent_table
+    AND (type = 'time-static' OR type = 'time-dynamic');
     v_retention := p_retention;
-    
+
     IF v_part_interval IS NULL THEN
         RAISE EXCEPTION 'Configuration for given parent table not found: %', p_parent_table;
     END IF;
@@ -1876,7 +1876,7 @@ IF v_jobmon_schema IS NOT NULL THEN
 END IF;
 
 -- Loop through child tables of the given parent
-FOR v_child_table IN 
+FOR v_child_table IN
     SELECT n.nspname||'.'||c.relname FROM pg_inherits i join pg_class c ON i.inhrelid = c.oid join pg_namespace n ON c.relnamespace = n.oid WHERE i.inhparent::regclass = p_parent_table::regclass ORDER BY i.inhrelid ASC
 LOOP
     -- pull out datetime portion of last partition's tablename to make the next one
@@ -1918,11 +1918,11 @@ LOOP
                     PERFORM update_step(v_step_id, 'OK', 'Done');
                 END IF;
             ELSIF v_retention_keep_index = false THEN
-                FOR v_index IN 
+                FOR v_index IN
                     SELECT i.indexrelid::regclass AS name
                     , c.conname
                     FROM pg_catalog.pg_index i
-                    LEFT JOIN pg_catalog.pg_constraint c ON i.indexrelid = c.conindid 
+                    LEFT JOIN pg_catalog.pg_constraint c ON i.indexrelid = c.conindid
                     WHERE i.indrelid = v_child_table::regclass
                 LOOP
                     IF v_jobmon_schema IS NOT NULL THEN
@@ -1943,13 +1943,13 @@ LOOP
                 v_step_id := add_step(v_job_id, 'Moving table '||v_child_table||' to schema '||v_retention_schema);
             END IF;
 
-            EXECUTE 'ALTER TABLE '||v_child_table||' SET SCHEMA '||v_retention_schema; 
-            
+            EXECUTE 'ALTER TABLE '||v_child_table||' SET SCHEMA '||v_retention_schema;
+
             IF v_jobmon_schema IS NOT NULL THEN
                 PERFORM update_step(v_step_id, 'OK', 'Done');
             END IF;
         END IF; -- End retention schema if
-        
+
         v_drop_count := v_drop_count + 1;
     END IF; -- End retention check IF
 
