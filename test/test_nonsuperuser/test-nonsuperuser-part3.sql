@@ -30,4 +30,3 @@ DROP ROLE IF EXISTS partman_revoke;
 
 
 SELECT * FROM finish();
-

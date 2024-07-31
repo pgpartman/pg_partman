@@ -46,7 +46,7 @@ IF v_jobmon_schema IS NOT NULL THEN
     EXECUTE 'SELECT set_config(''search_path'',''@extschema@,'||v_jobmon_schema||''',''false'')';
 END IF;
 
-SELECT  
+SELECT
     part_interval::bigint
     , control
     , retention::bigint
@@ -58,9 +58,9 @@ INTO
     , v_retention
     , v_retention_keep_table
     , v_retention_keep_index
-FROM @extschema@.part_config 
-WHERE parent_table = p_parent_table 
-AND (type = 'id-static' OR type = 'id-dynamic') 
+FROM @extschema@.part_config
+WHERE parent_table = p_parent_table
+AND (type = 'id-static' OR type = 'id-dynamic')
 AND retention IS NOT NULL;
 
 IF v_part_interval IS NULL THEN
@@ -82,7 +82,7 @@ END IF;
 EXECUTE 'SELECT max('||v_control||') FROM '||p_parent_table INTO v_max;
 
 -- Loop through child tables of the given parent
-FOR v_child_table IN 
+FOR v_child_table IN
     SELECT inhrelid::regclass FROM pg_catalog.pg_inherits WHERE inhparent::regclass = p_parent_table::regclass ORDER BY inhrelid::regclass ASC
 LOOP
     v_partition_id := substring(v_child_table from char_length(p_parent_table||'_p')+1)::bigint;
@@ -105,11 +105,11 @@ LOOP
                 PERFORM update_step(v_step_id, 'OK', 'Done');
             END IF;
         ELSIF v_retention_keep_index = false THEN
-            FOR v_index IN 
+            FOR v_index IN
                 SELECT i.indexrelid::regclass AS name
                 , c.conname
                 FROM pg_catalog.pg_index i
-                LEFT JOIN pg_catalog.pg_constraint c ON i.indexrelid = c.conindid 
+                LEFT JOIN pg_catalog.pg_constraint c ON i.indexrelid = c.conindid
                 WHERE i.indrelid = v_child_table::regclass
             LOOP
                 IF v_jobmon_schema IS NOT NULL THEN
@@ -204,7 +204,7 @@ IF v_jobmon_schema IS NOT NULL THEN
     EXECUTE 'SELECT set_config(''search_path'',''@extschema@,'||v_jobmon_schema||''',''false'')';
 END IF;
 
-SELECT  
+SELECT
     part_interval::interval
     , retention::interval
     , retention_keep_table
@@ -216,9 +216,9 @@ INTO
     , v_retention_keep_table
     , v_retention_keep_index
     , v_datetime_string
-FROM @extschema@.part_config 
-WHERE parent_table = p_parent_table 
-AND (type = 'time-static' OR type = 'time-dynamic') 
+FROM @extschema@.part_config
+WHERE parent_table = p_parent_table
+AND (type = 'time-static' OR type = 'time-dynamic')
 AND retention IS NOT NULL;
 
 IF v_part_interval IS NULL THEN
@@ -238,7 +238,7 @@ IF v_jobmon_schema IS NOT NULL THEN
 END IF;
 
 -- Loop through child tables of the given parent
-FOR v_child_table IN 
+FOR v_child_table IN
     SELECT inhrelid::regclass FROM pg_catalog.pg_inherits WHERE inhparent::regclass = p_parent_table::regclass ORDER BY inhrelid::regclass ASC
 LOOP
     -- pull out datetime portion of last partition's tablename to make the next one
@@ -278,11 +278,11 @@ LOOP
                 PERFORM update_step(v_step_id, 'OK', 'Done');
             END IF;
         ELSIF v_retention_keep_index = false THEN
-            FOR v_index IN 
+            FOR v_index IN
                 SELECT i.indexrelid::regclass AS name
                 , c.conname
                 FROM pg_catalog.pg_index i
-                LEFT JOIN pg_catalog.pg_constraint c ON i.indexrelid = c.conindid 
+                LEFT JOIN pg_catalog.pg_constraint c ON i.indexrelid = c.conindid
                 WHERE i.indrelid = v_child_table::regclass
             LOOP
                 IF v_jobmon_schema IS NOT NULL THEN
@@ -342,7 +342,7 @@ $$;
  * Function to manage pre-creation of the next partitions in a time-based partition set
  * Also manages dropping old partitions if the retention option is set
  */
-CREATE OR REPLACE FUNCTION run_maintenance() RETURNS void 
+CREATE OR REPLACE FUNCTION run_maintenance() RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -381,7 +381,7 @@ IF v_jobmon_schema IS NOT NULL THEN
     v_step_id := add_step(v_job_id, 'Running maintenance loop');
 END IF;
 
-FOR v_row IN 
+FOR v_row IN
 SELECT parent_table
     , type
     , part_interval::interval
@@ -391,13 +391,13 @@ SELECT parent_table
     , last_partition
 FROM @extschema@.part_config WHERE type = 'time-static' OR type = 'time-dynamic'
 LOOP
-    
+
     CASE
         WHEN v_row.part_interval = '15 mins' THEN
-            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '15min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 15.0);
         WHEN v_row.part_interval = '30 mins' THEN
-            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '30min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 30.0);
         WHEN v_row.part_interval = '1 hour' THEN
             v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP);
@@ -445,16 +445,16 @@ LOOP
 END LOOP; -- end of creation loop
 
 -- Manage dropping old partitions if retention option is set
-FOR v_row IN 
+FOR v_row IN
     SELECT parent_table FROM @extschema@.part_config WHERE retention IS NOT NULL AND (type = 'time-static' OR type = 'time-dynamic')
 LOOP
-    v_drop_count := v_drop_count + @extschema@.drop_time_partition(v_row.parent_table);   
-END LOOP; 
-FOR v_row IN 
+    v_drop_count := v_drop_count + @extschema@.drop_time_partition(v_row.parent_table);
+END LOOP;
+FOR v_row IN
     SELECT parent_table FROM @extschema@.part_config WHERE retention IS NOT NULL AND (type = 'id-static' OR type = 'id-dynamic')
 LOOP
     v_drop_count := v_drop_count + @extschema@.drop_id_partition(v_row.parent_table);
-END LOOP; 
+END LOOP;
 
 IF v_jobmon_schema IS NOT NULL THEN
     PERFORM update_step(v_step_id, 'OK', 'Partition maintenance finished. '||v_create_count||' partitions made. '||v_drop_count||' partitions dropped.');

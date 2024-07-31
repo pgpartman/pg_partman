@@ -27,7 +27,7 @@ IF v_grants IS NOT NULL AND v_roles IS NOT NULL THEN
 
     EXECUTE 'GRANT '||v_grants||' ON '||p_parent_table||' TO '||v_roles;
 
-    FOR v_child_table IN 
+    FOR v_child_table IN
         SELECT inhrelid::regclass FROM pg_catalog.pg_inherits WHERE inhparent::regclass = p_parent_table::regclass ORDER BY inhrelid::regclass ASC
     LOOP
         EXECUTE 'GRANT '||v_grants||' ON TABLE '||v_child_table||' TO '||v_roles;
@@ -66,7 +66,7 @@ END IF;
 FOREACH v_id IN ARRAY p_partition_ids LOOP
 
     v_partition_name := p_parent_table||'_p'||v_id;
-        
+
     SELECT schemaname ||'.'|| tablename INTO v_tablename FROM pg_catalog.pg_tables WHERE schemaname ||'.'|| tablename = v_partition_name;
 
     IF v_tablename IS NOT NULL THEN
@@ -78,12 +78,12 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
         v_step_id := add_step(v_job_id, 'Creating new partition '||v_partition_name||' with interval from '||v_id||' to '||(v_id + p_interval)-1);
     END IF;
 
-    IF position('.' in p_parent_table) > 0 THEN 
+    IF position('.' in p_parent_table) > 0 THEN
         v_tablename := substring(v_partition_name from position('.' in v_partition_name)+1);
     END IF;
 
     EXECUTE 'CREATE TABLE '||v_partition_name||' (LIKE '||p_parent_table||' INCLUDING DEFAULTS INCLUDING INDEXES)';
-    EXECUTE 'ALTER TABLE '||v_partition_name||' ADD CONSTRAINT '||v_tablename||'_partition_check 
+    EXECUTE 'ALTER TABLE '||v_partition_name||' ADD CONSTRAINT '||v_tablename||'_partition_check
         CHECK ('||p_control||'>='||quote_literal(v_id)||' AND '||p_control||'<'||quote_literal(v_id + p_interval)||')';
     EXECUTE 'ALTER TABLE '||v_partition_name||' INHERIT '||p_parent_table;
 
@@ -150,13 +150,13 @@ IF v_jobmon_schema IS NOT NULL THEN
     EXECUTE 'SELECT set_config(''search_path'',''@extschema@,'||v_jobmon_schema||''',''false'')';
 END IF;
 
-FOREACH v_time IN ARRAY p_partition_times LOOP    
+FOREACH v_time IN ARRAY p_partition_times LOOP
 
     v_partition_name := p_parent_table || '_p';
 
     IF p_interval = '1 year' OR p_interval = '1 month' OR p_interval = '1 day' OR p_interval = '1 hour' OR p_interval = '30 mins' OR p_interval = '15 mins' THEN
         v_partition_name := v_partition_name || to_char(v_time, 'YYYY');
-        
+
         IF p_interval = '1 month' OR p_interval = '1 day' OR p_interval = '1 hour' OR p_interval = '30 mins' OR p_interval = '15 mins' THEN
             v_partition_name := v_partition_name || '_' || to_char(v_time, 'MM');
 
@@ -184,7 +184,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
                             v_partition_name := v_partition_name || '30';
                         END IF;
                     END IF;
-                END IF; -- end hour IF      
+                END IF; -- end hour IF
             END IF; -- end day IF
         END IF; -- end month IF
     ELSIF p_interval = '1 week' THEN
@@ -200,7 +200,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         v_year := to_char(v_time, 'YYYY');
         v_quarter := to_char(v_time, 'Q');
         v_partition_name := v_partition_name || v_year || 'q' || v_quarter;
-        CASE 
+        CASE
             WHEN v_quarter = '1' THEN
                 v_partition_timestamp_start := to_timestamp(v_year || '-01-01', 'YYYY-MM-DD');
             WHEN v_quarter = '2' THEN
@@ -223,7 +223,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         v_step_id := add_step(v_job_id, 'Creating new partition '||v_partition_name||' with interval from '||v_partition_timestamp_start||' to '||(v_partition_timestamp_end-'1sec'::interval));
     END IF;
 
-    IF position('.' in p_parent_table) > 0 THEN 
+    IF position('.' in p_parent_table) > 0 THEN
         v_tablename := substring(v_partition_name from position('.' in v_partition_name)+1);
     END IF;
 

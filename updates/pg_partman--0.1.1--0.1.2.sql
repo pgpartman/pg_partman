@@ -114,7 +114,7 @@ IF p_type = 'id-static' OR p_type = 'id-dynamic' THEN
     IF v_jobmon_schema IS NOT NULL THEN
         PERFORM update_step(v_step_id, 'OK', 'ID partitions premade: '||p_premake);
     END IF;
-    
+
 END IF;
 
 IF v_jobmon_schema IS NOT NULL THEN
@@ -127,8 +127,8 @@ IF p_type = 'time-static' OR p_type = 'time-dynamic' THEN
         PERFORM update_step(v_step_id, 'OK', 'Time function created');
     END IF;
 ELSIF p_type = 'id-static' OR p_type = 'id-dynamic' THEN
-    v_current_id := COALESCE(v_max, 0);    
-    EXECUTE 'SELECT @extschema@.create_id_function('||quote_literal(p_parent_table)||','||v_current_id||')';  
+    v_current_id := COALESCE(v_max, 0);
+    EXECUTE 'SELECT @extschema@.create_id_function('||quote_literal(p_parent_table)||','||v_current_id||')';
     IF v_jobmon_schema IS NOT NULL THEN
         PERFORM update_step(v_step_id, 'OK', 'ID function created');
     END IF;
@@ -191,13 +191,13 @@ IF v_jobmon_schema IS NOT NULL THEN
     EXECUTE 'SELECT set_config(''search_path'',''@extschema@,'||v_jobmon_schema||''',''false'')';
 END IF;
 
-FOREACH v_time IN ARRAY p_partition_times LOOP    
+FOREACH v_time IN ARRAY p_partition_times LOOP
 
     v_partition_name := p_parent_table || '_p';
 
     IF p_interval = '1 year' OR p_interval = '1 month' OR p_interval = '1 day' OR p_interval = '1 hour' OR p_interval = '30 mins' OR p_interval = '15 mins' THEN
         v_partition_name := v_partition_name || to_char(v_time, 'YYYY');
-        
+
         IF p_interval = '1 month' OR p_interval = '1 day' OR p_interval = '1 hour' OR p_interval = '30 mins' OR p_interval = '15 mins' THEN
             v_partition_name := v_partition_name || '_' || to_char(v_time, 'MM');
 
@@ -225,7 +225,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
                             v_partition_name := v_partition_name || '30';
                         END IF;
                     END IF;
-                END IF; -- end hour IF      
+                END IF; -- end hour IF
             END IF; -- end day IF
         END IF; -- end month IF
     ELSIF p_interval = '1 week' THEN
@@ -241,7 +241,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         v_year := to_char(v_time, 'YYYY');
         v_quarter := to_char(v_time, 'Q');
         v_partition_name := v_partition_name || v_year || 'q' || v_quarter;
-        CASE 
+        CASE
             WHEN v_quarter = '1' THEN
                 v_partition_timestamp_start := to_timestamp(v_year || '-01-01', 'YYYY-MM-DD');
             WHEN v_quarter = '2' THEN
@@ -264,7 +264,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         v_step_id := add_step(v_job_id, 'Creating new partition '||v_partition_name||' with interval from '||v_partition_timestamp_start||' to '||(v_partition_timestamp_end-'1sec'::interval));
     END IF;
 
-    IF position('.' in p_parent_table) > 0 THEN 
+    IF position('.' in p_parent_table) > 0 THEN
         v_tablename := substring(v_partition_name from position('.' in v_partition_name)+1);
     END IF;
 
@@ -347,7 +347,7 @@ SELECT type
     , part_interval::interval
     , control
     , datetime_string
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (type = 'time-static' OR type = 'time-dynamic')
 INTO v_type, v_part_interval, v_control, v_datetime_string;
@@ -359,10 +359,10 @@ IF v_type = 'time-static' THEN
 
     CASE
         WHEN v_part_interval = '15 mins' THEN
-            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '15min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 15.0);
         WHEN v_part_interval = '30 mins' THEN
-            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '30min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 30.0);
         WHEN v_part_interval = '1 hour' THEN
             v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP);
@@ -377,8 +377,8 @@ IF v_type = 'time-static' THEN
         WHEN v_part_interval = '1 year' THEN
             v_current_partition_timestamp := date_trunc('year', CURRENT_TIMESTAMP);
     END CASE;
-    
-    v_prev_partition_timestamp := v_current_partition_timestamp - v_part_interval::interval;    
+
+    v_prev_partition_timestamp := v_current_partition_timestamp - v_part_interval::interval;
     v_1st_partition_timestamp := v_current_partition_timestamp + v_part_interval::interval;
     v_2nd_partition_timestamp := v_1st_partition_timestamp + v_part_interval::interval;
     v_final_partition_timestamp := v_2nd_partition_timestamp + v_part_interval::interval;
@@ -388,22 +388,22 @@ IF v_type = 'time-static' THEN
     v_1st_partition_name := p_parent_table || '_p' || to_char(v_1st_partition_timestamp, v_datetime_string);
     v_2nd_partition_name := p_parent_table || '_p' || to_char(v_2nd_partition_timestamp, v_datetime_string);
 
-    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$ 
-        BEGIN 
-        IF TG_OP = ''INSERT'' THEN 
-            IF NEW.'||v_control||' >= '||quote_literal(v_current_partition_timestamp)||' AND NEW.'||v_control||' < '||quote_literal(v_1st_partition_timestamp)|| ' THEN 
-                INSERT INTO '||v_current_partition_name||' VALUES (NEW.*); 
-            ELSIF NEW.'||v_control||' >= '||quote_literal(v_1st_partition_timestamp)||' AND NEW.'||v_control||' < '||quote_literal(v_2nd_partition_timestamp)|| ' THEN 
-                INSERT INTO '||v_1st_partition_name||' VALUES (NEW.*); 
-            ELSIF NEW.'||v_control||' >= '||quote_literal(v_2nd_partition_timestamp)||' AND NEW.'||v_control||' < '||quote_literal(v_final_partition_timestamp)|| ' THEN 
-                INSERT INTO '||v_2nd_partition_name||' VALUES (NEW.*); 
-            ELSIF NEW.'||v_control||' >= '||quote_literal(v_prev_partition_timestamp)||' AND NEW.'||v_control||' < '||quote_literal(v_current_partition_timestamp)|| ' THEN 
-                INSERT INTO '||v_prev_partition_name||' VALUES (NEW.*); 
-            ELSE 
-                RETURN NEW; 
-            END IF; 
-        END IF; 
-        RETURN NULL; 
+    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$
+        BEGIN
+        IF TG_OP = ''INSERT'' THEN
+            IF NEW.'||v_control||' >= '||quote_literal(v_current_partition_timestamp)||' AND NEW.'||v_control||' < '||quote_literal(v_1st_partition_timestamp)|| ' THEN
+                INSERT INTO '||v_current_partition_name||' VALUES (NEW.*);
+            ELSIF NEW.'||v_control||' >= '||quote_literal(v_1st_partition_timestamp)||' AND NEW.'||v_control||' < '||quote_literal(v_2nd_partition_timestamp)|| ' THEN
+                INSERT INTO '||v_1st_partition_name||' VALUES (NEW.*);
+            ELSIF NEW.'||v_control||' >= '||quote_literal(v_2nd_partition_timestamp)||' AND NEW.'||v_control||' < '||quote_literal(v_final_partition_timestamp)|| ' THEN
+                INSERT INTO '||v_2nd_partition_name||' VALUES (NEW.*);
+            ELSIF NEW.'||v_control||' >= '||quote_literal(v_prev_partition_timestamp)||' AND NEW.'||v_control||' < '||quote_literal(v_current_partition_timestamp)|| ' THEN
+                INSERT INTO '||v_prev_partition_name||' VALUES (NEW.*);
+            ELSE
+                RETURN NEW;
+            END IF;
+        END IF;
+        RETURN NULL;
         END $t$;';
 
 --    RAISE NOTICE 'v_trig_func: %',v_trig_func;
@@ -415,19 +415,19 @@ IF v_type = 'time-static' THEN
 
 ELSIF v_type = 'time-dynamic' THEN
 
-    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$ 
+    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$
         DECLARE
             v_partition_name        text;
             v_partition_timestamp   timestamp;
-        BEGIN 
-        IF TG_OP = ''INSERT'' THEN 
+        BEGIN
+        IF TG_OP = ''INSERT'' THEN
             ';
         CASE
-            WHEN v_part_interval = '15 mins' THEN 
-                v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||') + 
+            WHEN v_part_interval = '15 mins' THEN
+                v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||') +
                     ''15min''::interval * floor(date_part(''minute'', NEW.'||v_control||') / 15.0);';
             WHEN v_part_interval = '30 mins' THEN
-                v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||') + 
+                v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||') +
                     ''30min''::interval * floor(date_part(''minute'', NEW.'||v_control||') / 30.0);';
             WHEN v_part_interval = '1 hour' THEN
                 v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||');';
@@ -445,11 +445,11 @@ ELSIF v_type = 'time-dynamic' THEN
 
         v_trig_func := v_trig_func||'
             v_partition_name := '''||p_parent_table||'_p''|| to_char(v_partition_timestamp, '||quote_literal(v_datetime_string)||');
-        
+
             EXECUTE ''INSERT INTO ''||v_partition_name||'' VALUES($1.*)'' USING NEW;
         END IF;
-        
-        RETURN NULL; 
+
+        RETURN NULL;
         END $t$;';
 
     --RAISE NOTICE 'v_trig_func: %',v_trig_func;
@@ -510,7 +510,7 @@ SELECT type
     , control
     , datetime_string
     , last_partition
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (type = 'time-static' OR type = 'time-dynamic')
 INTO v_type, v_part_interval, v_control, v_datetime_string, v_last_partition;
@@ -534,7 +534,7 @@ IF v_part_interval != '3 months' THEN
 ELSE
     -- to_timestamp doesn't recognize 'Q' date string formater. Handle it
     v_year := split_part(substring(v_last_partition from char_length(p_parent_table||'_p')+1), 'q', 1);
-    v_next_year := extract('year' from to_date(v_year, 'YYYY')+'1year'::interval); 
+    v_next_year := extract('year' from to_date(v_year, 'YYYY')+'1year'::interval);
     v_quarter := split_part(substring(v_last_partition from char_length(p_parent_table||'_p')+1), 'q', 2);
     CASE
         WHEN v_quarter = '1' THEN
@@ -549,7 +549,7 @@ ELSE
 END IF;
 
 EXECUTE 'SELECT @extschema@.create_time_partition('||quote_literal(p_parent_table)||','||quote_literal(v_control)||','||quote_literal(v_part_interval)||','
-    ||quote_literal(v_datetime_string)||','||quote_literal(ARRAY[v_next_partition_timestamp])||')' INTO v_last_partition; 
+    ||quote_literal(v_datetime_string)||','||quote_literal(ARRAY[v_next_partition_timestamp])||')' INTO v_last_partition;
 
 IF v_last_partition IS NOT NULL THEN
     UPDATE @extschema@.part_config SET last_partition = v_last_partition WHERE parent_table = p_parent_table;
@@ -583,7 +583,7 @@ SELECT type
     , part_interval::interval
     , control
     , datetime_string
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (type = 'time-static' OR type = 'time-dynamic')
 INTO v_type, v_part_interval, v_control, v_datetime_string;
@@ -598,10 +598,10 @@ END IF;
 
 CASE
     WHEN v_part_interval = '15 mins' THEN
-        v_min_partition_timestamp := date_trunc('hour', v_min_control) + 
+        v_min_partition_timestamp := date_trunc('hour', v_min_control) +
             '15min'::interval * floor(date_part('minute', v_min_control) / 15.0);
     WHEN v_part_interval = '30 mins' THEN
-        v_min_partition_timestamp := date_trunc('hour', v_min_control) + 
+        v_min_partition_timestamp := date_trunc('hour', v_min_control) +
             '30min'::interval * floor(date_part('minute', v_min_control) / 30.0);
     WHEN v_part_interval = '1 hour' THEN
         v_min_partition_timestamp := date_trunc('hour', v_min_control);
@@ -629,7 +629,7 @@ RAISE NOTICE 'v_max_partition_timestamp: %',v_max_partition_timestamp;
     RAISE NOTICE 'v_sql: %', v_sql;
     EXECUTE v_sql INTO v_last_partition_name;
 
-    -- create_time_partition() already checks to see if the partition exists and skips creation if it does. 
+    -- create_time_partition() already checks to see if the partition exists and skips creation if it does.
     -- So this function will still work with already existing partitions to get all data moved out of parent table up to and including when
     -- pg_partman was used to set up partitioning.
 
@@ -646,7 +646,7 @@ RAISE NOTICE 'v_max_partition_timestamp: %',v_max_partition_timestamp;
         EXIT;
     END IF;
 
-END LOOP; 
+END LOOP;
 
 RETURN v_total_rows;
 
@@ -654,7 +654,7 @@ END
 $$;
 
 
-CREATE OR REPLACE FUNCTION run_maintenance() RETURNS void 
+CREATE OR REPLACE FUNCTION run_maintenance() RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -692,7 +692,7 @@ IF v_jobmon_schema IS NOT NULL THEN
     v_step_id := add_step(v_job_id, 'Running maintenance loop');
 END IF;
 
-FOR v_row IN 
+FOR v_row IN
 SELECT parent_table
     , type
     , part_interval::interval
@@ -702,13 +702,13 @@ SELECT parent_table
     , last_partition
 FROM @extschema@.part_config WHERE type = 'time-static' OR type = 'time-dynamic'
 LOOP
-    
+
     CASE
         WHEN v_row.part_interval = '15 mins' THEN
-            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '15min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 15.0);
         WHEN v_row.part_interval = '30 mins' THEN
-            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '30min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 30.0);
         WHEN v_row.part_interval = '1 hour' THEN
             v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP);

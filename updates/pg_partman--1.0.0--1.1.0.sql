@@ -31,7 +31,7 @@ BEGIN
 
 SELECT part_interval::bigint, control
 INTO v_part_interval, v_control
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (type = 'id-static' OR type = 'id-dynamic');
 IF NOT FOUND THEN
@@ -68,7 +68,7 @@ FOR i IN 1..p_batch_count LOOP
     v_sql := 'WITH partition_data AS (
         DELETE FROM ONLY '||p_parent_table||' WHERE '||v_control||' >= '||v_min_control||
             ' AND '||v_control||' < '||v_max_partition_id||' RETURNING *)
-        INSERT INTO '||v_last_partition_name||' SELECT * FROM partition_data';        
+        INSERT INTO '||v_last_partition_name||' SELECT * FROM partition_data';
 
 --    RAISE NOTICE 'v_sql: %', v_sql;
     EXECUTE v_sql;
@@ -79,7 +79,7 @@ FOR i IN 1..p_batch_count LOOP
         EXIT;
     END IF;
 
-END LOOP; 
+END LOOP;
 
 RETURN v_total_rows;
 
@@ -111,7 +111,7 @@ BEGIN
 
 SELECT part_interval::interval, control, datetime_string
 INTO v_part_interval, v_control, v_datetime_string
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (type = 'time-static' OR type = 'time-dynamic');
 IF NOT FOUND THEN
@@ -131,10 +131,10 @@ FOR i IN 1..p_batch_count LOOP
 
     CASE
         WHEN v_part_interval = '15 mins' THEN
-            v_min_partition_timestamp := date_trunc('hour', v_min_control) + 
+            v_min_partition_timestamp := date_trunc('hour', v_min_control) +
                 '15min'::interval * floor(date_part('minute', v_min_control) / 15.0);
         WHEN v_part_interval = '30 mins' THEN
-            v_min_partition_timestamp := date_trunc('hour', v_min_control) + 
+            v_min_partition_timestamp := date_trunc('hour', v_min_control) +
                 '30min'::interval * floor(date_part('minute', v_min_control) / 30.0);
         WHEN v_part_interval = '1 hour' THEN
             v_min_partition_timestamp := date_trunc('hour', v_min_control);
@@ -177,7 +177,7 @@ FOR i IN 1..p_batch_count LOOP
         EXIT;
     END IF;
 
-END LOOP; 
+END LOOP;
 
 RETURN v_total_rows;
 
@@ -186,7 +186,7 @@ $$;
 
 
 /*
- * Function to undo partitioning. 
+ * Function to undo partitioning.
  * Will actually work on any parent/child table set, not just ones created by pg_partman.
  */
 CREATE OR REPLACE FUNCTION undo_partition(p_parent_table text, p_batch_count int DEFAULT 1, p_keep_table boolean DEFAULT true) RETURNS bigint
@@ -239,10 +239,10 @@ IF v_jobmon_schema IS NOT NULL THEN
     PERFORM update_step(v_step_id, 'OK', 'Stopped partition creation process. Removed trigger & trigger function');
 END IF;
 
-WHILE v_batch_loop_count < p_batch_count LOOP 
-    SELECT inhrelid::regclass INTO v_child_table 
-    FROM pg_catalog.pg_inherits 
-    WHERE inhparent::regclass = p_parent_table::regclass 
+WHILE v_batch_loop_count < p_batch_count LOOP
+    SELECT inhrelid::regclass INTO v_child_table
+    FROM pg_catalog.pg_inherits
+    WHERE inhparent::regclass = p_parent_table::regclass
     ORDER BY inhrelid ASC;
 
     EXIT WHEN v_child_table IS NULL;
@@ -268,7 +268,7 @@ WHILE v_batch_loop_count < p_batch_count LOOP
     IF v_jobmon_schema IS NOT NULL THEN
         v_step_id := add_step(v_job_id, 'Removing child partition: '||v_child_table);
     END IF;
-   
+
     v_copy_sql := 'INSERT INTO '||p_parent_table||' SELECT * FROM '||v_child_table;
     EXECUTE v_copy_sql;
     GET DIAGNOSTICS v_rowcount = ROW_COUNT;
@@ -286,7 +286,7 @@ WHILE v_batch_loop_count < p_batch_count LOOP
         END IF;
     END IF;
     v_batch_loop_count := v_batch_loop_count + 1;
-    v_undo_count := v_undo_count + 1;         
+    v_undo_count := v_undo_count + 1;
 END LOOP;
 
 IF v_undo_count = 0 THEN
@@ -371,8 +371,8 @@ SELECT part_interval::bigint
     , control
 INTO v_part_interval
     , v_control
-FROM @extschema@.part_config 
-WHERE parent_table = p_parent_table 
+FROM @extschema@.part_config
+WHERE parent_table = p_parent_table
 AND (type = 'id-static' OR type = 'id-dynamic');
 
 IF v_part_interval IS NULL THEN
@@ -406,10 +406,10 @@ IF v_jobmon_schema IS NOT NULL THEN
 END IF;
 
 <<outer_child_loop>>
-WHILE v_batch_loop_count < p_batch_count LOOP 
-    SELECT inhrelid::regclass INTO v_child_table 
-    FROM pg_catalog.pg_inherits 
-    WHERE inhparent::regclass = p_parent_table::regclass 
+WHILE v_batch_loop_count < p_batch_count LOOP
+    SELECT inhrelid::regclass INTO v_child_table
+    FROM pg_catalog.pg_inherits
+    WHERE inhparent::regclass = p_parent_table::regclass
     ORDER BY inhrelid ASC;
 
     EXIT WHEN v_child_table IS NULL;
@@ -539,8 +539,8 @@ SELECT part_interval::interval
     , control
 INTO v_part_interval
     , v_control
-FROM @extschema@.part_config 
-WHERE parent_table = p_parent_table 
+FROM @extschema@.part_config
+WHERE parent_table = p_parent_table
 AND (type = 'time-static' OR type = 'time-dynamic');
 
 IF v_part_interval IS NULL THEN
@@ -574,10 +574,10 @@ IF v_jobmon_schema IS NOT NULL THEN
 END IF;
 
 <<outer_child_loop>>
-WHILE v_batch_loop_count < p_batch_count LOOP 
-    SELECT inhrelid::regclass INTO v_child_table 
-    FROM pg_catalog.pg_inherits 
-    WHERE inhparent::regclass = p_parent_table::regclass 
+WHILE v_batch_loop_count < p_batch_count LOOP
+    SELECT inhrelid::regclass INTO v_child_table
+    FROM pg_catalog.pg_inherits
+    WHERE inhparent::regclass = p_parent_table::regclass
     ORDER BY inhrelid ASC;
 
     EXIT WHEN v_child_table IS NULL;

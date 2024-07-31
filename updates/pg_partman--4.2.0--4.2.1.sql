@@ -9,7 +9,7 @@ CREATE OR REPLACE FUNCTION @extschema@.partition_data_time(
         , p_analyze boolean DEFAULT true
         , p_source_table text DEFAULT NULL)
     RETURNS bigint
-    LANGUAGE plpgsql 
+    LANGUAGE plpgsql
     AS $$
 DECLARE
 
@@ -57,7 +57,7 @@ INTO v_partition_type
     , v_control
     , v_datetime_string
     , v_epoch
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table;
 IF NOT FOUND THEN
     RAISE EXCEPTION 'ERROR: No entry in part_config found for given table:  %', p_parent_table;
@@ -73,7 +73,7 @@ v_parent_tablename := v_source_tablename;
 
 SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_source_schemaname, v_source_tablename, v_control);
 
-IF v_control_type <> 'time' THEN 
+IF v_control_type <> 'time' THEN
     IF (v_control_type = 'id' AND v_epoch = 'none') OR v_control_type <> 'id' THEN
         RAISE EXCEPTION 'Cannot run on partition set without time based control column or epoch flag set with an id column. Found control: %, epoch: %', v_control_type, v_epoch;
     END IF;
@@ -158,10 +158,10 @@ FOR i IN 1..p_batch_count LOOP
     IF v_partition_type = 'partman' THEN
         CASE
             WHEN v_partition_interval = '15 mins' THEN
-                v_min_partition_timestamp := date_trunc('hour', v_start_control) + 
+                v_min_partition_timestamp := date_trunc('hour', v_start_control) +
                     '15min'::interval * floor(date_part('minute', v_start_control) / 15.0);
             WHEN v_partition_interval = '30 mins' THEN
-                v_min_partition_timestamp := date_trunc('hour', v_start_control) + 
+                v_min_partition_timestamp := date_trunc('hour', v_start_control) +
                     '30min'::interval * floor(date_part('minute', v_start_control) / 30.0);
             WHEN v_partition_interval = '1 hour' THEN
                 v_min_partition_timestamp := date_trunc('hour', v_start_control);
@@ -197,7 +197,7 @@ FOR i IN 1..p_batch_count LOOP
                         v_min_partition_timestamp := v_min_partition_timestamp - v_partition_interval;
                     END IF;
                 EXCEPTION WHEN datetime_field_overflow THEN
-                    RAISE EXCEPTION 'Attempted partition time interval is outside PostgreSQL''s supported time range. 
+                    RAISE EXCEPTION 'Attempted partition time interval is outside PostgreSQL''s supported time range.
                         Unable to create partition with interval before timestamp % ', v_min_partition_timestamp;
                 END;
             END IF;
@@ -297,7 +297,7 @@ FOR i IN 1..p_batch_count LOOP
         EXIT;
     END IF;
 
-END LOOP; 
+END LOOP;
 
 IF v_partition_type IN ('partman', 'time-custom') THEN
     PERFORM @extschema@.create_function_time(p_parent_table);
@@ -309,4 +309,3 @@ RETURN v_total_rows;
 
 END
 $$;
-

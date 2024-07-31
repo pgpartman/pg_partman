@@ -32,4 +32,3 @@ SELECT has_schema('partman_test', 'Check that test schema exits');
 
 
 SELECT * FROM finish();
-

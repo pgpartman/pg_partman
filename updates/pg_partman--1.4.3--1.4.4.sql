@@ -27,7 +27,7 @@ BEGIN
 
 SELECT part_interval::interval, control, datetime_string
 INTO v_part_interval, v_control, v_datetime_string
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (type = 'time-static' OR type = 'time-dynamic');
 IF NOT FOUND THEN
@@ -47,10 +47,10 @@ FOR i IN 1..p_batch_count LOOP
 
     CASE
         WHEN v_part_interval = '15 mins' THEN
-            v_min_partition_timestamp := date_trunc('hour', v_min_control) + 
+            v_min_partition_timestamp := date_trunc('hour', v_min_control) +
                 '15min'::interval * floor(date_part('minute', v_min_control) / 15.0);
         WHEN v_part_interval = '30 mins' THEN
-            v_min_partition_timestamp := date_trunc('hour', v_min_control) + 
+            v_min_partition_timestamp := date_trunc('hour', v_min_control) +
                 '30min'::interval * floor(date_part('minute', v_min_control) / 30.0);
         WHEN v_part_interval = '1 hour' THEN
             v_min_partition_timestamp := date_trunc('hour', v_min_control);
@@ -116,7 +116,7 @@ FOR i IN 1..p_batch_count LOOP
         EXIT;
     END IF;
 
-END LOOP; 
+END LOOP;
 
 RETURN v_total_rows;
 
@@ -149,7 +149,7 @@ BEGIN
 
 SELECT part_interval::bigint, control
 INTO v_part_interval, v_control
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (type = 'id-static' OR type = 'id-dynamic');
 IF NOT FOUND THEN
@@ -209,7 +209,7 @@ FOR i IN 1..p_batch_count LOOP
     v_sql := 'WITH partition_data AS (
         DELETE FROM ONLY '||p_parent_table||' WHERE '||v_control||' >= '||v_min_control||
             ' AND '||v_control||' < '||v_max_partition_id||' RETURNING *)
-        INSERT INTO '||v_last_partition_name||' SELECT * FROM partition_data';        
+        INSERT INTO '||v_last_partition_name||' SELECT * FROM partition_data';
 
 --    RAISE NOTICE 'v_sql: %', v_sql;
     EXECUTE v_sql;
@@ -220,7 +220,7 @@ FOR i IN 1..p_batch_count LOOP
         EXIT;
     END IF;
 
-END LOOP; 
+END LOOP;
 
 RETURN v_total_rows;
 

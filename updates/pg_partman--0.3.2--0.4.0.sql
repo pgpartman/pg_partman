@@ -58,15 +58,15 @@ END IF;
 
 SELECT tableowner INTO v_owner FROM pg_tables WHERE schemaname ||'.'|| tablename = p_parent_table;
 
-FOR v_child_table IN 
+FOR v_child_table IN
     SELECT inhrelid::regclass FROM pg_catalog.pg_inherits WHERE inhparent::regclass = p_parent_table::regclass ORDER BY inhrelid::regclass ASC
 LOOP
     v_grantees := NULL;
-    FOR v_row IN 
+    FOR v_row IN
         SELECT array_agg(privilege_type::text) AS types, grantee
-        FROM information_schema.table_privileges 
+        FROM information_schema.table_privileges
         WHERE table_schema ||'.'|| table_name = p_parent_table
-        GROUP BY grantee 
+        GROUP BY grantee
     LOOP
         EXECUTE 'GRANT '||array_to_string(v_row.types, ',')||' ON '||v_child_table||' TO '||v_row.grantee;
 
@@ -77,7 +77,7 @@ LOOP
 
         v_grantees := array_append(v_grantees, v_row.grantee::text);
     END LOOP;
-    
+
     -- Revoke all privileges from roles that have none on the parent
     IF v_grantees IS NOT NULL THEN
         SELECT array_agg(r) INTO v_revoke FROM (
@@ -218,7 +218,7 @@ IF p_type = 'id-static' OR p_type = 'id-dynamic' THEN
     IF v_jobmon_schema IS NOT NULL THEN
         PERFORM update_step(v_step_id, 'OK', 'ID partitions premade: '||p_premake);
     END IF;
-    
+
 END IF;
 
 IF v_jobmon_schema IS NOT NULL THEN
@@ -231,8 +231,8 @@ IF p_type = 'time-static' OR p_type = 'time-dynamic' THEN
         PERFORM update_step(v_step_id, 'OK', 'Time function created');
     END IF;
 ELSIF p_type = 'id-static' OR p_type = 'id-dynamic' THEN
-    v_current_id := COALESCE(v_max, 0);    
-    EXECUTE 'SELECT @extschema@.create_id_function('||quote_literal(p_parent_table)||','||v_current_id||')';  
+    v_current_id := COALESCE(v_max, 0);
+    EXECUTE 'SELECT @extschema@.create_id_function('||quote_literal(p_parent_table)||','||v_current_id||')';
     IF v_jobmon_schema IS NOT NULL THEN
         PERFORM update_step(v_step_id, 'OK', 'ID function created');
     END IF;
@@ -296,7 +296,7 @@ SELECT type
     , control
     , datetime_string
     , last_partition
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (type = 'time-static' OR type = 'time-dynamic')
 INTO v_type, v_part_interval, v_control, v_datetime_string, v_last_partition;
@@ -320,7 +320,7 @@ IF v_part_interval != '3 months' THEN
 ELSE
     -- to_timestamp doesn't recognize 'Q' date string formater. Handle it
     v_year := split_part(substring(v_last_partition from char_length(p_parent_table||'_p')+1), 'q', 1);
-    v_next_year := extract('year' from to_date(v_year, 'YYYY')+'1year'::interval); 
+    v_next_year := extract('year' from to_date(v_year, 'YYYY')+'1year'::interval);
     v_quarter := split_part(substring(v_last_partition from char_length(p_parent_table||'_p')+1), 'q', 2);
     CASE
         WHEN v_quarter = '1' THEN
@@ -335,7 +335,7 @@ ELSE
 END IF;
 
 EXECUTE 'SELECT @extschema@.create_time_partition('||quote_literal(p_parent_table)||','||quote_literal(v_control)||','||quote_literal(v_part_interval)||','
-    ||quote_literal(v_datetime_string)||','||quote_literal(ARRAY[v_next_partition_timestamp])||')' INTO v_last_partition; 
+    ||quote_literal(v_datetime_string)||','||quote_literal(ARRAY[v_next_partition_timestamp])||')' INTO v_last_partition;
 
 IF v_last_partition IS NOT NULL THEN
     UPDATE @extschema@.part_config SET last_partition = v_last_partition WHERE parent_table = p_parent_table;
@@ -373,13 +373,13 @@ IF v_jobmon_schema IS NOT NULL THEN
     EXECUTE 'SELECT set_config(''search_path'',''@extschema@,'||v_jobmon_schema||''',''false'')';
 END IF;
 
-FOREACH v_time IN ARRAY p_partition_times LOOP    
+FOREACH v_time IN ARRAY p_partition_times LOOP
 
     v_partition_name := p_parent_table || '_p';
 
     IF p_interval = '1 year' OR p_interval = '1 month' OR p_interval = '1 day' OR p_interval = '1 hour' OR p_interval = '30 mins' OR p_interval = '15 mins' THEN
         v_partition_name := v_partition_name || to_char(v_time, 'YYYY');
-        
+
         IF p_interval = '1 month' OR p_interval = '1 day' OR p_interval = '1 hour' OR p_interval = '30 mins' OR p_interval = '15 mins' THEN
             v_partition_name := v_partition_name || '_' || to_char(v_time, 'MM');
 
@@ -407,7 +407,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
                             v_partition_name := v_partition_name || '30';
                         END IF;
                     END IF;
-                END IF; -- end hour IF      
+                END IF; -- end hour IF
             END IF; -- end day IF
         END IF; -- end month IF
     ELSIF p_interval = '1 week' THEN
@@ -423,7 +423,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         v_year := to_char(v_time, 'YYYY');
         v_quarter := to_char(v_time, 'Q');
         v_partition_name := v_partition_name || v_year || 'q' || v_quarter;
-        CASE 
+        CASE
             WHEN v_quarter = '1' THEN
                 v_partition_timestamp_start := to_timestamp(v_year || '-01-01', 'YYYY-MM-DD');
             WHEN v_quarter = '2' THEN
@@ -446,7 +446,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         v_step_id := add_step(v_job_id, 'Creating new partition '||v_partition_name||' with interval from '||v_partition_timestamp_start||' to '||(v_partition_timestamp_end-'1sec'::interval));
     END IF;
 
-    IF position('.' in p_parent_table) > 0 THEN 
+    IF position('.' in p_parent_table) > 0 THEN
         v_tablename := substring(v_partition_name from position('.' in v_partition_name)+1);
     END IF;
 
@@ -524,7 +524,7 @@ END IF;
 FOREACH v_id IN ARRAY p_partition_ids LOOP
 
     v_partition_name := p_parent_table||'_p'||v_id;
-        
+
     SELECT schemaname ||'.'|| tablename INTO v_tablename FROM pg_catalog.pg_tables WHERE schemaname ||'.'|| tablename = v_partition_name;
 
     IF v_tablename IS NOT NULL THEN
@@ -536,12 +536,12 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
         v_step_id := add_step(v_job_id, 'Creating new partition '||v_partition_name||' with interval from '||v_id||' to '||(v_id + p_interval)-1);
     END IF;
 
-    IF position('.' in p_parent_table) > 0 THEN 
+    IF position('.' in p_parent_table) > 0 THEN
         v_tablename := substring(v_partition_name from position('.' in v_partition_name)+1);
     END IF;
 
     EXECUTE 'CREATE TABLE '||v_partition_name||' (LIKE '||p_parent_table||' INCLUDING DEFAULTS INCLUDING INDEXES)';
-    EXECUTE 'ALTER TABLE '||v_partition_name||' ADD CONSTRAINT '||v_tablename||'_partition_check 
+    EXECUTE 'ALTER TABLE '||v_partition_name||' ADD CONSTRAINT '||v_tablename||'_partition_check
         CHECK ('||p_control||'>='||quote_literal(v_id)||' AND '||p_control||'<'||quote_literal(v_id + p_interval)||')';
     EXECUTE 'ALTER TABLE '||v_partition_name||' INHERIT '||p_parent_table;
 

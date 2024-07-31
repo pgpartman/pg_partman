@@ -7,9 +7,9 @@
  * If p_parent_table is passed, will only run run_maintenance() on that one table (no matter what the configuration table may have set for it)
  * Otherwise, will run on all tables in the config table with p_run_maintenance() set to true.
  * For large partition sets, running analyze can cause maintenance to take longer than expected. Can set p_analyze to false to avoid a forced analyze run.
- * Be aware that constraint exclusion may not work properly until an analyze on the partition set is run. 
+ * Be aware that constraint exclusion may not work properly until an analyze on the partition set is run.
  */
-CREATE OR REPLACE FUNCTION run_maintenance(p_parent_table text DEFAULT NULL, p_analyze boolean DEFAULT true, p_jobmon boolean DEFAULT true, p_debug boolean DEFAULT false) RETURNS void 
+CREATE OR REPLACE FUNCTION run_maintenance(p_parent_table text DEFAULT NULL, p_analyze boolean DEFAULT true, p_jobmon boolean DEFAULT true, p_debug boolean DEFAULT false) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -83,17 +83,17 @@ IF v_jobmon_schema IS NOT NULL THEN
     EXECUTE format('SELECT %I.add_step(%L, %L)', v_jobmon_schema, v_job_id, 'Running maintenance loop') INTO v_step_id;
 END IF;
 
--- Check for consistent data in part_config_sub table. Was unable to get this working properly as either a constraint or trigger. 
+-- Check for consistent data in part_config_sub table. Was unable to get this working properly as either a constraint or trigger.
 -- Would either delay raising an error until the next write (which I cannot predict) or disallow future edits to update a sub-partition set's configuration.
 -- This way at least provides a consistent way to check that I know will run. If anyone can get a working constraint/trigger, please help!
 -- Don't have to worry about this in the serial trigger maintenance since subpartitioning requires run_maintenance().
-FOR v_row IN 
+FOR v_row IN
     SELECT sub_parent FROM @extschema@.part_config_sub
 LOOP
     SELECT count(*) INTO v_check_subpart FROM @extschema@.check_subpart_sameconfig(v_row.sub_parent);
     IF v_check_subpart > 1 THEN
-        RAISE EXCEPTION 'Inconsistent data in part_config_sub table. Sub-partition tables that are themselves sub-partitions cannot have differing configuration values among their siblings. 
-        Run this query: "SELECT * FROM @extschema@.check_subpart_sameconfig(''%'');" This should only return a single row or nothing. 
+        RAISE EXCEPTION 'Inconsistent data in part_config_sub table. Sub-partition tables that are themselves sub-partitions cannot have differing configuration values among their siblings.
+        Run this query: "SELECT * FROM @extschema@.check_subpart_sameconfig(''%'');" This should only return a single row or nothing.
         If multiple rows are returned, results are all children of the given parent. Update the differing values to be consistent for your desired values.', v_row.sub_parent;
     END IF;
 END LOOP;
@@ -210,7 +210,7 @@ LOOP
         v_next_partition_timestamp := v_last_partition_timestamp;
         IF p_debug THEN
             RAISE NOTICE 'run_maint before loop: current_partition_timestamp: %, v_premade_count: %, v_sub_timestamp_min: %, v_sub_timestamp_max: %'
-                , v_current_partition_timestamp 
+                , v_current_partition_timestamp
                 , v_premade_count
                 , v_sub_timestamp_min
                 , v_sub_timestamp_max;
@@ -227,7 +227,7 @@ LOOP
             BEGIN
                 v_next_partition_timestamp := v_next_partition_timestamp + v_row.partition_interval::interval;
             EXCEPTION WHEN datetime_field_overflow THEN
-                v_premade_count := v_row.premake; -- do this so it can exit the premake check loop and continue in the outer for loop 
+                v_premade_count := v_row.premake; -- do this so it can exit the premake check loop and continue in the outer for loop
                 IF v_jobmon_schema IS NOT NULL THEN
                     EXECUTE format('SELECT %I.add_step(%L, %L)', v_jobmon_schema, v_job_id, 'Attempted partition time interval is outside PostgreSQL''s supported time range.') INTO v_step_overflow_id;
                     EXECUTE format('SELECT %I.update_step(%L, %L, %L)', v_jobmon_schema, v_step_overflow_id, 'CRITICAL', 'Child partition creation skippd for parent table '||v_partition_time);
@@ -235,7 +235,7 @@ LOOP
                 RAISE WARNING 'Attempted partition time interval is outside PostgreSQL''s supported time range. Child partition creation skipped for parent table %', v_row.parent_table;
                 CONTINUE;
             END;
-            v_last_partition_created := @extschema@.create_partition_time(v_row.parent_table, ARRAY[v_next_partition_timestamp], p_analyze); 
+            v_last_partition_created := @extschema@.create_partition_time(v_row.parent_table, ARRAY[v_next_partition_timestamp], p_analyze);
             IF v_last_partition_created THEN
                 v_create_count := v_create_count + 1;
                 PERFORM @extschema@.create_function_time(v_row.parent_table, v_job_id);
@@ -285,7 +285,7 @@ LOOP
         v_next_partition_id := v_last_partition_id;
         v_premade_count := ((v_last_partition_id - v_current_partition_id) / v_row.partition_interval::bigint);
         -- Loop premaking until config setting is met. Allows it to catch up if it fell behind or if premake changed.
-        WHILE (v_premade_count < v_row.premake) LOOP 
+        WHILE (v_premade_count < v_row.premake) LOOP
             IF p_debug THEN
                 RAISE NOTICE 'run_maint: parent_table: %, v_premade_count: %, v_next_partition_id: %', v_row.parent_table, v_premade_count, v_next_partition_id;
             END IF;
@@ -310,24 +310,24 @@ LOOP
 END LOOP; -- end of creation loop
 
 -- Manage dropping old partitions if retention option is set
-FOR v_row IN 
-    SELECT parent_table FROM @extschema@.part_config WHERE retention IS NOT NULL AND undo_in_progress = false AND 
+FOR v_row IN
+    SELECT parent_table FROM @extschema@.part_config WHERE retention IS NOT NULL AND undo_in_progress = false AND
         (partition_type = 'time' OR partition_type = 'time-custom')
 LOOP
     IF p_parent_table IS NULL THEN
-        v_drop_count := v_drop_count + @extschema@.drop_partition_time(v_row.parent_table);   
+        v_drop_count := v_drop_count + @extschema@.drop_partition_time(v_row.parent_table);
     ELSE -- Only run retention on table given in parameter
         IF p_parent_table <> v_row.parent_table THEN
             CONTINUE;
         ELSE
-            v_drop_count := v_drop_count + @extschema@.drop_partition_time(v_row.parent_table);   
+            v_drop_count := v_drop_count + @extschema@.drop_partition_time(v_row.parent_table);
         END IF;
     END IF;
     IF v_drop_count > 0 THEN
         PERFORM @extschema@.create_function_time(v_row.parent_table, v_job_id);
     END IF;
-END LOOP; 
-FOR v_row IN 
+END LOOP;
+FOR v_row IN
     SELECT parent_table FROM @extschema@.part_config WHERE retention IS NOT NULL AND undo_in_progress = false AND partition_type = 'id'
 LOOP
     IF p_parent_table IS NULL THEN
@@ -342,7 +342,7 @@ LOOP
     IF v_drop_count > 0 THEN
         PERFORM @extschema@.create_function_id(v_row.parent_table, v_job_id);
     END IF;
-END LOOP; 
+END LOOP;
 
 IF v_jobmon_schema IS NOT NULL THEN
     EXECUTE format('SELECT %I.update_step(%L, %L, ''Partition maintenance finished. %s partitions made. %s partitions dropped.'')'
@@ -380,4 +380,3 @@ DETAIL: %
 HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
-

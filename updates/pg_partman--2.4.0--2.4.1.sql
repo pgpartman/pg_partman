@@ -4,11 +4,11 @@
 
 CREATE TEMP TABLE partman_preserve_privs_temp (statement text);
 
-INSERT INTO partman_preserve_privs_temp 
-SELECT 'GRANT EXECUTE ON FUNCTION @extschema@.partition_data_id(text, int, bigint, numeric, text) TO '||array_to_string(array_agg(grantee::text), ',')||';' 
+INSERT INTO partman_preserve_privs_temp
+SELECT 'GRANT EXECUTE ON FUNCTION @extschema@.partition_data_id(text, int, bigint, numeric, text) TO '||array_to_string(array_agg(grantee::text), ',')||';'
 FROM information_schema.routine_privileges
 WHERE routine_schema = '@extschema@'
-AND routine_name = 'partition_data_id'; 
+AND routine_name = 'partition_data_id';
 
 DROP FUNCTION partition_data_id(text, int, int, numeric, text);
 
@@ -43,7 +43,7 @@ SELECT partition_interval::bigint
     , control
 INTO v_partition_interval
     , v_control
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND partition_type = 'id';
 IF NOT FOUND THEN

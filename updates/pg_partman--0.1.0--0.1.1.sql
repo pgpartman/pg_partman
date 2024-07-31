@@ -1,6 +1,6 @@
--- Only re-create partition functions if a new partition is made. 
+-- Only re-create partition functions if a new partition is made.
 
-CREATE OR REPLACE FUNCTION run_maintenance() RETURNS void 
+CREATE OR REPLACE FUNCTION run_maintenance() RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -21,7 +21,7 @@ v_sql := 'SELECT parent_table
     , last_partition
 FROM @extschema@.part_config where type = ''time-static'' or type = ''time-dynamic''';
 
-FOR v_row IN 
+FOR v_row IN
 SELECT parent_table
     , type
     , part_interval::interval
@@ -31,13 +31,13 @@ SELECT parent_table
     , last_partition
 FROM @extschema@.part_config WHERE type = 'time-static' OR type = 'time-dynamic'
 LOOP
-    
+
     CASE
         WHEN v_row.part_interval = '15 mins' THEN
-            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '15min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 15.0);
         WHEN v_row.part_interval = '30 mins' THEN
-            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '30min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 30.0);
         WHEN v_row.part_interval = '1 hour' THEN
             v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP);

@@ -23,7 +23,7 @@ DO $$
 DECLARE
 v_exists    text;
 BEGIN
-    SELECT conname INTO v_exists 
+    SELECT conname INTO v_exists
     FROM pg_catalog.pg_constraint t
     JOIN pg_catalog.pg_class c ON t.conrelid = c.oid
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
@@ -34,12 +34,12 @@ BEGIN
     IF v_exists IS NULL THEN
         EXECUTE format('
             ALTER TABLE @extschema@.part_config
-            ADD CONSTRAINT part_config_epoch_check 
+            ADD CONSTRAINT part_config_epoch_check
             CHECK (@extschema@.check_epoch_type(epoch))');
     END IF;
     v_exists := NULL;
 
-    SELECT conname INTO v_exists 
+    SELECT conname INTO v_exists
     FROM pg_catalog.pg_constraint t
     JOIN pg_catalog.pg_class c ON t.conrelid = c.oid
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
@@ -50,10 +50,8 @@ BEGIN
     IF v_exists IS NULL THEN
         EXECUTE format('
             ALTER TABLE @extschema@.part_config_sub
-            ADD CONSTRAINT part_config_sub_epoch_check 
+            ADD CONSTRAINT part_config_sub_epoch_check
             CHECK (@extschema@.check_epoch_type(sub_epoch))');
     END IF;
 END
 $$;
-
-

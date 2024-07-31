@@ -52,24 +52,24 @@ END IF;
 
 SELECT tableowner INTO v_parent_owner FROM pg_tables WHERE schemaname ||'.'|| tablename = p_parent_table;
 
-FOR v_child_table IN 
+FOR v_child_table IN
     SELECT inhrelid::regclass FROM pg_catalog.pg_inherits WHERE inhparent::regclass = p_parent_table::regclass ORDER BY inhrelid::regclass ASC
 LOOP
     PERFORM update_step(v_step_id, 'PENDING', 'Currently on child partition in ascending order: '||v_child_table);
     v_grantees := NULL;
-    FOR v_parent_grant IN 
+    FOR v_parent_grant IN
         SELECT array_agg(DISTINCT privilege_type::text ORDER BY privilege_type::text) AS types, grantee
-        FROM information_schema.table_privileges 
+        FROM information_schema.table_privileges
         WHERE table_schema ||'.'|| table_name = p_parent_table
-        GROUP BY grantee 
+        GROUP BY grantee
     LOOP
         -- Compare parent & child grants. Don't re-apply if it already exists
         v_match := false;
-        FOR v_child_grant IN 
+        FOR v_child_grant IN
             SELECT array_agg(DISTINCT privilege_type::text ORDER BY privilege_type::text) AS types, grantee
-            FROM information_schema.table_privileges 
+            FROM information_schema.table_privileges
             WHERE table_schema ||'.'|| table_name = v_child_table
-            GROUP BY grantee 
+            GROUP BY grantee
         LOOP
             IF v_parent_grant.types = v_child_grant.types AND v_parent_grant.grantee = v_child_grant.grantee THEN
                 v_match := true;
@@ -87,7 +87,7 @@ LOOP
         v_grantees := array_append(v_grantees, v_parent_grant.grantee::text);
 
     END LOOP;
-    
+
     -- Revoke all privileges from roles that have none on the parent
     IF v_grantees IS NOT NULL THEN
         SELECT array_agg(r) INTO v_revoke FROM (
@@ -168,7 +168,7 @@ SELECT tableowner INTO v_parent_owner FROM pg_tables WHERE schemaname ||'.'|| ta
 FOREACH v_id IN ARRAY p_partition_ids LOOP
 
     v_partition_name := p_parent_table||'_p'||v_id;
-        
+
     SELECT schemaname ||'.'|| tablename INTO v_tablename FROM pg_catalog.pg_tables WHERE schemaname ||'.'|| tablename = v_partition_name;
 
     IF v_tablename IS NOT NULL THEN
@@ -180,20 +180,20 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
         v_step_id := add_step(v_job_id, 'Creating new partition '||v_partition_name||' with interval from '||v_id||' to '||(v_id + p_interval)-1);
     END IF;
 
-    IF position('.' in p_parent_table) > 0 THEN 
+    IF position('.' in p_parent_table) > 0 THEN
         v_tablename := substring(v_partition_name from position('.' in v_partition_name)+1);
     END IF;
 
     EXECUTE 'CREATE TABLE '||v_partition_name||' (LIKE '||p_parent_table||' INCLUDING DEFAULTS INCLUDING INDEXES)';
-    EXECUTE 'ALTER TABLE '||v_partition_name||' ADD CONSTRAINT '||v_tablename||'_partition_check 
+    EXECUTE 'ALTER TABLE '||v_partition_name||' ADD CONSTRAINT '||v_tablename||'_partition_check
         CHECK ('||p_control||'>='||quote_literal(v_id)||' AND '||p_control||'<'||quote_literal(v_id + p_interval)||')';
     EXECUTE 'ALTER TABLE '||v_partition_name||' INHERIT '||p_parent_table;
 
-    FOR v_parent_grant IN 
+    FOR v_parent_grant IN
         SELECT array_agg(DISTINCT privilege_type::text ORDER BY privilege_type::text) AS types, grantee
-        FROM information_schema.table_privileges 
+        FROM information_schema.table_privileges
         WHERE table_schema ||'.'|| table_name = p_parent_table
-        GROUP BY grantee 
+        GROUP BY grantee
     LOOP
         EXECUTE 'GRANT '||array_to_string(v_parent_grant.types, ',')||' ON '||v_partition_name||' TO '||v_parent_grant.grantee;
         SELECT array_agg(r) INTO v_revoke FROM (SELECT unnest(v_all) AS r EXCEPT SELECT unnest(v_parent_grant.types)) x;
@@ -282,13 +282,13 @@ END IF;
 
 SELECT tableowner INTO v_parent_owner FROM pg_tables WHERE schemaname ||'.'|| tablename = p_parent_table;
 
-FOREACH v_time IN ARRAY p_partition_times LOOP    
+FOREACH v_time IN ARRAY p_partition_times LOOP
 
     v_partition_name := p_parent_table || '_p';
 
     IF p_interval = '1 year' OR p_interval = '1 month' OR p_interval = '1 day' OR p_interval = '1 hour' OR p_interval = '30 mins' OR p_interval = '15 mins' THEN
         v_partition_name := v_partition_name || to_char(v_time, 'YYYY');
-        
+
         IF p_interval = '1 month' OR p_interval = '1 day' OR p_interval = '1 hour' OR p_interval = '30 mins' OR p_interval = '15 mins' THEN
             v_partition_name := v_partition_name || '_' || to_char(v_time, 'MM');
 
@@ -316,7 +316,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
                             v_partition_name := v_partition_name || '30';
                         END IF;
                     END IF;
-                END IF; -- end hour IF      
+                END IF; -- end hour IF
             END IF; -- end day IF
         END IF; -- end month IF
     ELSIF p_interval = '1 week' THEN
@@ -332,7 +332,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         v_year := to_char(v_time, 'YYYY');
         v_quarter := to_char(v_time, 'Q');
         v_partition_name := v_partition_name || v_year || 'q' || v_quarter;
-        CASE 
+        CASE
             WHEN v_quarter = '1' THEN
                 v_partition_timestamp_start := to_timestamp(v_year || '-01-01', 'YYYY-MM-DD');
             WHEN v_quarter = '2' THEN
@@ -355,7 +355,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         v_step_id := add_step(v_job_id, 'Creating new partition '||v_partition_name||' with interval from '||v_partition_timestamp_start||' to '||(v_partition_timestamp_end-'1sec'::interval));
     END IF;
 
-    IF position('.' in p_parent_table) > 0 THEN 
+    IF position('.' in p_parent_table) > 0 THEN
         v_tablename := substring(v_partition_name from position('.' in v_partition_name)+1);
     END IF;
 
@@ -364,11 +364,11 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         CHECK ('||p_control||'>='||quote_literal(v_partition_timestamp_start)||' AND '||p_control||'<'||quote_literal(v_partition_timestamp_end)||')';
     EXECUTE 'ALTER TABLE '||v_partition_name||' INHERIT '||p_parent_table;
 
-    FOR v_parent_grant IN 
+    FOR v_parent_grant IN
         SELECT array_agg(DISTINCT privilege_type::text ORDER BY privilege_type::text) AS types, grantee
-        FROM information_schema.table_privileges 
+        FROM information_schema.table_privileges
         WHERE table_schema ||'.'|| table_name = p_parent_table
-        GROUP BY grantee 
+        GROUP BY grantee
     LOOP
         EXECUTE 'GRANT '||array_to_string(v_parent_grant.types, ',')||' ON '||v_partition_name||' TO '||v_parent_grant.grantee;
         SELECT array_agg(r) INTO v_revoke FROM (SELECT unnest(v_all) AS r EXCEPT SELECT unnest(v_parent_grant.types)) x;

@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION @extschema@.inherit_template_properties (p_parent_table text, p_child_schema text, p_child_tablename text) RETURNS boolean
-    LANGUAGE plpgsql 
+    LANGUAGE plpgsql
     AS $$
 DECLARE
 
@@ -47,7 +47,7 @@ AND c.relname = split_part(p_parent_table, '.', 2)::name;
     IF v_parent_oid IS NULL THEN
         RAISE EXCEPTION 'Unable to find given parent table in system catalogs: %', p_parent_table;
     END IF;
- 
+
 SELECT n.nspname, c.relname, c.relkind INTO v_child_schema, v_child_tablename, v_child_relkind
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
@@ -56,7 +56,7 @@ AND c.relname = p_child_tablename::name;
     IF v_child_tablename IS NULL THEN
         RAISE EXCEPTION 'Unable to find given child table in system catalogs: %.%', v_child_schema, v_child_tablename;
     END IF;
-       
+
 IF v_child_relkind = 'p' THEN
     -- Subpartitioned parent, do not apply properties
     RAISE DEBUG 'inherit_template_properties: found given child is subpartition parent, so properties not inherited';
@@ -78,7 +78,7 @@ AND c.relname = v_template_tablename;
 
 -- Index creation (Required for all indexes in PG10. Only for non-unique, non-partition key indexes in PG11)
 IF current_setting('server_version_num')::int >= 100000 THEN
-    FOR v_index_list IN 
+    FOR v_index_list IN
         SELECT
         array_to_string(regexp_matches(pg_get_indexdef(indexrelid), ' USING .*'),',') AS statement
         , i.indisprimary
@@ -101,7 +101,7 @@ IF current_setting('server_version_num')::int >= 100000 THEN
         v_dupe_found := false;
 
         IF current_setting('server_version_num')::int >= 110000 THEN
-            FOR v_parent_index_list IN 
+            FOR v_parent_index_list IN
                 SELECT
                 array_to_string(regexp_matches(pg_get_indexdef(indexrelid), ' USING .*'),',') AS statement
                 , i.indisprimary
@@ -162,13 +162,13 @@ IF current_setting('server_version_num')::int >= 100000 THEN
         END IF;
 
     END LOOP;
-END IF; 
+END IF;
 -- End index creation
 
 -- Foreign key creation (PG10 only)
 IF current_setting('server_version_num')::int >= 100000 AND current_setting('server_version_num')::int < 110000 THEN
     IF v_inherit_fk THEN
-        FOR v_fk_list IN 
+        FOR v_fk_list IN
             SELECT pg_get_constraintdef(con.oid) AS constraint_def
             FROM pg_catalog.pg_constraint con
             JOIN pg_catalog.pg_class c ON con.conrelid = c.oid
@@ -190,7 +190,7 @@ IF v_template_tablespace IS NOT NULL THEN
     EXECUTE v_sql;
 END IF;
 
--- UNLOGGED status. Currently waiting on final stance of how native will handle this property being changed for its children. 
+-- UNLOGGED status. Currently waiting on final stance of how native will handle this property being changed for its children.
 -- See release notes for v4.2.0
 SELECT relpersistence INTO v_template_unlogged
 FROM pg_catalog.pg_class c
@@ -207,15 +207,14 @@ AND c.relname = v_child_tablename::name;
 IF v_template_unlogged = 'u' AND v_child_unlogged = 'p'  THEN
     v_sql := format ('ALTER TABLE %I.%I SET UNLOGGED', v_child_schema, v_child_tablename);
     RAISE DEBUG 'Alter UNLOGGED: %', v_sql;
-    EXECUTE v_sql;     
+    EXECUTE v_sql;
 ELSIF v_template_unlogged = 'p' AND v_child_unlogged = 'u'  THEN
     v_sql := format ('ALTER TABLE %I.%I SET LOGGED', v_child_schema, v_child_tablename);
     RAISE DEBUG 'Alter UNLOGGED: %', v_sql;
-    EXECUTE v_sql;     
+    EXECUTE v_sql;
 END IF;
 
 RETURN true;
 
 END
 $$;
-

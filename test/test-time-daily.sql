@@ -638,4 +638,3 @@ SELECT hasnt_table('partman', 'template_partman_test_time_taptest_table', 'Check
 
 SELECT * FROM finish();
 ROLLBACK;
-

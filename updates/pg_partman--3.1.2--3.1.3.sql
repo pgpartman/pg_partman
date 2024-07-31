@@ -39,7 +39,7 @@ IF v_parent_table IS NULL THEN
 ELSIF v_template_table IS NULL THEN
     RAISE EXCEPTION 'No template table set in configuration for given parent table: %', p_parent_table;
 END IF;
- 
+
 SELECT c.oid INTO v_parent_oid
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
@@ -48,7 +48,7 @@ AND c.relname = split_part(p_parent_table, '.', 2)::name;
     IF v_parent_oid IS NULL THEN
         RAISE EXCEPTION 'Unable to find given parent table in system catalogs: %', p_parent_table;
     END IF;
- 
+
 SELECT n.nspname, c.relname, c.relkind INTO v_child_schema, v_child_tablename, v_child_relkind
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
@@ -57,7 +57,7 @@ AND c.relname = p_child_tablename::name;
     IF v_child_tablename IS NULL THEN
         RAISE EXCEPTION 'Unable to find given child table in system catalogs: %.%', v_child_schema, v_child_tablename;
     END IF;
-       
+
 IF v_child_relkind = 'p' THEN
     -- Subpartitioned parent, do not apply properties
     RAISE DEBUG 'inherit_template_properties: found given child is subpartition parent, so properties not inherited';
@@ -76,7 +76,7 @@ AND c.relname = split_part(v_template_table, '.', 2)::name;
 
 -- Index creation (only required in 10)
 IF current_setting('server_version_num')::int > 100000 AND current_setting('server_version_num')::int < 110000 THEN
-    FOR v_index_list IN 
+    FOR v_index_list IN
         SELECT
         array_to_string(regexp_matches(pg_get_indexdef(indexrelid), ' USING .*'),',') AS statement
         , i.indisprimary
@@ -110,12 +110,12 @@ IF current_setting('server_version_num')::int > 100000 AND current_setting('serv
         END IF;
 
     END LOOP;
-END IF; 
+END IF;
 -- End index creation
 
 -- Foreign key creation
 IF v_inherit_fk THEN
-    FOR v_fk_list IN 
+    FOR v_fk_list IN
         SELECT pg_get_constraintdef(con.oid) AS constraint_def
         FROM pg_catalog.pg_constraint con
         JOIN pg_catalog.pg_class c ON con.conrelid = c.oid
@@ -179,7 +179,7 @@ v_row                   record;
 v_sql                   text;
 v_step_id               bigint;
 v_sub_control           text;
-v_sub_partition_type    text; 
+v_sub_partition_type    text;
 v_sub_id_max            bigint;
 v_sub_id_min            bigint;
 v_template_table        text;
@@ -209,8 +209,8 @@ IF NOT FOUND THEN
     RAISE EXCEPTION 'ERROR: no config found for %', p_parent_table;
 END IF;
 
-SELECT n.nspname, c.relname, t.spcname 
-INTO v_parent_schema, v_parent_tablename, v_parent_tablespace 
+SELECT n.nspname, c.relname, t.spcname
+INTO v_parent_schema, v_parent_tablename, v_parent_tablespace
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
 LEFT OUTER JOIN pg_catalog.pg_tablespace t ON c.reltablespace = t.oid
@@ -240,7 +240,7 @@ IF v_jobmon_schema IS NOT NULL THEN
 END IF;
 
 FOREACH v_id IN ARRAY p_partition_ids LOOP
--- Do not create the child table if it's outside the bounds of the top parent. 
+-- Do not create the child table if it's outside the bounds of the top parent.
     IF v_sub_id_min IS NOT NULL THEN
         IF v_id < v_sub_id_min OR v_id > v_sub_id_max THEN
             CONTINUE;
@@ -250,7 +250,7 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
     v_partition_name := @extschema@.check_name_length(v_parent_tablename, v_id::text, TRUE);
     -- If child table already exists, skip creation
     -- Have to check pg_class because if subpartitioned, table will not be in pg_tables
-    SELECT c.relname INTO v_exists 
+    SELECT c.relname INTO v_exists
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
     WHERE n.nspname = v_parent_schema::name AND c.relname = v_partition_name::name;
@@ -265,7 +265,7 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
         v_step_id := add_step(v_job_id, 'Creating new partition '||v_partition_name||' with interval from '||v_id||' to '||(v_id + v_partition_interval)-1);
     END IF;
 
-    SELECT relpersistence INTO v_unlogged 
+    SELECT relpersistence INTO v_unlogged
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
     WHERE c.relname = v_parent_tablename::name
@@ -282,8 +282,8 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
             , v_parent_schema
             , v_parent_tablename);
 
-    SELECT sub_partition_type, sub_control INTO v_sub_partition_type, v_sub_control 
-    FROM @extschema@.part_config_sub 
+    SELECT sub_partition_type, sub_control INTO v_sub_partition_type, v_sub_control
+    FROM @extschema@.part_config_sub
     WHERE sub_parent = p_parent_table;
     IF v_sub_partition_type = 'native' THEN
         -- NOTE: Need to handle this differently when index inheritance is supported natively
@@ -294,7 +294,7 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
     END IF;
 
 
-    SELECT relhasoids INTO v_hasoids 
+    SELECT relhasoids INTO v_hasoids
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
     WHERE c.relname = v_parent_tablename::name
@@ -344,7 +344,7 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
         END IF;
 
     END IF;
-    
+
     -- NOTE: Privileges currently not automatically inherited for native
     PERFORM @extschema@.apply_privileges(v_parent_schema, v_parent_tablename, v_parent_schema, v_partition_name, v_job_id);
 
@@ -354,7 +354,7 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
 
     -- Will only loop once and only if sub_partitioning is actually configured
     -- This seemed easier than assigning a bunch of variables then doing an IF condition
-    FOR v_row IN 
+    FOR v_row IN
         SELECT sub_parent
             , sub_partition_type
             , sub_control
@@ -405,7 +405,7 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
             , v_row.sub_jobmon);
         EXECUTE v_sql;
 
-        UPDATE @extschema@.part_config SET 
+        UPDATE @extschema@.part_config SET
             retention_schema = v_row.sub_retention_schema
             , retention_keep_table = v_row.sub_retention_keep_table
             , retention_keep_index = v_row.sub_retention_keep_index
@@ -420,7 +420,7 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
         END IF;
 
     END LOOP; -- end sub partitioning LOOP
-    
+
     -- Manage additonal constraints if set
     PERFORM @extschema@.apply_constraints(p_parent_table, p_job_id := v_job_id, p_debug := p_debug);
 
@@ -450,7 +450,7 @@ IF v_jobmon_schema IS NOT NULL THEN
 
     PERFORM close_job(v_job_id);
 END IF;
- 
+
 EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_old_search_path, 'false');
 
 RETURN v_partition_created;
@@ -474,13 +474,13 @@ EXCEPTION
         RAISE EXCEPTION '%
 CONTEXT: %
 DETAIL: %
-HINT: %', ex_message, ex_context, ex_detail, ex_hint; 
+HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
 
 
 
-CREATE OR REPLACE FUNCTION create_partition_time(p_parent_table text, p_partition_times timestamptz[], p_analyze boolean DEFAULT true, p_debug boolean DEFAULT false) 
+CREATE OR REPLACE FUNCTION create_partition_time(p_parent_table text, p_partition_times timestamptz[], p_analyze boolean DEFAULT true, p_debug boolean DEFAULT false)
 RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
@@ -563,8 +563,8 @@ IF NOT FOUND THEN
     RAISE EXCEPTION 'ERROR: no config found for %', p_parent_table;
 END IF;
 
-SELECT n.nspname, c.relname, t.spcname 
-INTO v_parent_schema, v_parent_tablename, v_parent_tablespace 
+SELECT n.nspname, c.relname, t.spcname
+INTO v_parent_schema, v_parent_tablename, v_parent_tablespace
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
 LEFT OUTER JOIN pg_catalog.pg_tablespace t ON c.reltablespace = t.oid
@@ -572,7 +572,7 @@ WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
 AND c.relname = split_part(p_parent_table, '.', 2)::name;
 
 SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
-IF v_control_type <> 'time' THEN 
+IF v_control_type <> 'time' THEN
     IF (v_control_type = 'id' AND v_epoch = 'none') OR v_control_type <> 'id' THEN
         RAISE EXCEPTION 'Cannot run on partition set without time based control column or epoch flag set with an id column. Found control: %, epoch: %', v_control_type, v_epoch;
     END IF;
@@ -603,12 +603,12 @@ IF p_debug THEN
     RAISE NOTICE 'create_partition_time: v_partition_expression: %', v_partition_expression;
 END IF;
 
-FOREACH v_time IN ARRAY p_partition_times LOOP    
+FOREACH v_time IN ARRAY p_partition_times LOOP
     v_partition_timestamp_start := v_time;
     BEGIN
         v_partition_timestamp_end := v_time + v_partition_interval;
     EXCEPTION WHEN datetime_field_overflow THEN
-        RAISE WARNING 'Attempted partition time interval is outside PostgreSQL''s supported time range. 
+        RAISE WARNING 'Attempted partition time interval is outside PostgreSQL''s supported time range.
             Child partition creation after time % skipped', v_time;
         v_step_overflow_id := add_step(v_job_id, 'Attempted partition time interval is outside PostgreSQL''s supported time range.');
         PERFORM update_step(v_step_overflow_id, 'CRITICAL', 'Child partition creation after time '||v_time||' skipped');
@@ -616,7 +616,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         CONTINUE;
     END;
 
-    -- Do not create the child table if it's outside the bounds of the top parent. 
+    -- Do not create the child table if it's outside the bounds of the top parent.
     IF v_sub_timestamp_min IS NOT NULL THEN
         IF v_time < v_sub_timestamp_min OR v_time > v_sub_timestamp_max THEN
             CONTINUE;
@@ -626,11 +626,11 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
     -- This suffix generation code is in partition_data_time() as well
     v_partition_suffix := to_char(v_time, v_datetime_string);
     v_partition_name := @extschema@.check_name_length(v_parent_tablename, v_partition_suffix, TRUE);
-    -- Check if child exists. 
+    -- Check if child exists.
     SELECT count(*) INTO v_exists
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-    WHERE n.nspname = v_parent_schema::name 
+    WHERE n.nspname = v_parent_schema::name
     AND c.relname = v_partition_name::name;
 
     IF v_exists > 0 THEN
@@ -648,7 +648,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
                                                 , v_partition_timestamp_end-'1sec'::interval));
     END IF;
 
-    SELECT relpersistence INTO v_unlogged 
+    SELECT relpersistence INTO v_unlogged
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
     WHERE c.relname = v_parent_tablename::name
@@ -664,8 +664,8 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
                                 , v_parent_schema
                                 , v_parent_tablename);
 
-    SELECT sub_partition_type, sub_control INTO v_sub_partition_type, v_sub_control 
-    FROM @extschema@.part_config_sub 
+    SELECT sub_partition_type, sub_control INTO v_sub_partition_type, v_sub_control
+    FROM @extschema@.part_config_sub
     WHERE sub_parent = p_parent_table;
     IF v_sub_partition_type = 'native' THEN
         -- NOTE: Need to handle this differently when index inheritance is supported natively
@@ -675,7 +675,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         v_sql := v_sql || format(' INCLUDING INDEXES) ', v_sub_control);
     END IF;
 
-    SELECT relhasoids INTO v_hasoids 
+    SELECT relhasoids INTO v_hasoids
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
     WHERE c.relname = v_parent_tablename::name
@@ -797,7 +797,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
 
     -- Will only loop once and only if sub_partitioning is actually configured
     -- This seemed easier than assigning a bunch of variables then doing an IF condition
-    FOR v_row IN 
+    FOR v_row IN
         SELECT sub_parent
             , sub_partition_type
             , sub_control
@@ -851,7 +851,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         END IF;
         EXECUTE v_sql;
 
-        UPDATE @extschema@.part_config SET 
+        UPDATE @extschema@.part_config SET
             retention_schema = v_row.sub_retention_schema
             , retention_keep_table = v_row.sub_retention_keep_table
             , retention_keep_index = v_row.sub_retention_keep_index
@@ -922,4 +922,3 @@ DETAIL: %
 HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
-
