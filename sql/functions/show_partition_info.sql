@@ -114,6 +114,8 @@ IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
             child_start_time := to_timestamp(v_start_string::double precision);
         ELSIF v_epoch = 'milliseconds' THEN
             child_start_time := to_timestamp((v_start_string::double precision) / 1000);
+        ELSIF v_epoch = 'microseconds' THEN
+            child_start_time := to_timestamp((v_start_string::double precision) / 1000000);
         ELSIF v_epoch = 'nanoseconds' THEN
             child_start_time := to_timestamp((v_start_string::double precision) / 1000000000);
         END IF;

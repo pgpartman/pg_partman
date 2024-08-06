@@ -137,7 +137,7 @@ CREATE FUNCTION @extschema@.check_epoch_type (p_type text) RETURNS boolean
 DECLARE
 v_result    boolean;
 BEGIN
-    SELECT p_type IN ('none', 'seconds', 'milliseconds', 'nanoseconds') INTO v_result;
+    SELECT p_type IN ('none', 'seconds', 'milliseconds', 'microseconds', 'nanoseconds') INTO v_result;
     RETURN v_result;
 END
 $$;
