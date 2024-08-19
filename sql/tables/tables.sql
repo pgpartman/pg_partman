@@ -1,6 +1,8 @@
 CREATE TABLE @extschema@.part_config (
     parent_table text NOT NULL
     , control text NOT NULL
+    , time_encoder text
+    , time_decoder text
     , partition_interval text NOT NULL
     , partition_type text NOT NULL
     , premake int NOT NULL DEFAULT 4
@@ -38,6 +40,7 @@ SELECT pg_catalog.pg_extension_config_dump('@extschema@.part_config'::regclass, 
 CREATE TABLE @extschema@.part_config_sub (
     sub_parent text
     , sub_control text NOT NULL
+    , sub_time_encoder text
     , sub_partition_interval text NOT NULL
     , sub_partition_type text NOT NULL
     , sub_premake int NOT NULL DEFAULT 4

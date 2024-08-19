@@ -2,6 +2,8 @@ Example Guide On Setting Up Native Partitioning
 ========================================
 
 - [Simple Time Based: 1 Partition Per Day](#simple-time-based-1-partition-per-day)
+- [Simple Time Based with UUIDv7 type: 1 Partition Per Day](#simple-time-based-with-uuidv7-type-1-partition-per-day)
+- [Simple Time Based with Text Type: 1 Partition Per Day](#simple-time-based-with-text-type-1-partition-per-day)
 - [Simple Serial ID: 1 Partition Per 10 ID Values](#simple-serial-id-1-partition-Per-10-id-values)
 - [Partitioning an Existing Table](#partitioning-an-existing-table)
   * [Offline Partitioning](#offline-partitioning)
@@ -109,6 +111,180 @@ Indexes:
 Access method: heap
 ```
 
+### Simple Time Based with UUIDv7 type: 1 Partition Per Day
+This is similar to simple time based paritioning but using UUIDv7 identifiers.
+
+```sql
+CREATE SCHEMA IF NOT EXISTS partman_test;
+
+CREATE TABLE partman_test.time_taptest_table
+    (col1 int,
+    col2 text default 'stuff',
+    col3 uuid PRIMARY KEY)
+PARTITION BY RANGE (col3);
+
+```
+```sql
+\d+ partman_test.time_taptest_table
+                              Partitioned table "partman_test.time_taptest_table"
+ Column |  Type   | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description 
+--------+---------+-----------+----------+---------------+----------+-------------+--------------+-------------
+ col1   | integer |           |          |               | plain    |             |              | 
+ col2   | text    |           |          | 'stuff'::text | extended |             |              | 
+ col3   | uuid    |           | not null |               | plain    |             |              | 
+Partition key: RANGE (col3)
+Indexes:
+    "time_taptest_table_pkey" PRIMARY KEY, btree (col3)
+Number of partitions: 0
+
+```
+For this example we use col3 as the partition key and builtin uuidv7 encoder/decoder functions to enable time based paritioning on col3. Because col3 is the partition key, the primary key index is automatically inherited by child partitions.
+```sql
+SELECT partman.create_parent(
+    p_parent_table := 'partman_test.time_taptest_table'
+    , p_control := 'col3'
+    , p_interval := '1 day'
+    , p_time_encoder := 'partman.uuid7_time_encoder'
+    , p_time_decoder := 'partman.uuid7_time_decoder'
+);
+ create_parent
+---------------
+ t
+(1 row)
+```
+```sql
+\d+ partman_test.time_taptest_table
+--------+---------+-----------+----------+---------------+----------+-------------+--------------+-------------
+ col1   | integer |           |          |               | plain    |             |              | 
+ col2   | text    |           |          | 'stuff'::text | extended |             |              | 
+ col3   | uuid    |           | not null |               | plain    |             |              | 
+Partition key: RANGE (col3)
+Indexes:
+    "time_taptest_table_pkey" PRIMARY KEY, btree (col3)
+Partitions: partman_test.time_taptest_table_p20240813 FOR VALUES FROM ('019147da-b040-0000-0000-000000000000') TO ('01914d01-0c40-0000-0000-000000000000'),
+            partman_test.time_taptest_table_p20240814 FOR VALUES FROM ('01914d01-0c40-0000-0000-000000000000') TO ('01915227-6840-0000-0000-000000000000'),
+            partman_test.time_taptest_table_p20240815 FOR VALUES FROM ('01915227-6840-0000-0000-000000000000') TO ('0191574d-c440-0000-0000-000000000000'),
+            partman_test.time_taptest_table_p20240816 FOR VALUES FROM ('0191574d-c440-0000-0000-000000000000') TO ('01915c74-2040-0000-0000-000000000000'),
+            partman_test.time_taptest_table_p20240817 FOR VALUES FROM ('01915c74-2040-0000-0000-000000000000') TO ('0191619a-7c40-0000-0000-000000000000'),
+            partman_test.time_taptest_table_p20240818 FOR VALUES FROM ('0191619a-7c40-0000-0000-000000000000') TO ('019166c0-d840-0000-0000-000000000000'),
+            partman_test.time_taptest_table_p20240819 FOR VALUES FROM ('019166c0-d840-0000-0000-000000000000') TO ('01916be7-3440-0000-0000-000000000000'),
+            partman_test.time_taptest_table_p20240820 FOR VALUES FROM ('01916be7-3440-0000-0000-000000000000') TO ('0191710d-9040-0000-0000-000000000000'),
+            partman_test.time_taptest_table_p20240821 FOR VALUES FROM ('0191710d-9040-0000-0000-000000000000') TO ('01917633-ec40-0000-0000-000000000000'),
+            partman_test.time_taptest_table_default DEFAULT
+```
+```sql
+\d+ partman_test.time_taptest_table_p20240813
+ Column |  Type   | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description 
+--------+---------+-----------+----------+---------------+----------+-------------+--------------+-------------
+ col1   | integer |           |          |               | plain    |             |              | 
+ col2   | text    |           |          | 'stuff'::text | extended |             |              | 
+ col3   | uuid    |           | not null |               | plain    |             |              | 
+Partition of: partman_test.time_taptest_table FOR VALUES FROM ('019147da-b040-0000-0000-000000000000') TO ('01914d01-0c40-0000-0000-000000000000')
+Partition constraint: ((col3 IS NOT NULL) AND (col3 >= '019147da-b040-0000-0000-000000000000'::uuid) AND (col3 < '01914d01-0c40-0000-0000-000000000000'::uuid))
+Indexes:
+    "time_taptest_table_p20240813_pkey" PRIMARY KEY, btree (col3)
+Access method: heap
+```
+
+
+### Simple Time Based with Text Type: 1 Partition Per Day
+This is similar to simple time based paritioning but using text control column. 
+For this example we will assume col3 contains identifiers formatted as `INVYYYYMMDD` where `INV` is a static application defined prefix and the remaining is a timestamp component.
+
+```sql
+CREATE SCHEMA IF NOT EXISTS partman_test;
+
+CREATE TABLE partman_test.time_taptest_table
+    (col1 int,
+    col2 text default 'stuff',
+    col3 text PRIMARY KEY)
+PARTITION BY RANGE (col3);
+
+```
+```sql
+\d+ partman_test.time_taptest_table
+                              Partitioned table "partman_test.time_taptest_table"
+ Column |  Type   | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description 
+--------+---------+-----------+----------+---------------+----------+-------------+--------------+-------------
+ col1   | integer |           |          |               | plain    |             |              | 
+ col2   | text    |           |          | 'stuff'::text | extended |             |              | 
+ col3   | text    |           | not null |               | extended |             |              | 
+Partition key: RANGE (col3)
+Indexes:
+    "time_taptest_table_pkey" PRIMARY KEY, btree (col3)
+Number of partitions: 0
+
+```
+In order to use col3 as control column for time partitioning, we need to define encoder/decoder functions that tell pg_partman how to derive time information from the identifier.
+
+```sql
+CREATE FUNCTION public.encode_timestamp(p_timestamp timestamptz, OUT encoded text)
+    RETURNS text
+    LANGUAGE plpgsql STABLE
+    AS $$
+BEGIN
+    SELECT concat('INV', to_char(p_timestamp, 'YYYYMMDD')) INTO encoded;
+END
+$$;
+
+CREATE FUNCTION public.decode_timestamp(p_str text, OUT ts timestamptz)
+    RETURNS TIMESTAMPTZ
+    LANGUAGE plpgsql STABLE
+    AS $$
+BEGIN
+    SELECT substr(p_str, 4) INTO ts;
+END
+$$;
+```
+ 
+```sql
+SELECT partman.create_parent(
+    p_parent_table := 'partman_test.time_taptest_table'
+    , p_control := 'col3'
+    , p_interval := '1 day'
+    , p_time_encoder := 'public.encode_timestamp'
+    , p_time_decoder := 'public.decode_timestamp'
+);
+ create_parent
+---------------
+ t
+(1 row)
+```
+```sql
+                              Partitioned table "partman_test.time_taptest_table"
+ Column |  Type   | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description 
+--------+---------+-----------+----------+---------------+----------+-------------+--------------+-------------
+ col1   | integer |           |          |               | plain    |             |              | 
+ col2   | text    |           |          | 'stuff'::text | extended |             |              | 
+ col3   | text    |           | not null |               | extended |             |              | 
+Partition key: RANGE (col3)
+Indexes:
+    "time_taptest_table_pkey" PRIMARY KEY, btree (col3)
+Partitions: time_taptest_table_p20240815 FOR VALUES FROM ('INV20240815') TO ('INV20240816'),
+            time_taptest_table_p20240816 FOR VALUES FROM ('INV20240816') TO ('INV20240817'),
+            time_taptest_table_p20240817 FOR VALUES FROM ('INV20240817') TO ('INV20240818'),
+            time_taptest_table_p20240818 FOR VALUES FROM ('INV20240818') TO ('INV20240819'),
+            time_taptest_table_p20240819 FOR VALUES FROM ('INV20240819') TO ('INV20240820'),
+            time_taptest_table_p20240820 FOR VALUES FROM ('INV20240820') TO ('INV20240821'),
+            time_taptest_table_p20240821 FOR VALUES FROM ('INV20240821') TO ('INV20240822'),
+            time_taptest_table_p20240822 FOR VALUES FROM ('INV20240822') TO ('INV20240823'),
+            time_taptest_table_p20240823 FOR VALUES FROM ('INV20240823') TO ('INV20240824'),
+            time_taptest_table_default DEFAULT
+```
+```sql
+\d+ partman_test.time_taptest_table_p20240815
+                               Table "partman_test.time_taptest_table_p20240815"
+ Column |  Type   | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description 
+--------+---------+-----------+----------+---------------+----------+-------------+--------------+-------------
+ col1   | integer |           |          |               | plain    |             |              | 
+ col2   | text    |           |          | 'stuff'::text | extended |             |              | 
+ col3   | text    |           | not null |               | extended |             |              | 
+Partition of: time_taptest_table FOR VALUES FROM ('INV20240815') TO ('INV20240816')
+Partition constraint: ((col3 IS NOT NULL) AND (col3 >= 'INV20240815'::text) AND (col3 < 'INV20240816'::text))
+Indexes:
+    "time_taptest_table_p20240815_pkey" PRIMARY KEY, btree (col3)
+Access method: heap
+```
 ### Simple Serial ID: 1 Partition Per 10 ID Values
 For this use-case, the template table is not created manually before calling `create_parent()`. So it shows that if a primary/unique key is added later, it does not apply to the currently existing child tables. That will have to be done manually.
 

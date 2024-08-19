@@ -17,6 +17,8 @@ v_child_schema          text;
 v_child_tablename       text;
 v_control               text;
 v_control_type          text;
+v_time_encoder          text;
+v_time_decoder          text;
 v_epoch                 text;
 v_exact_control_type    text;
 v_parent_table          text;
@@ -30,6 +32,11 @@ BEGIN
  * Passing the parent table argument slightly improves performance by avoiding a catalog lookup.
  * Passing an interval lets you set one different than the default configured one if desired.
  */
+
+SELECT time_encoder, time_decoder
+INTO v_time_encoder, v_time_decoder
+FROM @extschema@.part_config
+WHERE parent_table = p_parent_table;
 
 SELECT n.nspname, c.relname INTO v_child_schema, v_child_tablename
 FROM pg_catalog.pg_class c
@@ -103,10 +110,12 @@ ELSE
     RAISE EXCEPTION 'partman functions only work with list partitioning with integers and ranged partitioning with time or integers. Found partition strategy "%" for given partition set', v_partstrat;
 END IF;
 
-IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
+IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') OR (v_control_type IN ('text', 'uuid')) THEN
 
     IF v_control_type = 'time' THEN
         child_start_time := v_start_string::timestamptz;
+    ELSIF v_control_type IN ('text', 'uuid') THEN
+        EXECUTE format('SELECT %s(%s)', v_time_decoder, v_start_string) INTO child_start_time;
     ELSIF (v_control_type = 'id' AND v_epoch <> 'none') THEN
         -- bigint data type is stored as a single-quoted string in the partition expression. Must strip quotes for valid type-cast.
         v_start_string := trim(BOTH '''' FROM v_start_string);

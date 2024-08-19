@@ -14,6 +14,7 @@ ex_hint                         text;
 ex_message                      text;
 v_control                       text;
 v_control_type                  text;
+v_time_encoder                  text;
 v_datetime_string               text;
 v_epoch                         text;
 v_exists                        smallint;
@@ -44,6 +45,8 @@ v_sub_timestamp_max             timestamptz;
 v_sub_timestamp_min             timestamptz;
 v_template_table                text;
 v_time                          timestamptz;
+v_partition_text_start          text;
+v_partition_text_end            text;
 
 BEGIN
 /*
@@ -51,6 +54,7 @@ BEGIN
  */
 
 SELECT control
+    , time_encoder
     , partition_interval::interval -- this shared field also used in partition_id as bigint
     , epoch
     , jobmon
@@ -58,6 +62,7 @@ SELECT control
     , template_table
     , inherit_privileges
 INTO v_control
+    , v_time_encoder
     , v_partition_interval
     , v_epoch
     , v_jobmon
@@ -87,8 +92,8 @@ AND c.relname = split_part(p_parent_table, '.', 2)::name;
 
 SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
 IF v_control_type <> 'time' THEN
-    IF (v_control_type = 'id' AND v_epoch = 'none') OR v_control_type <> 'id' THEN
-        RAISE EXCEPTION 'Cannot run on partition set without time based control column or epoch flag set with an id column. Found control: %, epoch: %', v_control_type, v_epoch;
+    IF (v_control_type = 'id' AND v_epoch = 'none') OR v_control_type NOT IN ('text', 'id', 'uuid') OR (v_control_type IN ('text', 'uuid') AND v_time_encoder IS NULL) THEN
+        RAISE EXCEPTION 'Cannot run on partition set without time based control column or epoch flag set with an id column or time_encoder set with text column. Found control: %, epoch: %, time_encoder: %s', v_control_type, v_epoch, v_time_encoder;
     END IF;
 END IF;
 
@@ -211,13 +216,27 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
 
     IF v_epoch = 'none' THEN
         -- Attach with normal, time-based values for built-in constraint
-        EXECUTE format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I FOR VALUES FROM (%L) TO (%L)'
-            , v_parent_schema
-            , v_parent_tablename
-            , v_parent_schema
-            , v_partition_name
-            , v_partition_timestamp_start
-            , v_partition_timestamp_end);
+        IF v_time_encoder IS NULL THEN
+            EXECUTE format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I FOR VALUES FROM (%L) TO (%L)'
+                , v_parent_schema
+                , v_parent_tablename
+                , v_parent_schema
+                , v_partition_name
+                , v_partition_timestamp_start
+                , v_partition_timestamp_end);
+        ELSE
+            EXECUTE format('SELECT %s(%L)', v_time_encoder, v_partition_timestamp_start) INTO v_partition_text_start;
+            EXECUTE format('SELECT %s(%L)', v_time_encoder, v_partition_timestamp_end) INTO v_partition_text_end;
+            
+            EXECUTE format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I FOR VALUES FROM (%L) TO (%L)'
+                , v_parent_schema
+                , v_parent_tablename
+                , v_parent_schema
+                , v_partition_name
+                , v_partition_text_start
+                , v_partition_text_end);
+        END IF;
+
     ELSE
         -- Must attach with integer based values for built-in constraint and epoch
         IF v_epoch = 'seconds' THEN
@@ -272,6 +291,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         SELECT
             sub_parent
             , sub_control
+            , sub_time_encoder
             , sub_partition_interval
             , sub_partition_type
             , sub_premake
@@ -302,6 +322,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         v_sql := format('SELECT @extschema@.create_parent(
                  p_parent_table := %L
                 , p_control := %L
+                , p_time_encoder := %L
                 , p_interval := %L
                 , p_type := %L
                 , p_default_table := %L
@@ -315,6 +336,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
                 , p_date_trunc_interval := %L )'
             , v_parent_schema||'.'||v_partition_name
             , v_row.sub_control
+            , v_row.sub_time_encoder
             , v_row.sub_partition_interval
             , v_row.sub_partition_type
             , v_row.sub_default_table

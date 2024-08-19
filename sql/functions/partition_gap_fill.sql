@@ -54,8 +54,7 @@ INTO v_final_child_schemaname, v_final_child_tablename
 FROM @extschema@.show_partitions(v_parent_table, 'DESC')
 LIMIT 1;
 
-IF v_control_type = 'time'  OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
-
+IF v_control_type = 'time'  OR (v_control_type = 'id' AND v_epoch <> 'none') OR v_control_type IN ('text', 'uuid') THEN
     v_interval_time := v_partition_interval::interval;
 
     SELECT child_start_time INTO v_final_child_start_timestamp

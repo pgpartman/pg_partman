@@ -18,6 +18,8 @@ SELECT bag_eq(
   ARRAY[
     'parent_table',
     'control',
+    'time_encoder',
+    'time_decoder',
     'partition_interval',
     'partition_type',
     'premake',

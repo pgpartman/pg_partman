@@ -17,6 +17,7 @@ v_child_larger                  boolean := false;
 v_child_smaller                 boolean := false;
 v_child_start_time              timestamptz;
 v_control                       text;
+v_time_encoder                  text;
 v_control_type                  text;
 v_datetime_string               text;
 v_epoch                         text;
@@ -36,11 +37,13 @@ BEGIN
 
 SELECT partition_type
     , control
+    , time_encoder
     , partition_interval
     , datetime_string
     , epoch
 INTO v_type
     , v_control
+    , v_time_encoder
     , v_partition_interval
     , v_datetime_string
     , v_epoch
@@ -64,7 +67,7 @@ partition_schema := v_parent_schema;
 
 SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
 
-IF ( (v_control_type = 'time') OR (v_control_type = 'id' AND v_epoch <> 'none') ) THEN
+IF ( (v_control_type = 'time') OR (v_control_type = 'id' AND v_epoch <> 'none') OR (v_control_type IN ('text', 'uuid')) ) THEN
 
     v_given_timestamp := p_value::timestamptz;
     FOR v_row IN

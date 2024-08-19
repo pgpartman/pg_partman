@@ -28,6 +28,8 @@ v_child_table                   text;
 v_column_list                   text;
 v_control                       text;
 v_control_type                  text;
+v_time_encoder                  text;
+v_time_decoder                  text;
 v_child_min_id                  bigint;
 v_child_min_time                timestamptz;
 v_epoch                         text;
@@ -78,11 +80,15 @@ END IF;
 
 SELECT partition_interval::text
     , control
+    , time_encoder
+    , time_decoder
     , jobmon
     , epoch
     , template_table
 INTO v_partition_interval
     , v_control
+    , v_time_encoder
+    , v_time_decoder
     , v_jobmon
     , v_epoch
     , v_template_table
@@ -109,7 +115,7 @@ IF v_parent_tablename IS NULL THEN
 END IF;
 
 SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
-IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
+IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') OR (v_control_type IN ('text', 'uuid')) THEN
     IF p_batch_interval IS NULL THEN
         v_batch_interval_time := v_partition_interval::interval;
     ELSE
@@ -217,6 +223,9 @@ LOOP
 
     IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
         EXECUTE format('SELECT min(%s) FROM %I.%I', v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_time;
+    ELSIF (v_control_type IN ('text', 'uuid')) THEN
+        --- This can pass NULL to decoder function
+        EXECUTE format('SELECT %s((SELECT min(%s::text) FROM %I.%I))', v_time_decoder, v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_time;
     ELSIF v_control_type = 'id' THEN
         EXECUTE format('SELECT min(%s) FROM %I.%I', v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_id;
     END IF;
@@ -277,18 +286,27 @@ LOOP
     v_child_loop_total := 0;
     <<inner_child_loop>>
     LOOP
-        IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
+        IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') OR (v_control_type IN ('text', 'uuid')) THEN
             -- do some locking with timeout, if required
             IF p_lock_wait > 0  THEN
                 v_lock_iter := 0;
                 WHILE v_lock_iter <= 5 LOOP
                     v_lock_iter := v_lock_iter + 1;
                     BEGIN
-                        EXECUTE format('SELECT * FROM %I.%I WHERE %I <= %L FOR UPDATE NOWAIT'
-                            , v_parent_schema
-                            , v_child_table
-                            , v_control
-                            , v_child_min_time + (v_batch_interval_time * v_inner_loop_count));
+                        IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
+                            EXECUTE format('SELECT * FROM %I.%I WHERE %I <= %L FOR UPDATE NOWAIT'
+                                , v_parent_schema
+                                , v_child_table
+                                , v_control
+                                , v_child_min_time + (v_batch_interval_time * v_inner_loop_count));
+                        ELSIF (v_control_type IN ('text', 'uuid')) THEN
+                            EXECUTE format('SELECT * FROM %I.%I WHERE %I <= %s(%L) FOR UPDATE NOWAIT'
+                                , v_parent_schema
+                                , v_child_table
+                                , v_control
+                                , v_time_encoder
+                                , v_child_min_time + (v_batch_interval_time * v_inner_loop_count));
+                        END IF;
                        v_lock_obtained := TRUE;
                     EXCEPTION
                         WHEN lock_not_available THEN
@@ -305,16 +323,31 @@ LOOP
             END IF;
 
             -- Get everything from the current child minimum up to the multiples of the given interval
-            EXECUTE format('WITH move_data AS (
-                                    DELETE FROM %I.%I WHERE %s <= %L RETURNING %s )
-                                  INSERT INTO %I.%I (%5$s) SELECT %5$s FROM move_data'
-                , v_parent_schema
-                , v_child_table
-                , v_partition_expression
-                , v_child_min_time + (v_batch_interval_time * v_inner_loop_count)
-                , v_column_list
-                , v_target_schema
-                , v_target_tablename);
+            IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
+                EXECUTE format('WITH move_data AS (
+                                        DELETE FROM %I.%I WHERE %s <= %L RETURNING %s )
+                                    INSERT INTO %I.%I (%5$s) SELECT %5$s FROM move_data'
+                    , v_parent_schema
+                    , v_child_table
+                    , v_partition_expression
+                    , v_child_min_time + (v_batch_interval_time * v_inner_loop_count)
+                    , v_column_list
+                    , v_target_schema
+                    , v_target_tablename);            
+            ELSIF (v_control_type IN ('text', 'uuid')) THEN
+                EXECUTE format('WITH move_data AS (
+                                        DELETE FROM %I.%I WHERE %s <= %s(%L) RETURNING %s )
+                                    INSERT INTO %I.%I (%6$s) SELECT %6$s FROM move_data'
+                    , v_parent_schema
+                    , v_child_table
+                    , v_partition_expression
+                    , v_time_encoder
+                    , v_child_min_time + (v_batch_interval_time * v_inner_loop_count)
+                    , v_column_list
+                    , v_target_schema
+                    , v_target_tablename);
+            END IF;
+
             GET DIAGNOSTICS v_rowcount = ROW_COUNT;
             v_total := v_total + v_rowcount;
             v_child_loop_total := v_child_loop_total + v_rowcount;
@@ -326,7 +359,13 @@ LOOP
             v_batch_loop_count := v_batch_loop_count + 1;
 
             -- Check again if table is empty and go to outer loop again to drop it if so
-            EXECUTE format('SELECT min(%s) FROM %I.%I', v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_time;
+            
+            IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
+                EXECUTE format('SELECT min(%s) FROM %I.%I', v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_time;
+            ELSIF (v_control_type IN ('text', 'uuid')) THEN
+                EXECUTE format('SELECT %s((SELECT min(%s::text) FROM %I.%I))', v_time_decoder, v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_time;
+            END IF;
+
             CONTINUE outer_child_loop WHEN v_child_min_time IS NULL;
 
         ELSIF v_control_type = 'id' THEN
