@@ -39,7 +39,7 @@ v_sub_parent                text;
 
 BEGIN
 /*
- * Function to drop child tables from an id-based partition set. 
+ * Function to drop child tables from an id-based partition set.
  * Options to move table to different schema, drop only indexes or actually drop the table from the database.
  */
 
@@ -50,7 +50,7 @@ IF v_adv_lock = 'false' THEN
 END IF;
 
 IF p_retention IS NULL THEN
-    SELECT  
+    SELECT
         partition_interval::bigint
         , partition_type
         , control
@@ -70,15 +70,15 @@ IF p_retention IS NULL THEN
         , v_retention_schema
         , v_jobmon
         , v_drop_cascade_fk
-    FROM @extschema@.part_config 
-    WHERE parent_table = p_parent_table 
+    FROM @extschema@.part_config
+    WHERE parent_table = p_parent_table
     AND retention IS NOT NULL;
 
     IF v_partition_interval IS NULL THEN
         RAISE EXCEPTION 'Configuration for given parent table with a retention period not found: %', p_parent_table;
     END IF;
 ELSE -- Allow override of configuration options
-     SELECT  
+     SELECT
         partition_interval::bigint
         , partition_type
         , control
@@ -96,7 +96,7 @@ ELSE -- Allow override of configuration options
         , v_retention_schema
         , v_jobmon
         , v_drop_cascade_fk
-    FROM @extschema@.part_config 
+    FROM @extschema@.part_config
     WHERE parent_table = p_parent_table;
     v_retention := p_retention;
 
@@ -154,7 +154,7 @@ SELECT sub_parent INTO v_sub_parent FROM @extschema@.part_config_sub WHERE sub_p
 
 -- Loop through child tables of the given parent
 -- Must go in ascending order to avoid dropping what may be the "last" partition in the set after dropping tables that match retention period
-FOR v_row IN 
+FOR v_row IN
     SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(p_parent_table, 'ASC')
 LOOP
      SELECT child_start_id INTO v_partition_id FROM @extschema@.show_partition_info(v_row.partition_schemaname||'.'||v_row.partition_tablename
@@ -216,10 +216,10 @@ LOOP
                     PERFORM update_step(v_step_id, 'OK', 'Done');
                 END IF;
             ELSIF v_retention_keep_index = false THEN
-                IF v_partition_type = 'partman' OR 
+                IF v_partition_type = 'partman' OR
                        ( v_partition_type = 'native' AND  current_setting('server_version_num')::int < 110000) THEN
                     -- Cannot drop child indexes on native partition sets in PG11+
-                    FOR v_index IN 
+                    FOR v_index IN
                          WITH child_info AS (
                             SELECT c1.oid
                             FROM pg_catalog.pg_class c1
@@ -249,7 +249,7 @@ LOOP
                             PERFORM update_step(v_step_id, 'OK', 'Done');
                         END IF;
                     END LOOP;
-                END IF; -- end native/11 check 
+                END IF; -- end native/11 check
             END IF; -- end v_retention_keep_index IF
         ELSE -- Move to new schema
             IF v_jobmon_schema IS NOT NULL THEN
@@ -364,7 +364,7 @@ END IF;
 
 -- Allow override of configuration options
 IF p_retention IS NULL THEN
-    SELECT  
+    SELECT
         partition_type
         , control
         , partition_interval::interval
@@ -388,15 +388,15 @@ IF p_retention IS NULL THEN
         , v_datetime_string
         , v_retention_schema
         , v_jobmon
-    FROM @extschema@.part_config 
-    WHERE parent_table = p_parent_table 
+    FROM @extschema@.part_config
+    WHERE parent_table = p_parent_table
     AND retention IS NOT NULL;
 
     IF v_partition_interval IS NULL THEN
         RAISE EXCEPTION 'Configuration for given parent table with a retention period not found: %', p_parent_table;
     END IF;
 ELSE
-    SELECT  
+    SELECT
         partition_type
         , partition_interval::interval
         , epoch
@@ -416,7 +416,7 @@ ELSE
         , v_datetime_string
         , v_retention_schema
         , v_jobmon
-    FROM @extschema@.part_config 
+    FROM @extschema@.part_config
     WHERE parent_table = p_parent_table;
     v_retention := p_retention;
 
@@ -426,7 +426,7 @@ ELSE
 END IF;
 
 SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
-IF v_control_type <> 'time' THEN 
+IF v_control_type <> 'time' THEN
     IF (v_control_type = 'id' AND v_epoch = 'none') OR v_control_type <> 'id' THEN
         RAISE EXCEPTION 'Cannot run on partition set without time based control column or epoch flag set with an id column. Found control: %, epoch: %', v_control_type, v_epoch;
     END IF;
@@ -465,7 +465,7 @@ SELECT sub_parent INTO v_sub_parent FROM @extschema@.part_config_sub WHERE sub_p
 
 -- Loop through child tables of the given parent
 -- Must go in ascending order to avoid dropping what may be the "last" partition in the set after dropping tables that match retention period
-FOR v_row IN 
+FOR v_row IN
     SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(p_parent_table, 'ASC')
 LOOP
     -- pull out datetime portion of partition's tablename to make the next one
@@ -532,10 +532,10 @@ LOOP
                     PERFORM update_step(v_step_id, 'OK', 'Done');
                 END IF;
             ELSIF v_retention_keep_index = false THEN
-                IF v_partition_type = 'partman' OR 
+                IF v_partition_type = 'partman' OR
                        ( v_partition_type = 'native' AND  current_setting('server_version_num')::int < 110000) THEN
                     -- Cannot drop child indexes on native partition sets in PG11+
-                    FOR v_index IN 
+                    FOR v_index IN
                         WITH child_info AS (
                             SELECT c1.oid
                             FROM pg_catalog.pg_class c1
@@ -568,7 +568,7 @@ LOOP
                             PERFORM update_step(v_step_id, 'OK', 'Done');
                         END IF;
                     END LOOP;
-                END IF; -- end native/11 check 
+                END IF; -- end native/11 check
             END IF; -- end v_retention_keep_index IF
         ELSE -- Move to new schema
             IF v_jobmon_schema IS NOT NULL THEN
@@ -628,4 +628,3 @@ DETAIL: %
 HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
-

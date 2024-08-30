@@ -19,7 +19,7 @@ CREATE TABLE partman_test.fk_test_reference (col2 text unique not null);
 INSERT INTO partman_test.fk_test_reference VALUES ('stuff');
 
 CREATE TABLE partman_test.id_taptest_table (
-    col1 bigint 
+    col1 bigint
     , col2 text not null default 'stuff'
     , col3 timestamptz DEFAULT now()
     , col4 text) PARTITION BY RANGE (col1);

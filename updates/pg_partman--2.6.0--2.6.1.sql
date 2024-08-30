@@ -13,23 +13,23 @@
 
 CREATE TEMP TABLE partman_preserve_privs_temp (statement text);
 
-INSERT INTO partman_preserve_privs_temp 
-SELECT 'GRANT EXECUTE ON FUNCTION @extschema@.partition_data_id(text, int, bigint, numeric, text, boolean)  TO '||array_to_string(array_agg(grantee::text), ',')||';' 
+INSERT INTO partman_preserve_privs_temp
+SELECT 'GRANT EXECUTE ON FUNCTION @extschema@.partition_data_id(text, int, bigint, numeric, text, boolean)  TO '||array_to_string(array_agg(grantee::text), ',')||';'
 FROM information_schema.routine_privileges
 WHERE routine_schema = '@extschema@'
-AND routine_name = 'partition_data_id'; 
+AND routine_name = 'partition_data_id';
 
-INSERT INTO partman_preserve_privs_temp 
-SELECT 'GRANT EXECUTE ON FUNCTION @extschema@.create_function_id(text, bigint, boolean) TO '||array_to_string(array_agg(grantee::text), ',')||';' 
+INSERT INTO partman_preserve_privs_temp
+SELECT 'GRANT EXECUTE ON FUNCTION @extschema@.create_function_id(text, bigint, boolean) TO '||array_to_string(array_agg(grantee::text), ',')||';'
 FROM information_schema.routine_privileges
 WHERE routine_schema = '@extschema@'
-AND routine_name = 'create_function_id'; 
+AND routine_name = 'create_function_id';
 
-INSERT INTO partman_preserve_privs_temp 
-SELECT 'GRANT EXECUTE ON FUNCTION @extschema@.partition_data_time(text, int, interval, numeric, text, boolean) TO '||array_to_string(array_agg(grantee::text), ',')||';' 
+INSERT INTO partman_preserve_privs_temp
+SELECT 'GRANT EXECUTE ON FUNCTION @extschema@.partition_data_time(text, int, interval, numeric, text, boolean) TO '||array_to_string(array_agg(grantee::text), ',')||';'
 FROM information_schema.routine_privileges
 WHERE routine_schema = '@extschema@'
-AND routine_name = 'partition_data_time'; 
+AND routine_name = 'partition_data_time';
 
 DROP FUNCTION partition_data_id(text, int, bigint, numeric, text);
 DROP FUNCTION partition_data_time(text, int, interval, numeric, text);
@@ -37,7 +37,7 @@ DROP FUNCTION create_function_id(text, bigint);
 
 
 /*
- * Custom view to help improve privilege lookups for pg_partman. 
+ * Custom view to help improve privilege lookups for pg_partman.
  * information_schema is a performance bottleneck since indexes aren't being used properly.
  */
 CREATE VIEW @extschema@.table_privs AS
@@ -134,22 +134,22 @@ IF v_jobmon_schema IS NOT NULL THEN
             );
 END IF;
 
-FOR v_parent_grant IN 
+FOR v_parent_grant IN
     SELECT array_agg(DISTINCT privilege_type::text ORDER BY privilege_type::text) AS types
             , grantee
     FROM @extschema@.table_privs
     WHERE table_schema = p_parent_schema::name AND table_name = p_parent_tablename::name
-    GROUP BY grantee 
+    GROUP BY grantee
 LOOP
     -- Compare parent & child grants. Don't re-apply if it already exists
     v_match := false;
     v_sql := NULL;
-    FOR v_child_grant IN 
+    FOR v_child_grant IN
         SELECT array_agg(DISTINCT privilege_type::text ORDER BY privilege_type::text) AS types
                 , grantee
-        FROM @extschema@.table_privs 
+        FROM @extschema@.table_privs
         WHERE table_schema = p_child_schema::name AND table_name = p_child_tablename::name
-        GROUP BY grantee 
+        GROUP BY grantee
     LOOP
         IF v_parent_grant.types = v_child_grant.types AND v_parent_grant.grantee = v_child_grant.grantee THEN
             v_match := true;
@@ -190,7 +190,7 @@ END LOOP;
 
 -- Revoke all privileges from roles that have none on the parent
 IF v_grantees IS NOT NULL THEN
-    FOR v_row_revoke IN 
+    FOR v_row_revoke IN
         SELECT role FROM (
             SELECT DISTINCT grantee::text AS role FROM @extschema@.table_privs WHERE table_schema = p_child_schema::name AND table_name = p_child_tablename::name
             EXCEPT
@@ -316,7 +316,7 @@ INTO v_partition_interval
     , v_trigger_exception_handling
     , v_upsert
     , v_trigger_return_null
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND partition_type = 'id';
 
@@ -391,7 +391,7 @@ v_current_partition_id = v_max - (v_max % v_partition_interval);
 v_next_partition_id := v_current_partition_id + v_partition_interval;
 v_current_partition_name := @extschema@.check_name_length(v_parent_tablename, v_current_partition_id::text, TRUE);
 
-v_trig_func := format('CREATE OR REPLACE FUNCTION %I.%I() RETURNS trigger LANGUAGE plpgsql AS $t$ 
+v_trig_func := format('CREATE OR REPLACE FUNCTION %I.%I() RETURNS trigger LANGUAGE plpgsql AS $t$
     DECLARE
         v_count                     int;
         v_current_partition_id      bigint;
@@ -402,7 +402,7 @@ v_trig_func := format('CREATE OR REPLACE FUNCTION %I.%I() RETURNS trigger LANGUA
         v_next_partition_name       text;
         v_partition_created         boolean;
     BEGIN
-    IF TG_OP = ''INSERT'' THEN 
+    IF TG_OP = ''INSERT'' THEN
         IF NEW.%I >= %s AND NEW.%I < %s THEN '
             , v_parent_schema
             , v_function_name
@@ -414,7 +414,7 @@ v_trig_func := format('CREATE OR REPLACE FUNCTION %I.%I() RETURNS trigger LANGUA
         );
         SELECT count(*) INTO v_count FROM pg_catalog.pg_tables WHERE schemaname = v_parent_schema::name AND tablename = v_current_partition_name::name;
         IF v_count > 0 THEN
-            v_trig_func := v_trig_func || format(' 
+            v_trig_func := v_trig_func || format('
             INSERT INTO %I.%I VALUES (NEW.*) %s; ', v_parent_schema, v_current_partition_name, v_upsert);
         ELSE
             v_trig_func := v_trig_func || '
@@ -436,7 +436,7 @@ v_trig_func := format('CREATE OR REPLACE FUNCTION %I.%I() RETURNS trigger LANGUA
             -- Only handle previous partitions if they're starting above zero
             IF v_prev_partition_id >= 0 THEN
                 v_trig_func := v_trig_func ||format('
-        ELSIF NEW.%I >= %s AND NEW.%I < %s THEN 
+        ELSIF NEW.%I >= %s AND NEW.%I < %s THEN
             INSERT INTO %I.%I VALUES (NEW.*) %s; '
                 , v_control
                 , v_prev_partition_id
@@ -452,7 +452,7 @@ v_trig_func := format('CREATE OR REPLACE FUNCTION %I.%I() RETURNS trigger LANGUA
         SELECT count(*) INTO v_count FROM pg_catalog.pg_tables WHERE schemaname = v_parent_schema::name AND tablename = v_next_partition_name::name;
         IF v_count > 0 THEN
             v_trig_func := v_trig_func ||format('
-        ELSIF NEW.%I >= %s AND NEW.%I < %s THEN 
+        ELSIF NEW.%I >= %s AND NEW.%I < %s THEN
             INSERT INTO %I.%I VALUES (NEW.*) %s;'
                 , v_control
                 , v_next_partition_id
@@ -469,7 +469,7 @@ v_trig_func := format('CREATE OR REPLACE FUNCTION %I.%I() RETURNS trigger LANGUA
             v_current_partition_id := NEW.%I - (NEW.%I %% %s);
             v_current_partition_name := @extschema@.check_name_length(%L, v_current_partition_id::text, TRUE);
             SELECT count(*) INTO v_count FROM pg_catalog.pg_tables WHERE schemaname = %L::name AND tablename = v_current_partition_name::name;
-            IF v_count > 0 THEN 
+            IF v_count > 0 THEN
                 EXECUTE format(''INSERT INTO %%I.%%I VALUES($1.*) %s'', %L, v_current_partition_name) USING NEW;
             ELSE
                 RETURN NEW;
@@ -490,7 +490,7 @@ v_trig_func := format('CREATE OR REPLACE FUNCTION %I.%I() RETURNS trigger LANGUA
         IF (NEW.%I %% %s) > (%s / 2) THEN
             v_id_position := (length(v_last_partition) - position(''p_'' in reverse(v_last_partition))) + 2;
             v_next_partition_id := (substring(v_last_partition from v_id_position)::bigint) + %s;
-            WHILE ((v_next_partition_id - v_current_partition_id) / %s) <= %s LOOP 
+            WHILE ((v_next_partition_id - v_current_partition_id) / %s) <= %s LOOP
                 v_partition_created := @extschema@.create_partition_id(%L, ARRAY[v_next_partition_id], p_analyze := %L);
                 IF v_partition_created THEN
                     PERFORM @extschema@.create_function_id(%L, p_analyze := %L);
@@ -528,7 +528,7 @@ v_trig_func := format('CREATE OR REPLACE FUNCTION %I.%I() RETURNS trigger LANGUA
     RETURN NEW;';
     END IF;
 
-    IF v_trigger_exception_handling THEN 
+    IF v_trigger_exception_handling THEN
         v_trig_func := v_trig_func ||'
     EXCEPTION WHEN OTHERS THEN
         RAISE WARNING ''pg_partman insert into child table failed, row inserted into parent (%.%). ERROR: %'', TG_TABLE_SCHEMA, TG_TABLE_NAME, COALESCE(SQLERRM, ''unknown'');
@@ -583,7 +583,7 @@ CREATE FUNCTION partition_data_id(p_parent_table text
         , p_batch_interval bigint DEFAULT NULL
         , p_lock_wait numeric DEFAULT 0
         , p_order text DEFAULT 'ASC'
-        , p_analyze boolean DEFAULT true) 
+        , p_analyze boolean DEFAULT true)
     RETURNS bigint
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
@@ -612,7 +612,7 @@ SELECT partition_interval::bigint
     , control
 INTO v_partition_interval
     , v_control
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND partition_type = 'id';
 IF NOT FOUND THEN
@@ -732,7 +732,7 @@ CREATE OR REPLACE FUNCTION create_parent(
     , p_control text
     , p_type text
     , p_interval text
-    , p_constraint_cols text[] DEFAULT NULL 
+    , p_constraint_cols text[] DEFAULT NULL
     , p_premake int DEFAULT 4
     , p_use_run_maintenance boolean DEFAULT NULL
     , p_start_partition text DEFAULT NULL
@@ -741,8 +741,8 @@ CREATE OR REPLACE FUNCTION create_parent(
     , p_upsert text DEFAULT ''
     , p_trigger_return_null boolean DEFAULT true
     , p_jobmon boolean DEFAULT true
-    , p_debug boolean DEFAULT false) 
-RETURNS boolean 
+    , p_debug boolean DEFAULT false)
+RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -803,7 +803,7 @@ AND tablename = split_part(p_parent_table, '.', 2)::name;
         RAISE EXCEPTION 'Unable to find given parent table in system catalogs. Please create parent table first: %', p_parent_table;
     END IF;
 
-SELECT attnotnull INTO v_notnull 
+SELECT attnotnull INTO v_notnull
 FROM pg_catalog.pg_attribute a
 JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
@@ -853,7 +853,7 @@ END IF;
 
 -- If this parent table has siblings that are also partitioned (subpartitions), ensure this parent gets added to part_config_sub table so future maintenance will subpartition it
 -- Just doing in a loop to avoid having to assign a bunch of variables (should only run once, if at all; constraint should enforce only one value.)
-FOR v_row IN 
+FOR v_row IN
     WITH parent_table AS (
         SELECT h.inhparent AS parent_oid
         FROM pg_catalog.pg_inherits h
@@ -862,7 +862,7 @@ FOR v_row IN
         WHERE c.relname = v_parent_tablename::name
         AND n.nspname = v_parent_schema::name
     ), sibling_children AS (
-        SELECT i.inhrelid::regclass::text AS tablename 
+        SELECT i.inhrelid::regclass::text AS tablename
         FROM pg_inherits i
         JOIN parent_table p ON i.inhparent = p.parent_oid
     )
@@ -983,14 +983,14 @@ IF p_type = 'time' OR p_type = 'time-custom' THEN
             v_base_timestamp := date_trunc('quarter', v_start_time);
             v_datetime_string = 'YYYY"q"Q';
         ELSE
-            v_base_timestamp := date_trunc('month', v_start_time); 
+            v_base_timestamp := date_trunc('month', v_start_time);
             v_datetime_string := v_datetime_string || '_MM';
         END IF;
         IF v_time_interval < '1 month' THEN
             IF p_interval = 'weekly' THEN
                 v_base_timestamp := date_trunc('week', v_start_time);
                 v_datetime_string := 'IYYY"w"IW';
-            ELSE 
+            ELSE
                 v_base_timestamp := date_trunc('day', v_start_time);
                 v_datetime_string := v_datetime_string || '_DD';
             END IF;
@@ -1013,7 +1013,7 @@ IF p_type = 'time' OR p_type = 'time-custom' THEN
                 v_partition_time := (v_base_timestamp + (v_time_interval * v_count))::timestamptz;
                 v_partition_time_array := array_append(v_partition_time_array, v_partition_time);
             EXCEPTION WHEN datetime_field_overflow THEN
-                RAISE WARNING 'Attempted partition time interval is outside PostgreSQL''s supported time range. 
+                RAISE WARNING 'Attempted partition time interval is outside PostgreSQL''s supported time range.
                     Child partition creation after time % skipped', v_partition_time;
                 v_step_overflow_id := add_step(v_job_id, 'Attempted partition time interval is outside PostgreSQL''s supported time range.');
                 PERFORM update_step(v_step_overflow_id, 'CRITICAL', 'Child partition creation after time '||v_partition_time||' skipped');
@@ -1036,7 +1036,7 @@ IF p_type = 'time' OR p_type = 'time-custom' THEN
         , datetime_string
         , use_run_maintenance
         , inherit_fk
-        , jobmon 
+        , jobmon
         , upsert
         , trigger_return_null)
     VALUES (
@@ -1056,7 +1056,7 @@ IF p_type = 'time' OR p_type = 'time-custom' THEN
 
     v_last_partition_created := @extschema@.create_partition_time(p_parent_table, v_partition_time_array, false);
 
-    IF v_last_partition_created = false THEN 
+    IF v_last_partition_created = false THEN
         -- This can happen with subpartitioning when future or past partitions prevent child creation because they're out of range of the parent
         -- First see if this parent is a subpartition managed by pg_partman
         WITH top_oid AS (
@@ -1066,8 +1066,8 @@ IF p_type = 'time' OR p_type = 'time-custom' THEN
             JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
             WHERE c.relname = v_parent_tablename::name
             AND n.nspname = v_parent_schema::name
-        ) SELECT n.nspname, c.relname 
-        INTO v_top_parent_schema, v_top_parent_table 
+        ) SELECT n.nspname, c.relname
+        INTO v_top_parent_schema, v_top_parent_table
         FROM pg_catalog.pg_class c
         JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
         JOIN top_oid t ON c.oid = t.top_parent_oid
@@ -1092,7 +1092,7 @@ IF p_type = 'time' OR p_type = 'time-custom' THEN
         ELSE
             -- Currently unknown edge case if code gets here
             RAISE EXCEPTION 'No child tables created. Unexpected edge case encountered. Please report this error to author with conditions that led to it.';
-        END IF; 
+        END IF;
     END IF;
 
     IF v_jobmon_schema IS NOT NULL THEN
@@ -1106,7 +1106,7 @@ IF p_type = 'id' THEN
         RAISE EXCEPTION 'Interval for serial partitioning must be greater than or equal to 10';
     END IF;
 
-    -- Check if parent table is a subpartition of an already existing id partition set managed by pg_partman. 
+    -- Check if parent table is a subpartition of an already existing id partition set managed by pg_partman.
     WHILE v_higher_parent_table IS NOT NULL LOOP -- initially set in DECLARE
         WITH top_oid AS (
             SELECT i.inhparent AS top_parent_oid
@@ -1144,12 +1144,12 @@ IF p_type = 'id' THEN
     v_starting_partition_id := v_max - (v_max % v_id_interval);
     FOR i IN 0..p_premake LOOP
         -- Only make previous partitions if ID value is less than the starting value and positive (and custom start partition wasn't set)
-        IF p_start_partition IS NULL AND 
-            (v_starting_partition_id - (v_id_interval*i)) > 0 AND 
-            (v_starting_partition_id - (v_id_interval*i)) < v_starting_partition_id 
+        IF p_start_partition IS NULL AND
+            (v_starting_partition_id - (v_id_interval*i)) > 0 AND
+            (v_starting_partition_id - (v_id_interval*i)) < v_starting_partition_id
         THEN
             v_partition_id_array = array_append(v_partition_id_array, (v_starting_partition_id - v_id_interval*i));
-        END IF; 
+        END IF;
         v_partition_id_array = array_append(v_partition_id_array, (v_id_interval*i) + v_starting_partition_id);
     END LOOP;
 
@@ -1164,7 +1164,7 @@ IF p_type = 'id' THEN
         , inherit_fk
         , jobmon
         , upsert
-        , trigger_return_null) 
+        , trigger_return_null)
     VALUES (
         p_parent_table
         , p_type
@@ -1228,7 +1228,7 @@ IF p_type = 'time' OR p_type = 'time-custom' THEN
         PERFORM update_step(v_step_id, 'OK', 'Time function created');
     END IF;
 ELSIF p_type = 'id' THEN
-    PERFORM @extschema@.create_function_id(p_parent_table, v_job_id);  
+    PERFORM @extschema@.create_function_id(p_parent_table, v_job_id);
     IF v_jobmon_schema IS NOT NULL THEN
         PERFORM update_step(v_step_id, 'OK', 'ID function created');
     END IF;
@@ -1285,9 +1285,9 @@ $$;
  * If p_parent_table is passed, will only run run_maintenance() on that one table (no matter what the configuration table may have set for it)
  * Otherwise, will run on all tables in the config table with p_run_maintenance() set to true.
  * For large partition sets, running analyze can cause maintenance to take longer than expected. Can set p_analyze to false to avoid a forced analyze run.
- * Be aware that constraint exclusion may not work properly until an analyze on the partition set is run. 
+ * Be aware that constraint exclusion may not work properly until an analyze on the partition set is run.
  */
-CREATE OR REPLACE FUNCTION run_maintenance(p_parent_table text DEFAULT NULL, p_analyze boolean DEFAULT true, p_jobmon boolean DEFAULT true, p_debug boolean DEFAULT false) RETURNS void 
+CREATE OR REPLACE FUNCTION run_maintenance(p_parent_table text DEFAULT NULL, p_analyze boolean DEFAULT true, p_jobmon boolean DEFAULT true, p_debug boolean DEFAULT false) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -1386,7 +1386,7 @@ LOOP
 
     CONTINUE WHEN v_row.undo_in_progress;
 
-    -- Check for consistent data in part_config_sub table. Was unable to get this working properly as either a constraint or trigger. 
+    -- Check for consistent data in part_config_sub table. Was unable to get this working properly as either a constraint or trigger.
     -- Would either delay raising an error until the next write (which I cannot predict) or disallow future edits to update a sub-partition set's configuration.
     -- This way at least provides a consistent way to check that I know will run. If anyone can get a working constraint/trigger, please help!
     -- Don't have to worry about this in the serial trigger maintenance since subpartitioning requires run_maintenance().
@@ -1394,15 +1394,15 @@ LOOP
     IF v_sub_parent IS NOT NULL THEN
         SELECT count(*) INTO v_check_subpart FROM @extschema@.check_subpart_sameconfig(v_row.parent_table);
         IF v_check_subpart > 1 THEN
-            RAISE EXCEPTION 'Inconsistent data in part_config_sub table. Sub-partition tables that are themselves sub-partitions cannot have differing configuration values among their siblings. 
-            Run this query: "SELECT * FROM @extschema@.check_subpart_sameconfig(''%'');" This should only return a single row or nothing. 
+            RAISE EXCEPTION 'Inconsistent data in part_config_sub table. Sub-partition tables that are themselves sub-partitions cannot have differing configuration values among their siblings.
+            Run this query: "SELECT * FROM @extschema@.check_subpart_sameconfig(''%'');" This should only return a single row or nothing.
             If multiple rows are returned, results are all children of the given parent. Update the differing values to be consistent for your desired values.', v_row.sub_parent;
         END IF;
     END IF;
 
-    SELECT schemaname, tablename 
-    INTO v_parent_schema, v_parent_tablename 
-    FROM pg_catalog.pg_tables 
+    SELECT schemaname, tablename
+    INTO v_parent_schema, v_parent_tablename
+    FROM pg_catalog.pg_tables
     WHERE schemaname = split_part(v_row.parent_table, '.', 1)::name
     AND tablename = split_part(v_row.parent_table, '.', 2)::name;
 
@@ -1413,7 +1413,7 @@ LOOP
 
     IF v_row.partition_type = 'time' OR v_row.partition_type = 'time-custom' THEN
 
-        SELECT child_start_time INTO v_last_partition_timestamp 
+        SELECT child_start_time INTO v_last_partition_timestamp
             FROM @extschema@.show_partition_info(v_parent_schema||'.'||v_last_partition, v_row.partition_interval, v_row.parent_table);
 
         -- Loop through child tables starting from highest to get current max value in partition set
@@ -1478,7 +1478,7 @@ LOOP
         v_next_partition_timestamp := v_last_partition_timestamp;
         IF p_debug THEN
             RAISE NOTICE 'run_maint before loop: current_partition_timestamp: %, v_premade_count: %, v_sub_timestamp_min: %, v_sub_timestamp_max: %'
-                , v_current_partition_timestamp 
+                , v_current_partition_timestamp
                 , v_premade_count
                 , v_sub_timestamp_min
                 , v_sub_timestamp_max;
@@ -1495,7 +1495,7 @@ LOOP
             BEGIN
                 v_next_partition_timestamp := v_next_partition_timestamp + v_row.partition_interval::interval;
             EXCEPTION WHEN datetime_field_overflow THEN
-                v_premade_count := v_row.premake; -- do this so it can exit the premake check loop and continue in the outer for loop 
+                v_premade_count := v_row.premake; -- do this so it can exit the premake check loop and continue in the outer for loop
                 IF v_jobmon_schema IS NOT NULL THEN
                     v_step_overflow_id := add_step(v_job_id, 'Attempted partition time interval is outside PostgreSQL''s supported time range.');
                     PERFORM update_step(v_step_overflow_id, 'CRITICAL', format('Child partition creation skipped for parent table: %s', v_partition_time));
@@ -1503,7 +1503,7 @@ LOOP
                 RAISE WARNING 'Attempted partition time interval is outside PostgreSQL''s supported time range. Child partition creation skipped for parent table %', v_row.parent_table;
                 CONTINUE;
             END;
-            v_last_partition_created := @extschema@.create_partition_time(v_row.parent_table, ARRAY[v_next_partition_timestamp], p_analyze); 
+            v_last_partition_created := @extschema@.create_partition_time(v_row.parent_table, ARRAY[v_next_partition_timestamp], p_analyze);
             IF v_last_partition_created THEN
                 v_create_count := v_create_count + 1;
                 PERFORM @extschema@.create_function_time(v_row.parent_table, v_job_id);
@@ -1553,7 +1553,7 @@ LOOP
         v_next_partition_id := v_last_partition_id;
         v_premade_count := ((v_last_partition_id - v_current_partition_id) / v_row.partition_interval::bigint);
         -- Loop premaking until config setting is met. Allows it to catch up if it fell behind or if premake changed.
-        WHILE (v_premade_count < v_row.premake) LOOP 
+        WHILE (v_premade_count < v_row.premake) LOOP
             IF p_debug THEN
                 RAISE NOTICE 'run_maint: parent_table: %, v_premade_count: %, v_next_partition_id: %', v_row.parent_table, v_premade_count, v_next_partition_id;
             END IF;
@@ -1575,24 +1575,24 @@ LOOP
 END LOOP; -- end of creation loop
 
 -- Manage dropping old partitions if retention option is set
-FOR v_row IN 
-    SELECT parent_table FROM @extschema@.part_config WHERE retention IS NOT NULL AND undo_in_progress = false AND 
+FOR v_row IN
+    SELECT parent_table FROM @extschema@.part_config WHERE retention IS NOT NULL AND undo_in_progress = false AND
         (partition_type = 'time' OR partition_type = 'time-custom')
 LOOP
     IF p_parent_table IS NULL THEN
-        v_drop_count := v_drop_count + @extschema@.drop_partition_time(v_row.parent_table);   
+        v_drop_count := v_drop_count + @extschema@.drop_partition_time(v_row.parent_table);
     ELSE -- Only run retention on table given in parameter
         IF p_parent_table <> v_row.parent_table THEN
             CONTINUE;
         ELSE
-            v_drop_count := v_drop_count + @extschema@.drop_partition_time(v_row.parent_table);   
+            v_drop_count := v_drop_count + @extschema@.drop_partition_time(v_row.parent_table);
         END IF;
     END IF;
     IF v_drop_count > 0 THEN
         PERFORM @extschema@.create_function_time(v_row.parent_table, v_job_id);
     END IF;
-END LOOP; 
-FOR v_row IN 
+END LOOP;
+FOR v_row IN
     SELECT parent_table FROM @extschema@.part_config WHERE retention IS NOT NULL AND undo_in_progress = false AND partition_type = 'id'
 LOOP
     IF p_parent_table IS NULL THEN
@@ -1607,7 +1607,7 @@ LOOP
     IF v_drop_count > 0 THEN
         PERFORM @extschema@.create_function_id(v_row.parent_table, v_job_id);
     END IF;
-END LOOP; 
+END LOOP;
 
 IF v_jobmon_schema IS NOT NULL THEN
     PERFORM update_step(v_step_id, 'OK', format('Partition maintenance finished. %s partitions made. %s partitions dropped.', v_create_count, v_drop_count));
@@ -1653,7 +1653,7 @@ CREATE FUNCTION partition_data_time(
         , p_batch_interval interval DEFAULT NULL
         , p_lock_wait numeric DEFAULT 0
         , p_order text DEFAULT 'ASC'
-        , p_analyze boolean DEFAULT true) 
+        , p_analyze boolean DEFAULT true)
     RETURNS bigint
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
@@ -1699,7 +1699,7 @@ INTO v_type
     , v_control
     , v_datetime_string
     , v_epoch
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (partition_type = 'time' OR partition_type = 'time-custom');
 IF NOT FOUND THEN
@@ -1745,10 +1745,10 @@ FOR i IN 1..p_batch_count LOOP
     IF v_type = 'time' THEN
         CASE
             WHEN v_partition_interval = '15 mins' THEN
-                v_min_partition_timestamp := date_trunc('hour', v_start_control) + 
+                v_min_partition_timestamp := date_trunc('hour', v_start_control) +
                     '15min'::interval * floor(date_part('minute', v_start_control) / 15.0);
             WHEN v_partition_interval = '30 mins' THEN
-                v_min_partition_timestamp := date_trunc('hour', v_start_control) + 
+                v_min_partition_timestamp := date_trunc('hour', v_start_control) +
                     '30min'::interval * floor(date_part('minute', v_start_control) / 30.0);
             WHEN v_partition_interval = '1 hour' THEN
                 v_min_partition_timestamp := date_trunc('hour', v_start_control);
@@ -1784,7 +1784,7 @@ FOR i IN 1..p_batch_count LOOP
                         v_min_partition_timestamp := v_min_partition_timestamp - v_partition_interval;
                     END IF;
                 EXCEPTION WHEN datetime_field_overflow THEN
-                    RAISE EXCEPTION 'Attempted partition time interval is outside PostgreSQL''s supported time range. 
+                    RAISE EXCEPTION 'Attempted partition time interval is outside PostgreSQL''s supported time range.
                         Unable to create partition with interval before timestamp % ', v_min_partition_interval;
                 END;
             END IF;
@@ -1885,7 +1885,7 @@ FOR i IN 1..p_batch_count LOOP
         EXIT;
     END IF;
 
-END LOOP; 
+END LOOP;
 
 PERFORM @extschema@.create_function_time(p_parent_table);
 

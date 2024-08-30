@@ -1,8 +1,8 @@
 -- New functions to undo partitioning. These all either move or copy data from the child tables and put it into the parent. All have an option to allow you either uninherit the child tables (default) or drop them when all their data has been put into the parent.
-    --  undo_partition_time() & undo_partition_id are functions that move the data from the child partitions to the parent tables. Data is deleted from the child table and inserted to the parent. These functions allow smaller interval batches to be given as a parameter and are better able to handle larger partitioning sets. 
+    --  undo_partition_time() & undo_partition_id are functions that move the data from the child partitions to the parent tables. Data is deleted from the child table and inserted to the parent. These functions allow smaller interval batches to be given as a parameter and are better able to handle larger partitioning sets.
     -- undo_partition() can work on an any parent/child table set in PostgreSQL, not just partition sets created by pg_partman. Just pass it the name of the parent table. This method only copies the data out of the child tables instead of deleting it, allowing you to keep all the partitioned data if desired. Because of this it can only process an entire partition at a time and cannot handle batches smaller than the partition interval.
 -- Changed create_prev_id_partition() to partition_data_id() & create_prev_time_partition() to partition_data_time(). This clarifies what these actually do since they don't always create a partition nor is it always necessarily "previous" data.
--- Changed how the above functions work to move data from parent into partitions. You can now feed them a smaller interval value for the rows that you'd like moved instead of it always moving exactly one entire partition of data. This allows smaller batch sizes when you've got a lot of data even in just one partition. That interval is now the second parameter. A third parameter can tell it how many of those interval batches you'd like to move in a single run of the function. Both of these parameters are optional. If not given, the interval defaults to the partition interval and the batch count is one (so it works exactly like it used to with no parameters but the parent table given). 
+-- Changed how the above functions work to move data from parent into partitions. You can now feed them a smaller interval value for the rows that you'd like moved instead of it always moving exactly one entire partition of data. This allows smaller batch sizes when you've got a lot of data even in just one partition. That interval is now the second parameter. A third parameter can tell it how many of those interval batches you'd like to move in a single run of the function. Both of these parameters are optional. If not given, the interval defaults to the partition interval and the batch count is one (so it works exactly like it used to with no parameters but the parent table given).
 -- Partition premake system is now able to catch up if it falls behind for some reason. Also makes it so that if the premake value is increased, within the next few runs it will have that many partitions premade automatically.
 -- Bug fix: create_time_partition() & create_time_function() now handle the "timestamp with time zone" data type much better. Was getting some mismatches in the trigger rules and table constraints when timestamptz was in use on server not running in UTC/GMT time. Would cause constraint violations during data insert at certain time boundaries. If you ran into this issue, there are two ways to fix it: 1) Manually recreate the constraints for the most recent partitions and any future partitions already created. You may have to move some data around as well. 2) Use the new undo functions to move all the data back into the parent table and then repartition again using the partition_data_* functions. This will fix the issue for all partitions.
 -- Bug fix: Determining how many partitions to premake in run_maintenance() is now more accurate. Previous date math would occasionally premake 1 extra partition depending on the time differences. This can still occur with weekly partitioning due to differing month lengths (especially February) and daylight savings. Doesn't hurt anything and will self-correct.
@@ -35,7 +35,7 @@ BEGIN
 
 SELECT part_interval::bigint, control
 INTO v_part_interval, v_control
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (type = 'id-static' OR type = 'id-dynamic');
 IF NOT FOUND THEN
@@ -72,7 +72,7 @@ FOR i IN 1..p_batch_count LOOP
     v_sql := 'WITH partition_data AS (
         DELETE FROM ONLY '||p_parent_table||' WHERE '||v_control||' >= '||v_min_control||
             ' AND '||v_control||' < '||v_max_partition_id||' RETURNING *)
-        INSERT INTO '||v_last_partition_name||' SELECT * FROM partition_data';        
+        INSERT INTO '||v_last_partition_name||' SELECT * FROM partition_data';
 
     RAISE NOTICE 'v_sql: %', v_sql;
     EXECUTE v_sql;
@@ -83,7 +83,7 @@ FOR i IN 1..p_batch_count LOOP
         EXIT;
     END IF;
 
-END LOOP; 
+END LOOP;
 
 RETURN v_total_rows;
 
@@ -115,7 +115,7 @@ BEGIN
 
 SELECT part_interval::interval, control, datetime_string
 INTO v_part_interval, v_control, v_datetime_string
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (type = 'time-static' OR type = 'time-dynamic');
 IF NOT FOUND THEN
@@ -135,10 +135,10 @@ FOR i IN 1..p_batch_count LOOP
 
     CASE
         WHEN v_part_interval = '15 mins' THEN
-            v_min_partition_timestamp := date_trunc('hour', v_min_control) + 
+            v_min_partition_timestamp := date_trunc('hour', v_min_control) +
                 '15min'::interval * floor(date_part('minute', v_min_control) / 15.0);
         WHEN v_part_interval = '30 mins' THEN
-            v_min_partition_timestamp := date_trunc('hour', v_min_control) + 
+            v_min_partition_timestamp := date_trunc('hour', v_min_control) +
                 '30min'::interval * floor(date_part('minute', v_min_control) / 30.0);
         WHEN v_part_interval = '1 hour' THEN
             v_min_partition_timestamp := date_trunc('hour', v_min_control);
@@ -181,7 +181,7 @@ FOR i IN 1..p_batch_count LOOP
         EXIT;
     END IF;
 
-END LOOP; 
+END LOOP;
 
 RETURN v_total_rows;
 
@@ -193,7 +193,7 @@ $$;
  * Function to manage pre-creation of the next partitions in a time-based partition set.
  * Also manages dropping old partitions if the retention option is set.
  */
-CREATE OR REPLACE FUNCTION run_maintenance() RETURNS void 
+CREATE OR REPLACE FUNCTION run_maintenance() RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
 DECLARE
@@ -232,7 +232,7 @@ IF v_jobmon_schema IS NOT NULL THEN
     v_step_id := add_step(v_job_id, 'Running maintenance loop');
 END IF;
 
-FOR v_row IN 
+FOR v_row IN
 SELECT parent_table
     , type
     , part_interval::interval
@@ -245,13 +245,13 @@ FROM @extschema@.part_config WHERE type = 'time-static' OR type = 'time-dynamic'
 LOOP
 
     CONTINUE WHEN v_row.undo_in_progress;
-    
+
     CASE
         WHEN v_row.part_interval = '15 mins' THEN
-            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '15min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 15.0);
         WHEN v_row.part_interval = '30 mins' THEN
-            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '30min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 30.0);
         WHEN v_row.part_interval = '1 hour' THEN
             v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP);
@@ -302,16 +302,16 @@ LOOP
 END LOOP; -- end of creation loop
 
 -- Manage dropping old partitions if retention option is set
-FOR v_row IN 
+FOR v_row IN
     SELECT parent_table FROM @extschema@.part_config WHERE retention IS NOT NULL AND undo_in_progress = false AND (type = 'time-static' OR type = 'time-dynamic')
 LOOP
-    v_drop_count := v_drop_count + @extschema@.drop_time_partition(v_row.parent_table);   
-END LOOP; 
-FOR v_row IN 
+    v_drop_count := v_drop_count + @extschema@.drop_time_partition(v_row.parent_table);
+END LOOP;
+FOR v_row IN
     SELECT parent_table FROM @extschema@.part_config WHERE retention IS NOT NULL AND undo_in_progress = false AND (type = 'id-static' OR type = 'id-dynamic')
 LOOP
     v_drop_count := v_drop_count + @extschema@.drop_id_partition(v_row.parent_table);
-END LOOP; 
+END LOOP;
 
 IF v_jobmon_schema IS NOT NULL THEN
     PERFORM update_step(v_step_id, 'OK', 'Partition maintenance finished. '||v_create_count||' partitions made. '||v_drop_count||' partitions dropped.');
@@ -395,7 +395,7 @@ INTO v_type
     , v_control
     , v_premake
     , v_last_partition
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (type = 'id-static' OR type = 'id-dynamic');
 
@@ -408,15 +408,15 @@ IF v_type = 'id-static' THEN
     v_next_partition_id := v_current_partition_id + v_part_interval;
     v_current_partition_name := p_parent_table || '_p' || v_current_partition_id::text;
 
-    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$ 
+    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$
         DECLARE
             v_current_partition_id  bigint;
             v_last_partition        text := '||quote_literal(v_last_partition)||';
             v_next_partition_id     bigint;
-            v_next_partition_name   text;         
+            v_next_partition_name   text;
         BEGIN
-        IF TG_OP = ''INSERT'' THEN 
-            IF NEW.'||v_control||' >= '||v_current_partition_id||' AND NEW.'||v_control||' < '||v_next_partition_id|| ' THEN 
+        IF TG_OP = ''INSERT'' THEN
+            IF NEW.'||v_control||' >= '||v_current_partition_id||' AND NEW.'||v_control||' < '||v_next_partition_id|| ' THEN
                 INSERT INTO '||v_current_partition_name||' VALUES (NEW.*); ';
 
         FOR i IN 1..v_premake LOOP
@@ -428,11 +428,11 @@ IF v_type = 'id-static' THEN
             -- Only make previous partitions if they're starting above zero
             IF v_prev_partition_id >= 0 THEN
                 v_trig_func := v_trig_func ||'
-            ELSIF NEW.'||v_control||' >= '||v_prev_partition_id||' AND NEW.'||v_control||' < '||v_prev_partition_id + v_part_interval|| ' THEN 
+            ELSIF NEW.'||v_control||' >= '||v_prev_partition_id||' AND NEW.'||v_control||' < '||v_prev_partition_id + v_part_interval|| ' THEN
                 INSERT INTO '||v_prev_partition_name||' VALUES (NEW.*); ';
             END IF;
             v_trig_func := v_trig_func ||'
-            ELSIF NEW.'||v_control||' >= '||v_next_partition_id||' AND NEW.'||v_control||' < '||v_final_partition_id|| ' THEN 
+            ELSIF NEW.'||v_control||' >= '||v_next_partition_id||' AND NEW.'||v_control||' < '||v_final_partition_id|| ' THEN
                 INSERT INTO '||v_next_partition_name||' VALUES (NEW.*); ';
         END LOOP;
 
@@ -443,7 +443,7 @@ IF v_type = 'id-static' THEN
             v_current_partition_id := NEW.'||v_control||' - (NEW.'||v_control||' % '||v_part_interval||');
             IF (NEW.'||v_control||' % '||v_part_interval||') > ('||v_part_interval||' / 2) THEN
                 v_next_partition_id := (substring(v_last_partition from char_length('||quote_literal(p_parent_table||'_p')||')+1)::bigint) + '||v_part_interval||';
-                WHILE ((v_next_partition_id - v_current_partition_id) / '||v_part_interval||') <= '||v_premake||' LOOP 
+                WHILE ((v_next_partition_id - v_current_partition_id) / '||v_part_interval||') <= '||v_premake||' LOOP
                     v_next_partition_name := @extschema@.create_id_partition('||quote_literal(p_parent_table)||', '||quote_literal(v_control)||','
                         ||v_part_interval||', ARRAY[v_next_partition_id]);
                     UPDATE @extschema@.part_config SET last_partition = v_next_partition_name WHERE parent_table = '||quote_literal(p_parent_table)||';
@@ -451,8 +451,8 @@ IF v_type = 'id-static' THEN
                     v_next_partition_id := v_next_partition_id + '||v_part_interval||';
                 END LOOP;
             END IF;
-        END IF; 
-        RETURN NULL; 
+        END IF;
+        RETURN NULL;
         END $t$;';
 
     EXECUTE v_trig_func;
@@ -463,7 +463,7 @@ IF v_type = 'id-static' THEN
 
 ELSIF v_type = 'id-dynamic' THEN
     -- The return inside the partition creation check is there to keep really high ID values from creating new partitions.
-    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$ 
+    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$
         DECLARE
             v_count                     int;
             v_current_partition_id      bigint;
@@ -471,9 +471,9 @@ ELSIF v_type = 'id-dynamic' THEN
             v_last_partition            text := '||quote_literal(v_last_partition)||';
             v_last_partition_id         bigint;
             v_next_partition_id         bigint;
-            v_next_partition_name       text;   
-        BEGIN 
-        IF TG_OP = ''INSERT'' THEN 
+            v_next_partition_name       text;
+        BEGIN
+        IF TG_OP = ''INSERT'' THEN
             v_current_partition_id := NEW.'||v_control||' - (NEW.'||v_control||' % '||v_part_interval||');
             v_current_partition_name := '''||p_parent_table||'_p''||v_current_partition_id;
             IF (NEW.'||v_control||' % '||v_part_interval||') > ('||v_part_interval||' / 2) THEN
@@ -482,7 +482,7 @@ ELSIF v_type = 'id-dynamic' THEN
                 IF NEW.'||v_control||' >= v_next_partition_id THEN
                     RETURN NEW;
                 END IF;
-                WHILE ((v_next_partition_id - v_current_partition_id) / '||v_part_interval||') <= '||v_premake||' LOOP 
+                WHILE ((v_next_partition_id - v_current_partition_id) / '||v_part_interval||') <= '||v_premake||' LOOP
                     v_next_partition_name := @extschema@.create_id_partition('||quote_literal(p_parent_table)||', '||quote_literal(v_control)||','
                         ||quote_literal(v_part_interval)||', ARRAY[v_next_partition_id]);
                     IF v_next_partition_name IS NOT NULL THEN
@@ -493,14 +493,14 @@ ELSIF v_type = 'id-dynamic' THEN
                 END LOOP;
             END IF;
             SELECT count(*) INTO v_count FROM pg_tables WHERE schemaname ||''.''|| tablename = v_current_partition_name;
-            IF v_count > 0 THEN 
+            IF v_count > 0 THEN
                 EXECUTE ''INSERT INTO ''||v_current_partition_name||'' VALUES($1.*)'' USING NEW;
             ELSE
                 RETURN NEW;
             END IF;
         END IF;
-        
-        RETURN NULL; 
+
+        RETURN NULL;
         END $t$;';
 
     EXECUTE v_trig_func;
@@ -573,7 +573,7 @@ END IF;
 
 SELECT tableowner INTO v_parent_owner FROM pg_tables WHERE schemaname ||'.'|| tablename = p_parent_table;
 
-FOREACH v_time IN ARRAY p_partition_times LOOP    
+FOREACH v_time IN ARRAY p_partition_times LOOP
 
     v_partition_name := p_parent_table || '_p';
 
@@ -613,7 +613,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
                         END IF;
                         v_trunc_value := 'minute';
                     END IF;
-                END IF; -- end hour IF      
+                END IF; -- end hour IF
             END IF; -- end day IF
         END IF; -- end month IF
     ELSIF p_interval = '1 week' THEN
@@ -633,7 +633,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         v_quarter := to_char(v_time, 'Q');
         v_partition_name := v_partition_name || v_year || 'q' || v_quarter;
         v_trunc_value := 'quarter';
-        CASE 
+        CASE
             WHEN v_quarter = '1' THEN
                 v_partition_timestamp_start := date_trunc(v_trunc_value, to_timestamp(v_year || '-01-01', 'YYYY-MM-DD'));
             WHEN v_quarter = '2' THEN
@@ -656,7 +656,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         v_step_id := add_step(v_job_id, 'Creating new partition '||v_partition_name||' with interval from '||v_partition_timestamp_start||' to '||(v_partition_timestamp_end-'1sec'::interval));
     END IF;
 
-    IF position('.' in p_parent_table) > 0 THEN 
+    IF position('.' in p_parent_table) > 0 THEN
         v_tablename := substring(v_partition_name from position('.' in v_partition_name)+1);
     END IF;
 
@@ -665,11 +665,11 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         CHECK ('||p_control||'>='||quote_literal(v_partition_timestamp_start)||' AND '||p_control||'<'||quote_literal(v_partition_timestamp_end)||')';
     EXECUTE 'ALTER TABLE '||v_partition_name||' INHERIT '||p_parent_table;
 
-    FOR v_parent_grant IN 
+    FOR v_parent_grant IN
         SELECT array_agg(DISTINCT privilege_type::text ORDER BY privilege_type::text) AS types, grantee
-        FROM information_schema.table_privileges 
+        FROM information_schema.table_privileges
         WHERE table_schema ||'.'|| table_name = p_parent_table
-        GROUP BY grantee 
+        GROUP BY grantee
     LOOP
         EXECUTE 'GRANT '||array_to_string(v_parent_grant.types, ',')||' ON '||v_partition_name||' TO '||v_parent_grant.grantee;
         SELECT array_agg(r) INTO v_revoke FROM (SELECT unnest(v_all) AS r EXCEPT SELECT unnest(v_parent_grant.types)) x;
@@ -772,7 +772,7 @@ INTO v_type
     , v_control
     , v_premake
     , v_datetime_string
-FROM @extschema@.part_config 
+FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND (type = 'time-static' OR type = 'time-dynamic');
 
@@ -784,10 +784,10 @@ IF v_type = 'time-static' THEN
 
     CASE
         WHEN v_part_interval = '15 mins' THEN
-            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '15min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 15.0);
         WHEN v_part_interval = '30 mins' THEN
-            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) + 
+            v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP) +
                 '30min'::interval * floor(date_part('minute', CURRENT_TIMESTAMP) / 30.0);
         WHEN v_part_interval = '1 hour' THEN
             v_current_partition_timestamp := date_trunc('hour', CURRENT_TIMESTAMP);
@@ -802,14 +802,14 @@ IF v_type = 'time-static' THEN
         WHEN v_part_interval = '1 year' THEN
             v_current_partition_timestamp := date_trunc('year', CURRENT_TIMESTAMP);
     END CASE;
-    
+
     v_current_partition_name := p_parent_table || '_p' || to_char(v_current_partition_timestamp, v_datetime_string);
     v_next_partition_timestamp := v_current_partition_timestamp + v_part_interval::interval;
 
-    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$ 
-        BEGIN 
-        IF TG_OP = ''INSERT'' THEN 
-            IF NEW.'||v_control||' >= '||quote_literal(v_current_partition_timestamp)||' AND NEW.'||v_control||' < '||quote_literal(v_next_partition_timestamp)|| ' THEN 
+    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$
+        BEGIN
+        IF TG_OP = ''INSERT'' THEN
+            IF NEW.'||v_control||' >= '||quote_literal(v_current_partition_timestamp)||' AND NEW.'||v_control||' < '||quote_literal(v_next_partition_timestamp)|| ' THEN
                 INSERT INTO '||v_current_partition_name||' VALUES (NEW.*); ';
     FOR i IN 1..v_premake LOOP
         v_prev_partition_timestamp := v_current_partition_timestamp - (v_part_interval::interval * i);
@@ -820,18 +820,18 @@ IF v_type = 'time-static' THEN
 
         v_trig_func := v_trig_func ||'
             ELSIF NEW.'||v_control||' >= '||quote_literal(v_prev_partition_timestamp)||' AND NEW.'||v_control||' < '||
-                    quote_literal(v_prev_partition_timestamp + v_part_interval::interval)|| ' THEN 
-                INSERT INTO '||v_prev_partition_name||' VALUES (NEW.*); 
+                    quote_literal(v_prev_partition_timestamp + v_part_interval::interval)|| ' THEN
+                INSERT INTO '||v_prev_partition_name||' VALUES (NEW.*);
             ELSIF NEW.'||v_control||' >= '||quote_literal(v_next_partition_timestamp)||' AND NEW.'||v_control||' < '||
-                    quote_literal(v_final_partition_timestamp)|| ' THEN 
+                    quote_literal(v_final_partition_timestamp)|| ' THEN
                 INSERT INTO '||v_next_partition_name||' VALUES (NEW.*); ';
     END LOOP;
-    v_trig_func := v_trig_func ||' 
-            ELSE 
-                RETURN NEW; 
-            END IF; 
-        END IF; 
-        RETURN NULL; 
+    v_trig_func := v_trig_func ||'
+            ELSE
+                RETURN NEW;
+            END IF;
+        END IF;
+        RETURN NULL;
         END $t$;';
 
     EXECUTE v_trig_func;
@@ -843,22 +843,22 @@ IF v_type = 'time-static' THEN
 
 ELSIF v_type = 'time-dynamic' THEN
 
-    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$ 
+    v_trig_func := 'CREATE OR REPLACE FUNCTION '||p_parent_table||'_part_trig_func() RETURNS trigger LANGUAGE plpgsql AS $t$
         DECLARE
             v_count                 int;
             v_partition_name        text;
             v_partition_timestamp   timestamptz;
             v_schemaname            text;
             v_tablename             text;
-        BEGIN 
-        IF TG_OP = ''INSERT'' THEN 
+        BEGIN
+        IF TG_OP = ''INSERT'' THEN
             ';
         CASE
-            WHEN v_part_interval = '15 mins' THEN 
-                v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||') + 
+            WHEN v_part_interval = '15 mins' THEN
+                v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||') +
                     ''15min''::interval * floor(date_part(''minute'', NEW.'||v_control||') / 15.0);';
             WHEN v_part_interval = '30 mins' THEN
-                v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||') + 
+                v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||') +
                     ''30min''::interval * floor(date_part(''minute'', NEW.'||v_control||') / 30.0);';
             WHEN v_part_interval = '1 hour' THEN
                 v_trig_func := v_trig_func||'v_partition_timestamp := date_trunc(''hour'', NEW.'||v_control||');';
@@ -876,17 +876,17 @@ ELSIF v_type = 'time-dynamic' THEN
 
         v_trig_func := v_trig_func||'
             v_partition_name := '''||p_parent_table||'_p''|| to_char(v_partition_timestamp, '||quote_literal(v_datetime_string)||');
-            v_schemaname := split_part(v_partition_name, ''.'', 1); 
+            v_schemaname := split_part(v_partition_name, ''.'', 1);
             v_tablename := split_part(v_partition_name, ''.'', 2);
             SELECT count(*) INTO v_count FROM pg_tables WHERE schemaname = v_schemaname AND tablename = v_tablename;
-            IF v_count > 0 THEN 
+            IF v_count > 0 THEN
                 EXECUTE ''INSERT INTO ''||v_partition_name||'' VALUES($1.*)'' USING NEW;
             ELSE
                 RETURN NEW;
             END IF;
         END IF;
-        
-        RETURN NULL; 
+
+        RETURN NULL;
         END $t$;';
 
     EXECUTE v_trig_func;
@@ -924,7 +924,7 @@ $$;
 
 
 /*
- * Function to undo partitioning. 
+ * Function to undo partitioning.
  * Will actually work on any parent/child table set, not just ones created by pg_partman.
  */
 CREATE FUNCTION undo_partition(p_parent_table text, p_batch_count int DEFAULT 1, p_keep_table boolean DEFAULT true) RETURNS bigint
@@ -975,10 +975,10 @@ IF v_jobmon_schema IS NOT NULL THEN
     PERFORM update_step(v_step_id, 'OK', 'Stopped partition creation process. Removed trigger & trigger function');
 END IF;
 
-FOR i IN 1..p_batch_count LOOP 
-    SELECT inhrelid::regclass INTO v_child_table 
-    FROM pg_catalog.pg_inherits 
-    WHERE inhparent::regclass = p_parent_table::regclass 
+FOR i IN 1..p_batch_count LOOP
+    SELECT inhrelid::regclass INTO v_child_table
+    FROM pg_catalog.pg_inherits
+    WHERE inhparent::regclass = p_parent_table::regclass
     ORDER BY inhrelid::regclass::text ASC;
 
     EXIT WHEN v_child_table IS NULL;
@@ -986,7 +986,7 @@ FOR i IN 1..p_batch_count LOOP
     IF v_jobmon_schema IS NOT NULL THEN
         v_step_id := add_step(v_job_id, 'Removing child partition: '||v_child_table);
     END IF;
-   
+
     v_copy_sql := 'INSERT INTO '||p_parent_table||' SELECT * FROM '||v_child_table;
     EXECUTE v_copy_sql;
     GET DIAGNOSTICS v_rowcount = ROW_COUNT;
@@ -1003,7 +1003,7 @@ FOR i IN 1..p_batch_count LOOP
             PERFORM update_step(v_step_id, 'OK', 'Child table UNINHERITED, not DROPPED. Copied '||v_rowcount||' rows to parent');
         END IF;
     END IF;
-    v_undo_count := v_undo_count + 1;         
+    v_undo_count := v_undo_count + 1;
 END LOOP;
 
 IF v_undo_count = 0 THEN
@@ -1088,8 +1088,8 @@ SELECT part_interval::interval
     , control
 INTO v_part_interval
     , v_control
-FROM @extschema@.part_config 
-WHERE parent_table = p_parent_table 
+FROM @extschema@.part_config
+WHERE parent_table = p_parent_table
 AND (type = 'time-static' OR type = 'time-dynamic');
 
 IF v_part_interval IS NULL THEN
@@ -1123,10 +1123,10 @@ IF v_jobmon_schema IS NOT NULL THEN
 END IF;
 
 <<outer_child_loop>>
-WHILE v_batch_loop_count < p_batch_count LOOP 
-    SELECT inhrelid::regclass INTO v_child_table 
-    FROM pg_catalog.pg_inherits 
-    WHERE inhparent::regclass = p_parent_table::regclass 
+WHILE v_batch_loop_count < p_batch_count LOOP
+    SELECT inhrelid::regclass INTO v_child_table
+    FROM pg_catalog.pg_inherits
+    WHERE inhparent::regclass = p_parent_table::regclass
     ORDER BY inhrelid::regclass::text ASC;
 
     EXIT WHEN v_child_table IS NULL;
@@ -1256,8 +1256,8 @@ SELECT part_interval::bigint
     , control
 INTO v_part_interval
     , v_control
-FROM @extschema@.part_config 
-WHERE parent_table = p_parent_table 
+FROM @extschema@.part_config
+WHERE parent_table = p_parent_table
 AND (type = 'id-static' OR type = 'id-dynamic');
 
 IF v_part_interval IS NULL THEN
@@ -1291,10 +1291,10 @@ IF v_jobmon_schema IS NOT NULL THEN
 END IF;
 
 <<outer_child_loop>>
-WHILE v_batch_loop_count < p_batch_count LOOP 
-    SELECT inhrelid::regclass INTO v_child_table 
-    FROM pg_catalog.pg_inherits 
-    WHERE inhparent::regclass = p_parent_table::regclass 
+WHILE v_batch_loop_count < p_batch_count LOOP
+    SELECT inhrelid::regclass INTO v_child_table
+    FROM pg_catalog.pg_inherits
+    WHERE inhparent::regclass = p_parent_table::regclass
     ORDER BY inhrelid::regclass::text ASC;
 
     EXIT WHEN v_child_table IS NULL;

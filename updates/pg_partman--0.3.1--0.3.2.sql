@@ -1,4 +1,4 @@
--- Allow multiple grant commands for the same partition set in case different roles need different grants. Removed primary key constraint from part_grants table and updated apply_grants function 
+-- Allow multiple grant commands for the same partition set in case different roles need different grants. Removed primary key constraint from part_grants table and updated apply_grants function
 -- create_parent() function now ensures that the control column has a not null constraint.
 -- Make select-only functions STABLE
 
@@ -24,11 +24,11 @@ v_row           record;
 
 BEGIN
 
-FOR v_row IN 
+FOR v_row IN
     SELECT grants, roles FROM @extschema@.part_grants WHERE parent_table = p_parent_table
 LOOP
     EXECUTE 'GRANT '||v_row.grants||' ON '||p_parent_table||' TO '||v_row.roles;
-    FOR v_child_table IN 
+    FOR v_child_table IN
         SELECT inhrelid::regclass FROM pg_catalog.pg_inherits WHERE inhparent::regclass = p_parent_table::regclass ORDER BY inhrelid::regclass ASC
     LOOP
         EXECUTE 'GRANT '||v_row.grants||' ON '||v_child_table||' TO '||v_row.roles;
@@ -154,7 +154,7 @@ IF p_type = 'id-static' OR p_type = 'id-dynamic' THEN
     IF v_jobmon_schema IS NOT NULL THEN
         PERFORM update_step(v_step_id, 'OK', 'ID partitions premade: '||p_premake);
     END IF;
-    
+
 END IF;
 
 IF v_jobmon_schema IS NOT NULL THEN
@@ -167,8 +167,8 @@ IF p_type = 'time-static' OR p_type = 'time-dynamic' THEN
         PERFORM update_step(v_step_id, 'OK', 'Time function created');
     END IF;
 ELSIF p_type = 'id-static' OR p_type = 'id-dynamic' THEN
-    v_current_id := COALESCE(v_max, 0);    
-    EXECUTE 'SELECT @extschema@.create_id_function('||quote_literal(p_parent_table)||','||v_current_id||')';  
+    v_current_id := COALESCE(v_max, 0);
+    EXECUTE 'SELECT @extschema@.create_id_function('||quote_literal(p_parent_table)||','||v_current_id||')';
     IF v_jobmon_schema IS NOT NULL THEN
         PERFORM update_step(v_step_id, 'OK', 'ID function created');
     END IF;
@@ -212,8 +212,8 @@ $$;
 CREATE OR REPLACE FUNCTION check_parent() RETURNS SETOF @extschema@.check_parent_table
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     AS $$
-DECLARE 
-    
+DECLARE
+
 v_count 	bigint = 0;
 v_sql       text;
 v_tables 	record;
@@ -221,14 +221,14 @@ v_trouble   @extschema@.check_parent_table%rowtype;
 
 BEGIN
 
-FOR v_tables IN 
+FOR v_tables IN
     SELECT DISTINCT parent_table FROM @extschema@.part_config
 LOOP
 
     v_sql := 'SELECT count(1) AS n FROM ONLY '||v_tables.parent_table;
     EXECUTE v_sql INTO v_count;
 
-    IF v_count > 0 THEN 
+    IF v_count > 0 THEN
         v_trouble.parent_table := v_tables.parent_table;
         v_trouble.count := v_count;
         RETURN NEXT v_trouble;

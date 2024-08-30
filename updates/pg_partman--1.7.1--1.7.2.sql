@@ -5,11 +5,11 @@ ALTER TABLE @extschema@.part_config ADD inherit_fk boolean NOT NULL DEFAULT true
 
 CREATE TEMP TABLE partman_preserve_privs_temp (statement text);
 
-INSERT INTO partman_preserve_privs_temp 
-SELECT 'GRANT EXECUTE ON FUNCTION @extschema@.create_parent(text, text, text, text, text[], int, boolean, text, boolean, boolean, boolean) TO '||array_to_string(array_agg(grantee::text), ',')||';' 
+INSERT INTO partman_preserve_privs_temp
+SELECT 'GRANT EXECUTE ON FUNCTION @extschema@.create_parent(text, text, text, text, text[], int, boolean, text, boolean, boolean, boolean) TO '||array_to_string(array_agg(grantee::text), ',')||';'
 FROM information_schema.routine_privileges
 WHERE routine_schema = '@extschema@'
-AND routine_name = 'create_parent'; 
+AND routine_name = 'create_parent';
 
 DROP FUNCTION create_parent(text, text, text, text, text[], int, boolean, text, boolean, boolean);
 
@@ -53,8 +53,8 @@ IF v_jobmon_schema IS NOT NULL THEN
     v_step_id := add_step(v_job_id, 'Checking if target child table exists');
 END IF;
 
-SELECT schemaname, tablename INTO v_schemaname, v_tablename 
-FROM pg_catalog.pg_tables 
+SELECT schemaname, tablename INTO v_schemaname, v_tablename
+FROM pg_catalog.pg_tables
 WHERE schemaname||'.'||tablename = p_child_table;
 
 IF v_tablename IS NULL THEN
@@ -71,7 +71,7 @@ ELSE
     END IF;
 END IF;
 
-FOR v_row IN 
+FOR v_row IN
     SELECT n.nspname||'.'||cl.relname AS ref_table
         , '"'||string_agg(att.attname, '","')||'"' AS ref_column
         , '"'||string_agg(att2.attname, '","')||'"' AS child_column
@@ -95,7 +95,7 @@ FOR v_row IN
     GROUP BY keys.conname, n.nspname, cl.relname
 LOOP
     SELECT schemaname, tablename INTO v_ref_schema, v_ref_table FROM pg_tables WHERE schemaname||'.'||tablename = v_row.ref_table;
-    v_sql := format('ALTER TABLE %I.%I ADD FOREIGN KEY (%s) REFERENCES %I.%I (%s)', 
+    v_sql := format('ALTER TABLE %I.%I ADD FOREIGN KEY (%s) REFERENCES %I.%I (%s)',
         v_schemaname, v_tablename, v_row.child_column, v_ref_schema, v_ref_table, v_row.ref_column);
 
     IF v_jobmon_schema IS NOT NULL THEN
@@ -140,13 +140,13 @@ CREATE FUNCTION create_parent(
     , p_control text
     , p_type text
     , p_interval text
-    , p_constraint_cols text[] DEFAULT NULL 
+    , p_constraint_cols text[] DEFAULT NULL
     , p_premake int DEFAULT 4
     , p_use_run_maintenance boolean DEFAULT NULL
     , p_start_partition text DEFAULT NULL
     , p_inherit_fk boolean DEFAULT true
     , p_jobmon boolean DEFAULT true
-    , p_debug boolean DEFAULT false) 
+    , p_debug boolean DEFAULT false)
 RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
@@ -269,21 +269,21 @@ IF p_type = 'time-static' OR p_type = 'time-dynamic' OR p_type = 'time-custom' T
             END IF; -- 100
         END IF; -- 10
     END IF; -- 1
-   
+
     v_datetime_string := 'YYYY';
     IF v_time_interval < '1 year' THEN
         IF p_interval = 'quarterly' THEN
             v_base_timestamp := date_trunc('quarter', v_start_time);
             v_datetime_string = 'YYYY"q"Q';
         ELSE
-            v_base_timestamp := date_trunc('month', v_start_time); 
+            v_base_timestamp := date_trunc('month', v_start_time);
             v_datetime_string := v_datetime_string || '_MM';
         END IF;
         IF v_time_interval < '1 month' THEN
             IF p_interval = 'weekly' THEN
                 v_base_timestamp := date_trunc('week', v_start_time);
                 v_datetime_string := 'IYYY"w"IW';
-            ELSE 
+            ELSE
                 v_base_timestamp := date_trunc('day', v_start_time);
                 v_datetime_string := v_datetime_string || '_DD';
             END IF;
@@ -306,7 +306,7 @@ IF p_type = 'time-static' OR p_type = 'time-dynamic' OR p_type = 'time-custom' T
                 v_partition_time := (v_base_timestamp + (v_time_interval * v_count))::timestamp;
                 v_partition_time_array := array_append(v_partition_time_array, v_partition_time);
             EXCEPTION WHEN datetime_field_overflow THEN
-                RAISE WARNING 'Attempted partition time interval is outside PostgreSQL''s supported time range. 
+                RAISE WARNING 'Attempted partition time interval is outside PostgreSQL''s supported time range.
                     Child partition creation after time % skipped', v_partition_time;
                 v_step_overflow_id := add_step(v_job_id, 'Attempted partition time interval is outside PostgreSQL''s supported time range.');
                 PERFORM update_step(v_step_overflow_id, 'CRITICAL', 'Child partition creation after time '||v_partition_time||' skipped');
@@ -315,7 +315,7 @@ IF p_type = 'time-static' OR p_type = 'time-dynamic' OR p_type = 'time-custom' T
         ELSE
             EXIT; -- all needed partitions added to array. Exit the loop.
         END IF;
-        v_count := v_count + 1;        
+        v_count := v_count + 1;
     END LOOP;
 
     INSERT INTO @extschema@.part_config (
@@ -328,7 +328,7 @@ IF p_type = 'time-static' OR p_type = 'time-dynamic' OR p_type = 'time-custom' T
         , datetime_string
         , use_run_maintenance
         , inherit_fk
-        , jobmon) 
+        , jobmon)
     VALUES (
         p_parent_table
         , p_type
@@ -354,19 +354,19 @@ IF p_type = 'id-static' OR p_type = 'id-dynamic' THEN
     IF v_id_interval <= 1 THEN
         RAISE EXCEPTION 'Interval for serial partitioning must be greater than 1';
     END IF;
-    
-    -- If custom start partition is set, use that. 
+
+    -- If custom start partition is set, use that.
     -- If custom start is not set and there is already data, start partitioning with the highest current value
     EXECUTE 'SELECT COALESCE('||quote_nullable(p_start_partition::bigint)||', max('||p_control||')::bigint, 0) FROM '||p_parent_table||' LIMIT 1' INTO v_max;
     v_starting_partition_id := v_max - (v_max % v_id_interval);
     FOR i IN 0..p_premake LOOP
         -- Only make previous partitions if ID value is less than the starting value and positive (and custom start partition wasn't set)
-        IF p_start_partition IS NULL AND 
-            (v_starting_partition_id - (v_id_interval*i)) > 0 
-            AND (v_starting_partition_id - (v_id_interval*i)) < v_starting_partition_id 
+        IF p_start_partition IS NULL AND
+            (v_starting_partition_id - (v_id_interval*i)) > 0
+            AND (v_starting_partition_id - (v_id_interval*i)) < v_starting_partition_id
         THEN
             v_partition_id = array_append(v_partition_id, (v_starting_partition_id - v_id_interval*i));
-        END IF; 
+        END IF;
         v_partition_id = array_append(v_partition_id, (v_id_interval*i) + v_starting_partition_id);
     END LOOP;
 
@@ -379,7 +379,7 @@ IF p_type = 'id-static' OR p_type = 'id-dynamic' THEN
         , constraint_cols
         , use_run_maintenance
         , inherit_fk
-        , jobmon) 
+        , jobmon)
     VALUES (
         p_parent_table
         , p_type
@@ -397,7 +397,7 @@ IF p_type = 'id-static' OR p_type = 'id-dynamic' THEN
     IF v_jobmon_schema IS NOT NULL THEN
         PERFORM update_step(v_step_id, 'OK', 'ID partitions premade: '||p_premake);
     END IF;
-    
+
 END IF;
 
 IF v_jobmon_schema IS NOT NULL THEN
@@ -410,7 +410,7 @@ IF p_type = 'time-static' OR p_type = 'time-dynamic' OR p_type = 'time-custom' T
         PERFORM update_step(v_step_id, 'OK', 'Time function created');
     END IF;
 ELSIF p_type = 'id-static' OR p_type = 'id-dynamic' THEN
-    PERFORM @extschema@.create_id_function(p_parent_table);  
+    PERFORM @extschema@.create_id_function(p_parent_table);
     IF v_jobmon_schema IS NOT NULL THEN
         PERFORM update_step(v_step_id, 'OK', 'ID function created');
     END IF;
@@ -541,15 +541,15 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
     IF v_parent_tablespace IS NOT NULL THEN
         EXECUTE 'ALTER TABLE '||v_partition_name||' SET TABLESPACE '||v_parent_tablespace;
     END IF;
-    EXECUTE 'ALTER TABLE '||v_partition_name||' ADD CONSTRAINT '||v_tablename||'_partition_check 
+    EXECUTE 'ALTER TABLE '||v_partition_name||' ADD CONSTRAINT '||v_tablename||'_partition_check
         CHECK ('||v_control||'>='||quote_literal(v_id)||' AND '||v_control||'<'||quote_literal(v_id + v_part_interval)||')';
     EXECUTE 'ALTER TABLE '||v_partition_name||' INHERIT '||p_parent_table;
 
-    FOR v_parent_grant IN 
+    FOR v_parent_grant IN
         SELECT array_agg(DISTINCT privilege_type::text ORDER BY privilege_type::text) AS types, grantee
-        FROM information_schema.table_privileges 
+        FROM information_schema.table_privileges
         WHERE table_schema ||'.'|| table_name = p_parent_table
-        GROUP BY grantee 
+        GROUP BY grantee
     LOOP
         EXECUTE 'GRANT '||array_to_string(v_parent_grant.types, ',')||' ON '||v_partition_name||' TO '||v_parent_grant.grantee;
         SELECT array_agg(r) INTO v_revoke FROM (SELECT unnest(v_all) AS r EXCEPT SELECT unnest(v_parent_grant.types)) x;
@@ -612,7 +612,7 @@ $$;
 /*
  * Function to create a child table in a time-based partition set
  */
-CREATE OR REPLACE FUNCTION create_time_partition (p_parent_table text, p_partition_times timestamp[]) 
+CREATE OR REPLACE FUNCTION create_time_partition (p_parent_table text, p_partition_times timestamp[])
 RETURNS text
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
@@ -680,19 +680,19 @@ END IF;
 
 SELECT tableowner, schemaname, tablename, tablespace INTO v_parent_owner, v_parent_schema, v_parent_tablename, v_parent_tablespace FROM pg_tables WHERE schemaname ||'.'|| tablename = p_parent_table;
 
-FOREACH v_time IN ARRAY p_partition_times LOOP    
+FOREACH v_time IN ARRAY p_partition_times LOOP
 
     v_partition_suffix := to_char(v_time, 'YYYY');
-    IF v_part_interval < '1 year' AND v_part_interval <> '1 week' THEN 
+    IF v_part_interval < '1 year' AND v_part_interval <> '1 week' THEN
         v_partition_suffix := v_partition_suffix ||'_'|| to_char(v_time, 'MM');
-        IF v_part_interval < '1 month' AND v_part_interval <> '1 week' THEN 
+        IF v_part_interval < '1 month' AND v_part_interval <> '1 week' THEN
             v_partition_suffix := v_partition_suffix ||'_'|| to_char(v_time, 'DD');
             IF v_part_interval < '1 day' THEN
                 v_partition_suffix := v_partition_suffix || '_' || to_char(v_time, 'HH24MI');
                 IF v_part_interval < '1 minute' THEN
                     v_partition_suffix := v_partition_suffix || to_char(v_time, 'SS');
                 END IF; -- end < minute IF
-            END IF; -- end < day IF      
+            END IF; -- end < day IF
         END IF; -- end < month IF
     END IF; -- end < year IF
 
@@ -700,7 +700,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
     BEGIN
         v_partition_timestamp_end := v_time + v_part_interval;
     EXCEPTION WHEN datetime_field_overflow THEN
-        RAISE WARNING 'Attempted partition time interval is outside PostgreSQL''s supported time range. 
+        RAISE WARNING 'Attempted partition time interval is outside PostgreSQL''s supported time range.
             Child partition creation after time % skipped', v_time;
         v_step_overflow_id := add_step(v_job_id, 'Attempted partition time interval is outside PostgreSQL''s supported time range.');
         PERFORM update_step(v_step_overflow_id, 'CRITICAL', 'Child partition creation after time '||v_time||' skipped');
@@ -710,7 +710,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
     IF v_part_interval = '1 week' THEN
         v_partition_suffix := to_char(v_time, 'IYYY') || 'w' || to_char(v_time, 'IW');
     END IF;
- 
+
     -- "Q" is ignored in to_timestamp, so handle special case
     IF v_part_interval = '3 months' AND (v_type = 'time-static' OR v_type = 'time-dynamic') THEN
         v_year := to_char(v_time, 'YYYY');
@@ -758,11 +758,11 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         VALUES ( p_parent_table, v_partition_name, tstzrange(v_partition_timestamp_start, v_partition_timestamp_end, '[)') );
     END IF;
 
-    FOR v_parent_grant IN 
+    FOR v_parent_grant IN
         SELECT array_agg(DISTINCT privilege_type::text ORDER BY privilege_type::text) AS types, grantee
-        FROM information_schema.table_privileges 
+        FROM information_schema.table_privileges
         WHERE table_schema ||'.'|| table_name = p_parent_table
-        GROUP BY grantee 
+        GROUP BY grantee
     LOOP
         EXECUTE 'GRANT '||array_to_string(v_parent_grant.types, ',')||' ON '||v_partition_name||' TO '||v_parent_grant.grantee;
         SELECT array_agg(r) INTO v_revoke FROM (SELECT unnest(v_all) AS r EXCEPT SELECT unnest(v_parent_grant.types)) x;

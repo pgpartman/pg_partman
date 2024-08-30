@@ -99,7 +99,7 @@ def perform_dump(result):
         print("Error in pg_dump command: " + str(e.cmd))
         sys.exit(2)
 
-    return table_name 
+    return table_name
 
 
 def print_version():

@@ -50,5 +50,3 @@ END LOOP;
 PERFORM pg_advisory_unlock(hashtext('pg_partman run_analyze'));
 END
 $$;
-
-

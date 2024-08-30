@@ -32,5 +32,3 @@ RETURN true;
 
 END
 $$;
-
-

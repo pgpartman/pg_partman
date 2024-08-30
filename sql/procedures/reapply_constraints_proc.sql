@@ -107,4 +107,3 @@ EXECUTE format('ANALYZE %I.%I', v_parent_schema, v_parent_tablename);
 PERFORM pg_advisory_unlock(hashtext('pg_partman reapply_constraints'));
 END
 $$;
-

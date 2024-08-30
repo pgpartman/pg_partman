@@ -9,9 +9,9 @@ CREATE OR REPLACE FUNCTION create_parent(
     , p_control text
     , p_type text
     , p_interval text
-    , p_constraint_cols text[] DEFAULT NULL 
+    , p_constraint_cols text[] DEFAULT NULL
     , p_premake int DEFAULT 4
-    , p_debug boolean DEFAULT false) 
+    , p_debug boolean DEFAULT false)
 RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
@@ -131,7 +131,7 @@ IF p_type = 'id-static' OR p_type = 'id-dynamic' THEN
         -- Only make previous partitions if ID value is less than the starting value and positive
         IF (v_starting_partition_id - (v_id_interval*i)) > 0 AND (v_starting_partition_id - (v_id_interval*i)) < v_starting_partition_id THEN
             v_partition_id = array_append(v_partition_id, (v_starting_partition_id - v_id_interval*i));
-        END IF; 
+        END IF;
         v_partition_id = array_append(v_partition_id, (v_id_interval*i) + v_starting_partition_id);
     END LOOP;
 
@@ -145,7 +145,7 @@ IF p_type = 'id-static' OR p_type = 'id-dynamic' THEN
     IF v_jobmon_schema IS NOT NULL THEN
         PERFORM update_step(v_step_id, 'OK', 'ID partitions premade: '||p_premake);
     END IF;
-    
+
 END IF;
 
 IF v_jobmon_schema IS NOT NULL THEN
@@ -158,8 +158,8 @@ IF p_type = 'time-static' OR p_type = 'time-dynamic' THEN
         PERFORM update_step(v_step_id, 'OK', 'Time function created');
     END IF;
 ELSIF p_type = 'id-static' OR p_type = 'id-dynamic' THEN
-    v_current_id := COALESCE(v_max, 0);    
-    EXECUTE 'SELECT @extschema@.create_id_function('||quote_literal(p_parent_table)||','||v_current_id||')';  
+    v_current_id := COALESCE(v_max, 0);
+    EXECUTE 'SELECT @extschema@.create_id_function('||quote_literal(p_parent_table)||','||v_current_id||')';
     IF v_jobmon_schema IS NOT NULL THEN
         PERFORM update_step(v_step_id, 'OK', 'ID function created');
     END IF;

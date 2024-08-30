@@ -46,8 +46,8 @@ IF v_jobmon_schema IS NOT NULL THEN
     v_step_id := add_step(v_job_id, 'Checking if target child table exists');
 END IF;
 
-SELECT schemaname, tablename INTO v_schemaname, v_tablename 
-FROM pg_catalog.pg_tables 
+SELECT schemaname, tablename INTO v_schemaname, v_tablename
+FROM pg_catalog.pg_tables
 WHERE schemaname||'.'||tablename = p_child_table;
 
 IF v_tablename IS NULL THEN
@@ -64,7 +64,7 @@ ELSE
     END IF;
 END IF;
 
-FOR v_row IN 
+FOR v_row IN
     SELECT n.nspname||'.'||cl.relname AS ref_table
         , '"'||string_agg(att.attname, '","')||'"' AS ref_column
         , '"'||string_agg(att2.attname, '","')||'"' AS child_column
@@ -97,7 +97,7 @@ FOR v_row IN
     GROUP BY n.nspname, cl.relname, keys.condeferred, keys.condeferrable, keys.confupdtype, keys.confdeltype, keys.confmatchtype
 LOOP
     SELECT schemaname, tablename INTO v_ref_schema, v_ref_table FROM pg_tables WHERE schemaname||'.'||tablename = v_row.ref_table;
-    v_sql := format('ALTER TABLE %I.%I ADD FOREIGN KEY (%s) REFERENCES %I.%I (%s)', 
+    v_sql := format('ALTER TABLE %I.%I ADD FOREIGN KEY (%s) REFERENCES %I.%I (%s)',
         v_schemaname, v_tablename, v_row.child_column, v_ref_schema, v_ref_table, v_row.ref_column);
     CASE
         WHEN v_row.confmatchtype = 'f' THEN
@@ -107,7 +107,7 @@ LOOP
         WHEN v_row.confmatchtype = 'p' THEN
             v_sql := v_sql || ' MATCH PARTIAL ';
     END CASE;
-    CASE 
+    CASE
         WHEN v_row.confupdtype = 'a' THEN
             v_sql := v_sql || ' ON UPDATE NO ACTION ';
         WHEN v_row.confupdtype = 'r' THEN
@@ -172,4 +172,3 @@ EXCEPTION
         RAISE EXCEPTION '%', SQLERRM;
 END
 $$;
-
