@@ -188,6 +188,7 @@ LOOP
     v_partition_expression := CASE
         WHEN v_row.epoch = 'seconds' THEN format('to_timestamp(%I)', v_row.control)
         WHEN v_row.epoch = 'milliseconds' THEN format('to_timestamp((%I/1000)::float)', v_row.control)
+        WHEN v_row.epoch = 'microseconds' THEN format('to_timestamp((%I/1000000)::float)', v_row.control)
         WHEN v_row.epoch = 'nanoseconds' THEN format('to_timestamp((%I/1000000000)::float)', v_row.control)
         ELSE format('%I', v_row.control)
     END;
