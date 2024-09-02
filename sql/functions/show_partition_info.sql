@@ -110,7 +110,7 @@ ELSE
     RAISE EXCEPTION 'partman functions only work with list partitioning with integers and ranged partitioning with time or integers. Found partition strategy "%" for given partition set', v_partstrat;
 END IF;
 
-IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') OR (v_control_type IN ('text', 'uuid')) THEN
+IF v_control_type IN ('time', 'text', 'uuid') OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
 
     IF v_control_type = 'time' THEN
         child_start_time := v_start_string::timestamptz;

@@ -41,6 +41,7 @@ CREATE TABLE @extschema@.part_config_sub (
     sub_parent text
     , sub_control text NOT NULL
     , sub_time_encoder text
+    , sub_time_decoder text
     , sub_partition_interval text NOT NULL
     , sub_partition_type text NOT NULL
     , sub_premake int NOT NULL DEFAULT 4

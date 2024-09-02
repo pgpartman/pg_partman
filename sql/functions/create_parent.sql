@@ -329,7 +329,7 @@ LOOP
     v_inherit_privileges = v_row.sub_inherit_privileges;
 END LOOP;
 
-IF v_control_type = 'time' OR (v_control_type = 'id' AND p_epoch <> 'none') OR (v_control_type IN ('text', 'uuid')) THEN
+IF v_control_type IN ('time', 'text', 'uuid') OR (v_control_type = 'id' AND p_epoch <> 'none') THEN
 
     v_time_interval := p_interval::interval;
     IF v_time_interval < '1 second'::interval THEN

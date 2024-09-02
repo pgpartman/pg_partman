@@ -67,7 +67,7 @@ partition_schema := v_parent_schema;
 
 SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
 
-IF ( (v_control_type = 'time') OR (v_control_type = 'id' AND v_epoch <> 'none') OR (v_control_type IN ('text', 'uuid')) ) THEN
+IF (v_control_type IN ('time', 'text', 'uuid') OR (v_control_type = 'id' AND v_epoch <> 'none')) THEN
 
     v_given_timestamp := p_value::timestamptz;
     FOR v_row IN

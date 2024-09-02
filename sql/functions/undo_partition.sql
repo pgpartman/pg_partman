@@ -115,7 +115,7 @@ IF v_parent_tablename IS NULL THEN
 END IF;
 
 SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
-IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') OR (v_control_type IN ('text', 'uuid')) THEN
+IF v_control_type IN ('time', 'text', 'uuid') OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
     IF p_batch_interval IS NULL THEN
         v_batch_interval_time := v_partition_interval::interval;
     ELSE
@@ -286,7 +286,7 @@ LOOP
     v_child_loop_total := 0;
     <<inner_child_loop>>
     LOOP
-        IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') OR (v_control_type IN ('text', 'uuid')) THEN
+        IF v_control_type IN ('time', 'text', 'uuid') OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
             -- do some locking with timeout, if required
             IF p_lock_wait > 0  THEN
                 v_lock_iter := 0;

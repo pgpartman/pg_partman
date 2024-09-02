@@ -90,7 +90,13 @@ END IF;
 v_sql := v_sql || format('
     AND pg_get_expr(relpartbound, c.oid) != ''DEFAULT'' ');
 
-IF v_control_type = 'time' OR (v_control_type IN ('text', 'uuid')) THEN
+IF v_control_type = 'time' THEN
+
+    v_sql := v_sql || format('
+        ORDER BY (regexp_match(pg_get_expr(c.relpartbound, c.oid, true), $REGEX$\(([^)]+)\) TO \(([^)]+)\)$REGEX$))[1]::text::timestamptz %s '
+        , p_order);
+
+ELSIF v_control_type IN ('text', 'uuid') THEN
 
     v_sql := v_sql || format('
         ORDER BY (regexp_match(pg_get_expr(c.relpartbound, c.oid, true), $REGEX$\(([^)]+)\) TO \(([^)]+)\)$REGEX$))[1] %s '

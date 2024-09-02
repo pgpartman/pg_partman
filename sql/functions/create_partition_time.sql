@@ -93,7 +93,7 @@ AND c.relname = split_part(p_parent_table, '.', 2)::name;
 SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
 IF v_control_type <> 'time' THEN
     IF (v_control_type = 'id' AND v_epoch = 'none') OR v_control_type NOT IN ('text', 'id', 'uuid') OR (v_control_type IN ('text', 'uuid') AND v_time_encoder IS NULL) THEN
-        RAISE EXCEPTION 'Cannot run on partition set without time based control column or epoch flag set with an id column or time_encoder set with text column. Found control: %, epoch: %, time_encoder: %s', v_control_type, v_epoch, v_time_encoder;
+        RAISE EXCEPTION 'Cannot run on partition set without time based control column, an epoch flag set with an id column or time_encoder set with text column. Found control: %, epoch: %, time_encoder: %s', v_control_type, v_epoch, v_time_encoder;
     END IF;
 END IF;
 
@@ -292,6 +292,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             sub_parent
             , sub_control
             , sub_time_encoder
+            , sub_time_decoder
             , sub_partition_interval
             , sub_partition_type
             , sub_premake
@@ -323,6 +324,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
                  p_parent_table := %L
                 , p_control := %L
                 , p_time_encoder := %L
+                , p_time_decoder := %L
                 , p_interval := %L
                 , p_type := %L
                 , p_default_table := %L
@@ -337,6 +339,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             , v_parent_schema||'.'||v_partition_name
             , v_row.sub_control
             , v_row.sub_time_encoder
+            , v_row.sub_time_decoder
             , v_row.sub_partition_interval
             , v_row.sub_partition_type
             , v_row.sub_default_table
