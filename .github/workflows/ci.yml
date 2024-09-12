@@ -1,0 +1,21 @@
+name: CI
+on:
+  push:
+    branches: ['*']
+  pull_request:
+  schedule:
+    - cron:  '0 12 5 * *' # Monthly at noon on the fifth
+jobs:
+  build:
+    strategy:
+      matrix:
+        pg: [17, 16, 15, 14]
+    name: 🐘 PostgreSQL ${{ matrix.pg }}
+    runs-on: ubuntu-latest
+    container: pgxn/pgxn-tools
+    steps:
+      - run: CREATE_OPTIONS="--pgoption max_locks_per_transaction=128" pg-start ${{ matrix.pg }} postgresql-${{ matrix.pg }}-pgtap
+      - uses: actions/checkout@v4
+      - run: make install
+      - run: psql -U postgres -c 'CREATE SCHEMA partman; CREATE EXTENSION pg_partman SCHEMA partman; CREATE EXTENSION pgtap'
+      - run: pg_prove --username postgres --ext .sql --comments --verbose --failures test
