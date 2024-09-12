@@ -212,6 +212,10 @@ LOOP
         SELECT child_start_time INTO v_last_partition_timestamp
             FROM @extschema@.show_partition_info(v_parent_schema||'.'||v_last_partition, v_row.partition_interval, v_row.parent_table);
 
+        IF v_row.retention IS NOT NULL THEN
+            v_last_partition_timestamp := greatest(v_last_partition_timestamp, CURRENT_TIMESTAMP - v_row.retention::interval);
+        END IF;
+
         -- Must be reset to null otherwise if the next partition set in the loop is empty, the previous partition set's value could be used
         v_current_partition_timestamp := NULL;
 
