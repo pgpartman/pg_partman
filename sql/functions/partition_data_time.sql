@@ -1,4 +1,4 @@
-CREATE OR REPLACE FUNCTION @extschema@.partition_data_time(
+CREATE FUNCTION @extschema@.partition_data_time(
     p_parent_table text
     , p_batch_count int DEFAULT 1
     , p_batch_interval interval DEFAULT NULL

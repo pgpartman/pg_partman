@@ -1,3 +1,11 @@
+
+5.2.0
+=====
+NEW FEATURES
+------------
+ - Add support for microsecond precisions in epoch partitioning (Github PR #659)
+
+
 5.1.0
 =====
 NEW FEATURES
@@ -50,7 +58,7 @@ UPGRADE NOTES
 
 BREAKING CHANGES
 ----------------
- - Removed trigger-based partitioning support. All partitioning is now done using built-in declarative partitioning. The partitioning `type` in pg_partman will now refer to the types of delcarative partitioning that are supported. As of 5.0.1, only `range` is supported, but others are in development (Github Issue #490).
+ - Removed trigger-based partitioning support. All partitioning is now done using built-in declarative partitioning. The partitioning `type` in pg_partman will now refer to the types of declarative partitioning that are supported. As of 5.0.1, only `range` is supported, but others are in development (Github Issue #490).
     - See [migrate_to_declarative.md](doc/migrate_to_declarative.md) for assistance on migrating off trigger-based partitioning.
  - Many functions have had their parameters altered, renamed, rearranged or removed. These should be more consistent across the code-base now. Please review ALL calls to pg_partman functions to ensure that your parameter names and values have been updated to match the changes.
     - The `part_config` and `part_config_sub` tables have had some columns removed and rearranged to only contain supported features.
