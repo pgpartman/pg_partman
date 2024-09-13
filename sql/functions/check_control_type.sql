@@ -11,6 +11,10 @@ SELECT CASE
             'time'
         WHEN typname IN ('int2', 'int4', 'int8', 'numeric' ) THEN
             'id'
+        WHEN typname IN ('text', 'varchar') THEN
+            'text'
+        WHEN typname IN ('uuid') THEN
+            'uuid'
        END
     , typname::text
     FROM pg_catalog.pg_type t

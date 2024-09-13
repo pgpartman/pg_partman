@@ -195,6 +195,8 @@ create_parent(
     , p_template_table text DEFAULT NULL
     , p_jobmon boolean DEFAULT true
     , p_date_trunc_interval text DEFAULT NULL
+    , p_time_encoder text DEFAULT NULL
+    , p_time_decoder text DEFAULT NULL
 )
 RETURNS boolean
 ```
@@ -203,7 +205,7 @@ RETURNS boolean
  * An ACCESS EXCLUSIVE lock is taken on the parent table during the running of this function. No data is moved when running this function, so lock should be brief
  * A default partition and template table are created by default unless otherwise configured
  * `p_parent_table` - the existing parent table. MUST be schema qualified, even if in public schema
- * `p_control` - the column that the partitioning will be based on. Must be a time or integer based column
+ * `p_control` - the column that the partitioning will be based on. Must be a time, integer, text or uuid based column. When control is of type text/uuid, p_time_encoder and p_time_decoder must be set.
  * `p_interval` - the time or integer range interval for each partition. No matter the partitioning type, value must be given as text.
     + *\<interval\>*      - Any valid value for the interval data type. Do not type cast the parameter value, just leave as text.
     + *\<integer\>*       - For ID based partitions, the integer value range of the ID that should be set per partition. Enter this as an integer in text format ('100' not 100). If the interval is >=2, then the `p_type` must be `range`. If the interval equals 1, then the `p_type` must be `list`. Also note that while numeric values are supported for id-based partitioning, the interval must still be a whole number integer.
@@ -217,6 +219,8 @@ RETURNS boolean
  * `p_template_table` - If you do not pass a value here, a template table will automatically be made for you in same schema that pg_partman was installed to. If you pre-create a template table and pass its name here, then the initial child tables will obtain these properties discussed in the **About** section immediately.
  * `p_jobmon` - allow `pg_partman` to use the `pg_jobmon` extension to monitor that partitioning is working correctly. Defaults to TRUE.
  * `p_date_trunc_interval` - By default, pg_partman's time-based partitioning will truncate the child table starting values to line up at the beginning of typical boundaries (midnight for daily, day 1 for monthly, Jan 1 for yearly, etc). If a partitioning interval that does not fall on those boundaries is desired, this option may be required to ensure the child table has the expected boundaries (especially if you also set `p_start_partition`). The valid values allowed for this parameter are the interval values accepted by PostgreSQL's built-in `date_trunc()` function (day, week, month, etc). For example, if you set a 9-week interval, by default pg_partman would truncate the tables by month (since the interval is greater than one month but less than 1 year) and unexpectedly start on the first of the month in some cases. Set this parameter value to `week`, so that the child table start values are properly truncated on a weekly basis to line up with the 9-week interval. If you are using a custom time interval, please experiment with this option to get the expected set of child tables you desire or use a more typical partitioning interval to simplify partition management.
+ * `p_time_encoder` - name of function that encodes a timestamp into a string representing your partition bounds. Setting this implicitly enables time based partitioning and is mandatory for text/uuid control column types. This enables paritioning tables using time based identifiers like uuidv7, ulid, snowflake ids and others. The function must handle NULL input safely. See test-time-daily.sql and test-uuid-daily for usage examples.
+ * `p_time_decoder` - name of function that decodes a text/uuid control value into a timestamp. Setting this implicitly enables time based partitioning and is mandatory for text/uuid control column types. This enables paritioning tables using time based identifiers like uuidv7, ulid, snowflake ids and others. The function must handle NULL input safely. See test-time-daily.sql and test-uuid-daily for usage examples. 
 
 
 <a id="create_sub_parent"></a>
@@ -234,6 +238,7 @@ create_sub_parent(
     , p_constraint_cols text[] DEFAULT NULL
     , p_jobmon boolean DEFAULT true
     , p_date_trunc_interval text DEFAULT NULL
+    , p_time_encoder text DEFAULT NULL
 )
 RETURNS boolean
 ```
@@ -246,6 +251,7 @@ RETURNS boolean
  * It is advised that you keep table names short for subpartition sets if you plan on relying on the table names for organization. The suffix added on to the end of a table name is always guaranteed to be there for whatever partition type is active for that set. Longer table names may cause the original parent table names to be truncated and possibly cut off the top level partitioning suffix. This cannot be controlled and ensures the lowest level partitioning suffix survives.
  * Note that for the first level of subpartitions, the `p_parent_table` argument you originally gave to `create_parent()` would be the exact same value you give to `create_sub_parent()`. If you need further subpartitioning, you would then start giving `create_sub_parent()` a different value (the child tables of the top level partition set).
  * The template table that is already set for the given p_top_parent will automatically be used.
+ * `p_time_encoder` - name of function that encodes a timestamp into a string representing your partition bounds. Setting this implicitly enables time based partitioning and is mandatory for text/uuid control column types. This enables paritioning tables using time based identifiers like uuidv7, ulid, snowflake ids and others. The function must handle NULL input safely. See test-time-daily.sql and test-uuid-daily for usage examples.
 
 
 <a id="partition_data_time"></a>

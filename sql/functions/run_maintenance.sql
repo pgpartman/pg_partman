@@ -17,6 +17,8 @@ v_adv_lock                      boolean;
 v_analyze                       boolean := FALSE;
 v_check_subpart                 int;
 v_control_type                  text;
+v_time_encoder                  text;
+v_time_decoder                  text;
 v_create_count                  int := 0;
 v_current_partition_id          bigint;
 v_current_partition_timestamp   timestamptz;
@@ -132,7 +134,7 @@ LOOP
     -- When sub-partitioning, retention may drop tables that were already put into the query loop values.
     -- Check if they still exist in part_config before continuing
     v_parent_exists := NULL;
-    SELECT parent_table INTO v_parent_exists FROM @extschema@.part_config WHERE parent_table = v_row.parent_table;
+    SELECT parent_table, time_encoder, time_decoder INTO v_parent_exists, v_time_encoder, v_time_decoder FROM @extschema@.part_config WHERE parent_table = v_row.parent_table;
     IF v_parent_exists IS NULL THEN
         RAISE DEBUG 'run_maint: Parent table possibly removed from part_config by retenion';
     END IF;
@@ -197,7 +199,7 @@ LOOP
     SELECT partition_tablename INTO v_last_partition FROM @extschema@.show_partitions(v_row.parent_table, 'DESC') LIMIT 1;
     RAISE DEBUG 'run_maint: parent_table: %, v_last_partition: %', v_row.parent_table, v_last_partition;
 
-    IF v_control_type = 'time' OR (v_control_type = 'id' AND v_row.epoch <> 'none') THEN
+    IF v_control_type = 'time' OR (v_control_type = 'id' AND v_row.epoch <> 'none') OR (v_control_type IN ('text', 'uuid')) THEN
 
         -- Run retention if needed
         IF v_row.retention IS NOT NULL THEN
@@ -224,11 +226,21 @@ LOOP
         FOR v_row_max_time IN
             SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(v_row.parent_table, 'DESC', false)
         LOOP
-            EXECUTE format('SELECT max(%s)::text FROM %I.%I'
-                                , v_partition_expression
-                                , v_row_max_time.partition_schemaname
-                                , v_row_max_time.partition_tablename
-                            ) INTO v_max_timestamp;
+
+            IF v_control_type = 'time' OR (v_control_type = 'id' AND v_row.epoch <> 'none') THEN
+                EXECUTE format('SELECT max(%s)::text FROM %I.%I'
+                                    , v_partition_expression
+                                    , v_row_max_time.partition_schemaname
+                                    , v_row_max_time.partition_tablename
+                                ) INTO v_max_timestamp;
+            ELSIF v_control_type IN ('text', 'uuid') THEN
+                EXECUTE format('SELECT max(%s(%s::text)) FROM %I.%I'
+                                    , v_time_decoder
+                                    , v_partition_expression
+                                    , v_row_max_time.partition_schemaname
+                                    , v_row_max_time.partition_tablename
+                                ) INTO v_max_timestamp;
+            END IF;
 
             IF v_row.infinite_time_partitions AND v_max_timestamp < CURRENT_TIMESTAMP THEN
                 -- No new data has been inserted relative to "now", but keep making child tables anyway

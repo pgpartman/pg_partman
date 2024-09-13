@@ -11,31 +11,33 @@ CREATE FUNCTION @extschema@.create_sub_parent(
     , p_epoch text DEFAULT 'none'
     , p_jobmon boolean DEFAULT true
     , p_date_trunc_interval text DEFAULT NULL
+    , p_time_encoder text DEFAULT NULL
+    , p_time_decoder text DEFAULT NULL
 )
     RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 DECLARE
 
-v_child_interval        interval;
-v_child_start_id        bigint;
-v_child_start_time      timestamptz;
-v_control               text;
-v_control_parent_type   text;
-v_control_sub_type      text;
-v_parent_epoch          text;
-v_parent_interval       text;
-v_parent_schema         text;
-v_parent_tablename      text;
-v_part_col              text;
-v_partition_id_array    bigint[];
-v_partition_time_array  timestamptz[];
-v_relkind               char;
-v_recreate_child        boolean := false;
-v_row                   record;
-v_sql                   text;
-v_success               boolean := false;
-v_template_table        text;
+v_child_interval         interval;
+v_child_start_id         bigint;
+v_child_start_time       timestamptz;
+v_control                text;
+v_control_parent_type    text;
+v_control_sub_type       text;
+v_parent_epoch           text;
+v_parent_interval        text;
+v_parent_schema          text;
+v_parent_tablename       text;
+v_part_col               text;
+v_partition_id_array     bigint[];
+v_partition_time_array   timestamptz[];
+v_relkind                char;
+v_recreate_child         boolean := false;
+v_row                    record;
+v_sql                    text;
+v_success                boolean := false;
+v_template_table         text;
 
 BEGIN
 /*
@@ -58,7 +60,7 @@ IF NOT @extschema@.check_partition_type(p_type) THEN
     RAISE EXCEPTION '% is not a valid partitioning type', p_type;
 END IF;
 
-SELECT partition_interval, control, epoch, template_table
+SELECT partition_interval, control, epoch, template_table, time_encoder
 INTO v_parent_interval, v_control, v_parent_epoch, v_template_table
 FROM @extschema@.part_config
 WHERE parent_table = p_top_parent;
@@ -77,6 +79,8 @@ SELECT general_type INTO v_control_parent_type FROM @extschema@.check_control_ty
 INSERT INTO @extschema@.part_config_sub (
     sub_parent
     , sub_control
+    , sub_time_encoder
+    , sub_time_decoder
     , sub_partition_interval
     , sub_partition_type
     , sub_default_table
@@ -90,6 +94,8 @@ INSERT INTO @extschema@.part_config_sub (
 VALUES (
     p_top_parent
     , p_control
+    , p_time_encoder
+    , p_time_decoder
     , p_interval
     , p_type
     , p_default_table
@@ -114,8 +120,9 @@ LOOP
     WHERE n.nspname = v_row.child_schema
     AND c.relname = v_row.child_tablename;
 
+
     -- If both parent and sub-parent are the same partition type (time/id), ensure intereval of sub-parent is less than parent
-    IF (v_control_parent_type = 'time' AND v_control_sub_type = 'time') OR
+    IF (v_control_parent_type IN ('time', 'text', 'uuid') AND v_control_sub_type = 'time') OR
        (v_control_parent_type = 'id' AND v_parent_epoch <> 'none' AND v_control_sub_type = 'id' AND p_epoch <> 'none') THEN
 
         v_child_interval := p_interval::interval;
@@ -180,6 +187,8 @@ IF v_recreate_child = false THEN
         v_sql := format('SELECT @extschema@.create_parent(
                  p_parent_table := %L
                 , p_control := %L
+                , p_time_encoder := %L
+                , p_time_decoder := %L
                 , p_interval := %L
                 , p_type := %L
                 , p_default_table := %L
@@ -190,9 +199,12 @@ IF v_recreate_child = false THEN
                 , p_epoch := %L
                 , p_template_table := %L
                 , p_jobmon := %L
-                , p_date_trunc_interval := %L)'
+                , p_date_trunc_interval := %L
+                )'
             , v_row.child_schema||'.'||v_row.child_tablename
             , p_control
+            , p_time_encoder
+            , p_time_decoder
             , p_interval
             , p_type
             , p_default_table
