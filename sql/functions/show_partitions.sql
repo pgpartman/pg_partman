@@ -10,7 +10,7 @@ CREATE FUNCTION @extschema@.show_partitions (
 DECLARE
 
 v_control               text;
-v_time_encoder          text;
+v_time_decoder          text;
 v_control_type          text;
 v_exact_control_type    text;
 v_datetime_string       text;
@@ -36,12 +36,12 @@ END IF;
 SELECT partition_type
     , datetime_string
     , control
-    , time_encoder
+    , time_decoder
     , epoch
 INTO v_partition_type
     , v_datetime_string
     , v_control
-    , v_time_encoder
+    , v_time_decoder
     , v_epoch
 FROM @extschema@.part_config
 WHERE parent_table = p_parent_table;
@@ -99,7 +99,8 @@ IF v_control_type = 'time' THEN
 ELSIF v_control_type IN ('text', 'uuid') THEN
 
     v_sql := v_sql || format('
-        ORDER BY (regexp_match(pg_get_expr(c.relpartbound, c.oid, true), $REGEX$\(([^)]+)\) TO \(([^)]+)\)$REGEX$))[1] %s '
+        ORDER BY %s((regexp_match(pg_get_expr(c.relpartbound, c.oid, true), $REGEX$\(''([^)]+)''\) TO \(''([^)]+)''\)$REGEX$))[1]) %s '
+        , v_time_decoder
         , p_order);
 
 ELSIF v_control_type = 'id' AND v_epoch <> 'none' THEN
