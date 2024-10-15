@@ -6,6 +6,8 @@ NEW FEATURES
  - Add support for microsecond precisions in epoch partitioning. (Github PR #659)
  - Improve partition maintenance performance when determining next partition to created. (Github Issue #660)
  - Removed requirement for pg_partman to be installed as a superuser. See "superuser" parameter in control file documentation for more details - https://www.postgresql.org/docs/current/extend-extensions.html#EXTEND-EXTENSIONS-FILES
+ - Do not create partitions during a maintenance run that aren't going to be kept as part of retention anyway. (Github Issue #649)
+
 
 
 5.1.0
