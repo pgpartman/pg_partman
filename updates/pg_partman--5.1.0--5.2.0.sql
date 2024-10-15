@@ -1459,7 +1459,6 @@ END
 $$;
 
 
-
 CREATE OR REPLACE FUNCTION @extschema@.run_maintenance(
     p_parent_table text DEFAULT NULL
     -- If these defaults change reflect them in `run_maintenance_proc`!
@@ -1478,6 +1477,7 @@ ex_message                      text;
 v_adv_lock                      boolean;
 v_analyze                       boolean := FALSE;
 v_check_subpart                 int;
+v_child_timestamp               timestamptz;
 v_control_type                  text;
 v_create_count                  int := 0;
 v_current_partition_id          bigint;
@@ -1495,7 +1495,6 @@ v_last_partition_timestamp      timestamptz;
 v_max_id                        bigint;
 v_max_id_default                bigint;
 v_max_time_default              timestamptz;
-v_max_timestamp                 timestamptz;
 v_new_search_path               text;
 v_next_partition_id             bigint;
 v_next_partition_timestamp      timestamptz;
@@ -1681,31 +1680,31 @@ LOOP
         -- Must be reset to null otherwise if the next partition set in the loop is empty, the previous partition set's value could be used
         v_current_partition_timestamp := NULL;
 
-        -- Loop through child tables starting from highest to get current max value in partition set
+        -- Loop through child tables starting from highest to get a timestamp from the highest non-empty partition in the set
         -- Avoids doing a scan on entire partition set and/or getting any values accidentally in default.
         FOR v_row_max_time IN
             SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(v_row.parent_table, 'DESC', false)
         LOOP
-            EXECUTE format('SELECT max(%s)::text FROM %I.%I'
+            EXECUTE format('SELECT %s::text FROM %I.%I LIMIT 1'
                                 , v_partition_expression
                                 , v_row_max_time.partition_schemaname
                                 , v_row_max_time.partition_tablename
-                            ) INTO v_max_timestamp;
+                            ) INTO v_child_timestamp;
 
-            IF v_row.infinite_time_partitions AND v_max_timestamp < CURRENT_TIMESTAMP THEN
+            IF v_row.infinite_time_partitions AND v_child_timestamp < CURRENT_TIMESTAMP THEN
                 -- No new data has been inserted relative to "now", but keep making child tables anyway
                 v_current_partition_timestamp = CURRENT_TIMESTAMP;
                 -- Nothing else to do in this case so just end early
                 EXIT;
             END IF;
-            IF v_max_timestamp IS NOT NULL THEN
-                SELECT suffix_timestamp INTO v_current_partition_timestamp FROM @extschema@.show_partition_name(v_row.parent_table, v_max_timestamp::text);
+            IF v_child_timestamp IS NOT NULL THEN
+                SELECT suffix_timestamp INTO v_current_partition_timestamp FROM @extschema@.show_partition_name(v_row.parent_table, v_child_timestamp::text);
                 EXIT;
             END IF;
         END LOOP;
-        IF v_row.infinite_time_partitions AND v_max_timestamp IS NULL THEN
+        IF v_row.infinite_time_partitions AND v_child_timestamp IS NULL THEN
             -- If partition set is completely empty, still keep making child tables anyway
-            -- Has to be separate check outside above loop since "future" tables are likely going to be empty and make max value in that loop NULL
+            -- Has to be separate check outside above loop since "future" tables are likely going to be empty, hence ignored in that loop
             v_current_partition_timestamp = CURRENT_TIMESTAMP;
         END IF;
 
@@ -1725,7 +1724,7 @@ LOOP
             UPDATE @extschema@.part_config SET maintenance_last_run = clock_timestamp() WHERE parent_table = v_row.parent_table;
             CONTINUE;
         END IF;
-        RAISE DEBUG 'run_maint: v_max_timestamp: %, v_current_partition_timestamp: %, v_max_time_default: %', v_max_timestamp, v_current_partition_timestamp, v_max_time_default;
+        RAISE DEBUG 'run_maint: v_child_timestamp: %, v_current_partition_timestamp: %, v_max_time_default: %', v_child_timestamp, v_current_partition_timestamp, v_max_time_default;
         IF v_current_partition_timestamp IS NULL OR (v_max_time_default > v_current_partition_timestamp) THEN
             SELECT suffix_timestamp INTO v_current_partition_timestamp FROM @extschema@.show_partition_name(v_row.parent_table, v_max_time_default::text);
         END IF;
@@ -1913,5 +1912,51 @@ EXCEPTION
 CONTEXT: %
 DETAIL: %
 HINT: %', ex_message, ex_context, ex_detail, ex_hint;
+END
+$$;
+
+
+CREATE OR REPLACE FUNCTION @extschema@.check_name_length (
+    p_object_name text
+    , p_suffix text DEFAULT NULL
+    , p_table_partition boolean DEFAULT FALSE
+)
+    RETURNS text
+    LANGUAGE plpgsql IMMUTABLE
+    SET search_path TO pg_catalog, pg_temp
+    AS $$
+DECLARE
+    v_new_name      text;
+    v_suffix        text;
+BEGIN
+/*
+ * Truncate the name of the given object if it is greater than the postgres default max (63 bytes).
+ * Also appends given suffix and schema if given and truncates the name so that the entire suffix will fit.
+ * Returns original name (with suffix if given) if it doesn't require truncation
+ */
+
+IF p_table_partition IS TRUE AND (NULLIF(p_suffix, '') IS NULL) THEN
+    RAISE EXCEPTION 'Table partition name requires a suffix value';
+END IF;
+
+
+v_suffix := format('%s%s', CASE WHEN p_table_partition THEN '_p' END, p_suffix);
+-- Use optimistic behavior: in almost all cases `v_new_name` will be less than allowed maximum.
+-- Do "heavy" work only in rare cases.
+v_new_name := p_object_name || v_suffix;
+
+-- Postgres' relation name limit is in bytes, not characters; also it can be compiled with bigger allowed length.
+-- Use its internals to detect where to cut new object name.
+IF v_new_name::name != v_new_name THEN
+    -- Here we need to detect how many chars (not bytes) we need to get from the `p_object_name`.
+    -- Use suffix as prefix and get the rest of `p_object_name`.
+    v_new_name := (v_suffix || p_object_name)::name;
+    -- `substr` starts from 1, that is why we need to add 1 below.
+    -- Edge case: `v_suffix` is empty, length is 0, but need to start from 1.
+    v_new_name := substr(v_new_name, length(v_suffix) + 1) || v_suffix;
+END IF;
+
+RETURN v_new_name;
+
 END
 $$;
