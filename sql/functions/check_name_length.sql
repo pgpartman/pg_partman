@@ -4,7 +4,7 @@ CREATE FUNCTION @extschema@.check_name_length (
     , p_table_partition boolean DEFAULT FALSE
 )
     RETURNS text
-    LANGUAGE plpgsql IMMUTABLE SECURITY DEFINER
+    LANGUAGE plpgsql IMMUTABLE
     SET search_path TO pg_catalog, pg_temp
     AS $$
 DECLARE
@@ -12,10 +12,9 @@ DECLARE
     v_suffix        text;
 BEGIN
 /*
- * Truncate the name of the given object if it is greater than the postgres default max (63 characters).
+ * Truncate the name of the given object if it is greater than the postgres default max (63 bytes).
  * Also appends given suffix and schema if given and truncates the name so that the entire suffix will fit.
  * Returns original name (with suffix if given) if it doesn't require truncation
- * Retains SECURITY DEFINER since it is called by trigger functions and did not want to break installations prior to 4.0.0
  */
 
 IF p_table_partition IS TRUE AND (NULLIF(p_suffix, '') IS NULL) THEN

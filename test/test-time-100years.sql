@@ -4,6 +4,7 @@
     -- inherit privileges
     -- privilege inheritance
     -- no default
+    -- allow control to be null
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true
@@ -21,7 +22,7 @@ CREATE ROLE partman_owner;
 CREATE TABLE partman_test.time_taptest_table
     (col1 int
      , col2 text
-     , col3 timestamptz NOT NULL DEFAULT now())
+     , col3 timestamptz DEFAULT now())
     PARTITION BY RANGE (col3);
 CREATE TABLE partman_test.time_taptest_table_template (LIKE partman_test.time_taptest_table INCLUDING ALL);
 ALTER TABLE partman_test.time_taptest_table_template ADD PRIMARY KEY (col1);
@@ -32,7 +33,7 @@ CREATE INDEX ON partman_test.time_taptest_table (col3);
 GRANT SELECT,INSERT,UPDATE ON partman_test.time_taptest_table TO partman_basic;
 GRANT ALL ON partman_test.time_taptest_table TO partman_revoke;
 
-SELECT create_parent('partman_test.time_taptest_table', 'col3', '100 years', p_template_table => 'partman_test.time_taptest_table_template', p_default_table => false);
+SELECT create_parent('partman_test.time_taptest_table', 'col3', '100 years', p_template_table => 'partman_test.time_taptest_table_template', p_default_table => false, p_control_not_null := false);
 UPDATE part_config SET inherit_privileges = TRUE;
 SELECT reapply_privileges('partman_test.time_taptest_table');
 

@@ -199,11 +199,6 @@ LOOP
 
     IF v_control_type = 'time' OR (v_control_type = 'id' AND v_row.epoch <> 'none') THEN
 
-        -- Run retention if needed
-        IF v_row.retention IS NOT NULL THEN
-            v_drop_count := v_drop_count + @extschema@.drop_partition_time(v_row.parent_table);
-        END IF;
-
         IF v_row.sub_partition_set_full THEN
             UPDATE @extschema@.part_config SET maintenance_last_run = clock_timestamp() WHERE parent_table = v_row.parent_table;
             CONTINUE;
@@ -319,12 +314,12 @@ LOOP
             v_premade_count = round(EXTRACT('epoch' FROM age(v_next_partition_timestamp, v_current_partition_timestamp)) / EXTRACT('epoch' FROM v_row.partition_interval::interval));
         END LOOP;
 
-    ELSIF v_control_type = 'id' THEN
-
         -- Run retention if needed
         IF v_row.retention IS NOT NULL THEN
-            v_drop_count := v_drop_count + @extschema@.drop_partition_id(v_row.parent_table);
+            v_drop_count := v_drop_count + @extschema@.drop_partition_time(v_row.parent_table);
         END IF;
+
+    ELSIF v_control_type = 'id' THEN
 
         IF v_row.sub_partition_set_full THEN
             UPDATE @extschema@.part_config SET maintenance_last_run = clock_timestamp() WHERE parent_table = v_row.parent_table;
@@ -400,6 +395,11 @@ LOOP
             END IF;
             v_premade_count := ((v_next_partition_id - v_current_partition_id) / v_row.partition_interval::bigint);
         END LOOP;
+
+        -- Run retention if needed
+        IF v_row.retention IS NOT NULL THEN
+            v_drop_count := v_drop_count + @extschema@.drop_partition_id(v_row.parent_table);
+        END IF;
 
     END IF; -- end main IF check for time or id
 

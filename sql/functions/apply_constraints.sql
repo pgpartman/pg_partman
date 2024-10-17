@@ -15,6 +15,7 @@ ex_hint                         text;
 ex_message                      text;
 v_child_exists                  text;
 v_child_tablename               text;
+v_child_value                   text;
 v_col                           text;
 v_constraint_cols               text[];
 v_constraint_name               text;
@@ -34,6 +35,8 @@ v_last_partition_timestamp      timestamptz;
 v_new_search_path               text;
 v_old_search_path               text;
 v_optimize_constraint           int;
+v_optimize_counter              int := 0;
+v_row_max_value                 record;
 v_parent_schema                 text;
 v_parent_table                  text;
 v_parent_tablename              text;
@@ -114,20 +117,29 @@ IF p_child_table IS NULL THEN
         v_step_id := add_step(v_job_id, 'Applying additional constraints: Automatically determining most recent child on which to apply constraints');
     END IF;
 
-    SELECT partition_tablename INTO v_last_partition FROM @extschema@.show_partitions(v_parent_table, 'DESC') LIMIT 1;
+    -- Loop through child tables starting from highest to get a value from the highest non-empty partition in the set
+    -- Once a child table with a value is found, go back <optimize_constraint> children to make the constraint on that child
+    FOR v_row_max_value IN
+        SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(p_parent_table, 'DESC', false)
+    LOOP
+        IF v_child_value IS NULL THEN
+            EXECUTE format('SELECT %L::text FROM %I.%I LIMIT 1'
+                                , v_control
+                                , v_row_max_value.partition_schemaname
+                                , v_row_max_value.partition_tablename
+                            ) INTO v_child_value;
 
-    IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
-        SELECT child_start_time INTO v_last_partition_timestamp FROM @extschema@.show_partition_info(v_parent_schema||'.'||v_last_partition, v_partition_interval, v_parent_table);
-        v_partition_suffix := to_char(v_last_partition_timestamp - (v_partition_interval::interval * (v_optimize_constraint + v_premake + 1) ), v_datetime_string);
-    ELSIF v_control_type = 'id' THEN
-        SELECT child_start_id INTO v_last_partition_id FROM @extschema@.show_partition_info(v_parent_schema||'.'||v_last_partition, v_partition_interval, v_parent_table);
-        v_partition_suffix := (v_last_partition_id - (v_partition_interval::bigint * (v_optimize_constraint + v_premake + 1) ))::text;
-    END IF;
+        ELSE
+            v_optimize_counter := v_optimize_counter + 1;
+            IF v_optimize_counter = v_optimize_constraint THEN
+                v_child_tablename = v_row_max_value.partition_tablename;
+                EXIT;
+            END IF;
+        END IF;
+    END LOOP;
 
-    RAISE DEBUG 'apply_constraint: v_parent_tablename: %, v_last_partition: %, v_last_partition_timestamp: %, v_partition_suffix: %'
-                , v_parent_tablename, v_last_partition, v_last_partition_timestamp, v_partition_suffix;
-
-    v_child_tablename := @extschema@.check_name_length(v_parent_tablename, v_partition_suffix, TRUE);
+    RAISE DEBUG 'apply_constraint: v_parent_tablename: %, v_last_partition: %, v_child_tablename: %, v_optimize_counter: %'
+                , v_parent_tablename, v_last_partition, v_child_tablename, v_optimize_counter;
 
     IF v_jobmon_schema IS NOT NULL THEN
         PERFORM update_step(v_step_id, 'OK', format('Target child table: %s.%s', v_parent_schema, v_child_tablename));

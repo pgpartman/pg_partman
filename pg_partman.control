@@ -1,4 +1,4 @@
-default_version = '5.1.0'
+default_version = '5.2.0'
 comment = 'Extension to manage partitioned tables by time or ID'
 relocatable = false
 superuser = false

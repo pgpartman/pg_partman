@@ -21,7 +21,6 @@ CREATE TABLE @extschema@.part_config (
     , inherit_privileges boolean DEFAULT false
     , constraint_valid boolean DEFAULT true NOT NULL
     , ignore_default_data boolean NOT NULL DEFAULT true
-    , default_table boolean DEFAULT true
     , date_trunc_interval text
     , maintenance_order int
     , retention_keep_publication boolean NOT NULL DEFAULT false
@@ -59,6 +58,7 @@ CREATE TABLE @extschema@.part_config_sub (
     , sub_date_trunc_interval TEXT
     , sub_maintenance_order int
     , sub_retention_keep_publication boolean NOT NULL DEFAULT false
+    , sub_control_not_null boolean DEFAULT true
     , CONSTRAINT part_config_sub_pkey PRIMARY KEY (sub_parent)
     , CONSTRAINT part_config_sub_sub_parent_fkey FOREIGN KEY (sub_parent) REFERENCES @extschema@.part_config (parent_table) ON DELETE CASCADE ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED
     , CONSTRAINT positive_premake_check CHECK (sub_premake > 0)

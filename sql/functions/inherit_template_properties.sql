@@ -28,7 +28,7 @@ v_template_unlogged     char;
 BEGIN
 /*
  * Function to inherit the properties of the template table to newly created child tables.
- * For PG14+, used to inherit non-partition-key unique indexes & primary keys and unlogged status
+ * For PG14+, used to inherit non-partition-key unique indexes & primary keys, unlogged status, and relation options
  */
 
 SELECT parent_table, template_table
@@ -152,7 +152,11 @@ LOOP
         -- statement column should be just the portion of the index definition that defines what it actually is
         v_sql := format('CREATE UNIQUE INDEX ON %I.%I %s', v_child_schema, v_child_tablename, v_index_list.statement);
         IF v_index_list.tablespace_name IS NOT NULL THEN
-            v_sql := v_sql || format(' TABLESPACE %I', v_index_list.tablespace_name);
+            IF (ARRAY_length(regexp_matches(v_sql, ' WHERE ', 'i'), 1) > 0) THEN
+                v_sql := regexp_replace(v_sql, ' WHERE ', format(' TABLESPACE %I WHERE ', v_index_list.tablespace_name), 'i');
+            ELSE
+                v_sql := v_sql || format(' TABLESPACE %I', v_index_list.tablespace_name);
+            END IF;
         END IF;
 
         RAISE DEBUG 'inherit_template_properties: Create index: %', v_sql;

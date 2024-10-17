@@ -4,7 +4,9 @@ CREATE PROCEDURE @extschema@.reapply_constraints_proc(p_parent_table text, p_dro
 DECLARE
 
 v_adv_lock                      boolean;
+v_child_exists                  text;
 v_child_stop                    text;
+v_child_value                   text;
 v_control                       text;
 v_control_type                  text;
 v_datetime_string               text;
@@ -13,12 +15,14 @@ v_last_partition                text;
 v_last_partition_id             bigint;
 v_last_partition_timestamp      timestamptz;
 v_optimize_constraint           int;
+v_optimize_counter              int := 0;
 v_parent_schema                 text;
 v_parent_tablename              text;
 v_partition_interval            text;
 v_partition_suffix              text;
 v_premake                       int;
 v_row                           record;
+v_row_max_value                 record;
 v_sql                           text;
 
 BEGIN
@@ -57,17 +61,32 @@ SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_pa
 
 -- Determine child table to stop creating constraints on based on optimize_constraint value
 -- Same code in apply_constraints.sql
-SELECT partition_tablename INTO v_last_partition FROM @extschema@.show_partitions(p_parent_table, 'DESC') LIMIT 1;
+SELECT partition_tablename INTO v_last_partition FROM @extschema@.show_partitions(p_parent_table, 'DESC', false) LIMIT 1;
 
-IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
-    SELECT child_start_time INTO v_last_partition_timestamp FROM @extschema@.show_partition_info(v_parent_schema||'.'||v_last_partition, v_partition_interval, p_parent_table);
-    v_partition_suffix := to_char(v_last_partition_timestamp - (v_partition_interval::interval * (v_optimize_constraint + v_premake + 1) ), v_datetime_string);
-ELSIF v_control_type = 'id' THEN
-    SELECT child_start_id INTO v_last_partition_id FROM @extschema@.show_partition_info(v_parent_schema||'.'||v_last_partition, v_partition_interval, p_parent_table);
-    v_partition_suffix := (v_last_partition_id - (v_partition_interval::bigint * (v_optimize_constraint + v_premake + 1) ))::text;
+FOR v_row_max_value IN
+    SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(p_parent_table, 'DESC', false)
+LOOP
+    IF v_child_value IS NULL THEN
+        EXECUTE format('SELECT %L::text FROM %I.%I LIMIT 1'
+                            , v_control
+                            , v_row_max_value.partition_schemaname
+                            , v_row_max_value.partition_tablename
+                        ) INTO v_child_value;
+
+    ELSE
+        v_optimize_counter := v_optimize_counter + 1;
+        IF v_optimize_counter = v_optimize_constraint THEN
+            v_child_stop = v_row_max_value.partition_tablename;
+            EXIT;
+        END IF;
+    END IF;
+END LOOP;
+
+IF v_optimize_counter < v_optimize_constraint THEN
+    -- No child table exists that is old enough to apply constraints
+    RAISE DEBUG 'reapply_constraint: Target child stop table not found. Skipping all constraint creation.';
+    RETURN;
 END IF;
-
-v_child_stop := @extschema@.check_name_length(v_parent_tablename, v_partition_suffix, TRUE);
 
 v_sql := format('SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(%L, %L)', p_parent_table, 'ASC');
 

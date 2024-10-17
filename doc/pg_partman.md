@@ -787,7 +787,7 @@ Stores all configuration data for partition sets managed by the extension.
  - `constraint_cols`
     - Array column that lists columns to have additional constraints applied. See **About** section for more information on how this feature works.
  - `optimize_constraint`
-    - Manages which old tables get additional constraints set if configured to do so. See **About** section for more info. Default 30.
+    - Manages which old tables get additional constraints set if configured to do so. This value is a count on the number of child tables backwards from the newest child table that contains data. The default value of 30 means that the constraints will be created on the the child table that is 30 behind the newest child table that contains data. See **About** section for more info.
  - `infinite_time_partitions`
     - By default, new partitions in a time-based set will not be created if new data is not inserted to keep an infinite amount of empty tables from being created.
     - If you'd still like new partitions to be made despite there being no new data, set this to TRUE.

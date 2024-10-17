@@ -4,10 +4,18 @@
 NEW FEATURES
 ------------
  - Add support for microsecond precisions in epoch partitioning. (Github PR #659)
- - Improve partition maintenance performance when determining next partition to created. (Github Issue #660)
+ - Improve partition maintenance performance when determining next partition to be created. (Github Issue #660)
  - Removed requirement for pg_partman to be installed as a superuser. See "superuser" parameter in control file documentation for more details - https://www.postgresql.org/docs/current/extend-extensions.html#EXTEND-EXTENSIONS-FILES
  - Do not create partitions during a maintenance run that aren't going to be kept as part of retention anyway. (Github Issue #649)
+ - Removed `default_table` column from `part_config` table. It's only necessary in `part_config_sub` to determine whether future sub-partition parents should have defaults made. Adjusted other code to look up whether a default table actually exists to determine its behavior. (Github Issue #637)
+ - Allow the control column to be NULL. This is not advised without very careful review and an explicit use-case defined as it can cause unexpected behavior or excessive data in the DEFAULT child partition. A new flag `p_control_not_null` has been added to the `create_parent()` and `create_sub_parent()` functions.
 
+BUG FIXES
+---------
+ - Enforcement of the control column being NOT NULL was not being done as intended. This has been fixed. If you'd like to allow the control column to be NULL, see the new feature flag in 5.2.0
+ - Fixed `reapply_constraint_proc()` to work properly when there are no relevant child tables to place additional constraints. In the process reworked the logic to determine the target child tables for both that procedure and the apply_constraints() function. The determining factor is now always the newest child table that contains data (other than the default). Updated documentation to clarify how the optimize_constraint flag works. (Github Issue #694)
+ - Properly handle partial indexes that are inherited from the template table. (Github Issue #657)
+ - Move the retention logic for dropping tables later in the maintenance process to help avoid longer running heavy locks on partition sets. (Github Issue #678)
 
 
 5.1.0

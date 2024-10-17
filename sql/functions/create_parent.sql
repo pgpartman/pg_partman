@@ -12,6 +12,7 @@ CREATE FUNCTION @extschema@.create_parent(
     , p_template_table text DEFAULT NULL
     , p_jobmon boolean DEFAULT true
     , p_date_trunc_interval text DEFAULT NULL
+    , p_control_not_null boolean DEFAULT true
 )
     RETURNS boolean
     LANGUAGE plpgsql
@@ -116,8 +117,10 @@ JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
 WHERE c.relname = v_parent_tablename::name
 AND n.nspname = v_parent_schema::name
 AND a.attname = p_control::name;
-    IF (v_notnull = false OR v_notnull IS NULL) THEN
-        RAISE EXCEPTION 'Control column given (%) for parent table (%) does not exist or must be set to NOT NULL', p_control, p_parent_table;
+    IF (v_notnull IS NULL) THEN
+        RAISE EXCEPTION 'Control column given (%) for parent table (%) does not exist', p_control, p_parent_table;
+    ELSIF (v_notnull = false and p_control_not_null = true) THEN
+        RAISE EXCEPTION 'Control column given (%) for parent table (%) must be set to NOT NULL', p_control, p_parent_table;
     END IF;
 
 SELECT general_type, exact_type INTO v_control_type, v_control_exact_type
@@ -372,7 +375,6 @@ IF v_control_type = 'time' OR (v_control_type = 'id' AND p_epoch <> 'none') THEN
         , jobmon
         , template_table
         , inherit_privileges
-        , default_table
         , date_trunc_interval)
     VALUES (
         p_parent_table
@@ -387,7 +389,6 @@ IF v_control_type = 'time' OR (v_control_type = 'id' AND p_epoch <> 'none') THEN
         , p_jobmon
         , v_template_schema||'.'||v_template_tablename
         , v_inherit_privileges
-        , p_default_table
         , p_date_trunc_interval);
 
     RAISE DEBUG 'create_parent: v_partition_time_array: %', v_partition_time_array;
@@ -524,7 +525,6 @@ IF v_control_type = 'id' AND p_epoch = 'none' THEN
         , jobmon
         , template_table
         , inherit_privileges
-        , default_table
         , date_trunc_interval)
     VALUES (
         p_parent_table
@@ -537,7 +537,6 @@ IF v_control_type = 'id' AND p_epoch = 'none' THEN
         , p_jobmon
         , v_template_schema||'.'||v_template_tablename
         , v_inherit_privileges
-        , p_default_table
         , p_date_trunc_interval);
 
     v_last_partition_created := @extschema@.create_partition_id(p_parent_table, v_partition_id_array);

@@ -38,7 +38,6 @@ SELECT bag_eq(
     'inherit_privileges',
     'constraint_valid',
     'ignore_default_data',
-    'default_table',
     'date_trunc_interval',
     'maintenance_order',
     'retention_keep_publication',
@@ -80,7 +79,8 @@ E'SELECT partman.create_parent(
 	p_constraint_cols := NULL,
 	p_template_table := ''partman.template_partman_test_declarative_objects'',
 	p_jobmon := ''t'',
-	p_date_trunc_interval := NULL
+	p_date_trunc_interval := NULL,
+    p_control_not_null := ''t''
 );
 UPDATE partman.part_config SET
 	optimize_constraint = 30,

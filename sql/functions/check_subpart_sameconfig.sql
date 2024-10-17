@@ -22,6 +22,7 @@ CREATE FUNCTION @extschema@.check_subpart_sameconfig(p_parent_table text)
         , sub_default_table boolean
         , sub_maintenance_order int
         , sub_retention_keep_publication boolean
+        , sub_control_not_null boolean
         )
     LANGUAGE sql STABLE
     SET search_path = @extschema@,pg_temp
@@ -74,6 +75,7 @@ AS $$
         , a.sub_default_table
         , a.sub_maintenance_order
         , a.sub_retention_keep_publication
+        , a.sub_control_not_null
     FROM @extschema@.part_config_sub a
     JOIN child_tables b on a.sub_parent = b.tablename;
 $$;

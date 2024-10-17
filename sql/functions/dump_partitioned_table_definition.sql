@@ -31,9 +31,14 @@ DECLARE
     v_constraint_valid boolean; -- DEFAULT true NOT NULL
     v_ignore_default_data boolean; -- DEFAULT false NOT NULL
     v_date_trunc_interval text;
-    v_default_table boolean;
     v_maintenance_order int;
     v_retention_keep_publication boolean;
+    v_parent_schemaname text;
+    v_parent_tablename text;
+    v_default_exists boolean;
+    v_default_tablename text;
+    v_sql text;
+    v_notnull boolean;
 BEGIN
     SELECT
         pc.parent_table,
@@ -58,7 +63,6 @@ BEGIN
         pc.constraint_valid,
         pc.ignore_default_data,
         pc.date_trunc_interval,
-        pc.default_table,
         pc.maintenance_order,
         pc.retention_keep_publication
     INTO
@@ -84,7 +88,6 @@ BEGIN
         v_constraint_valid,
         v_ignore_default_data,
         v_date_trunc_interval,
-        v_default_table,
         v_maintenance_order,
         v_retention_keep_publication
     FROM @extschema@.part_config pc
@@ -97,6 +100,37 @@ BEGIN
     IF p_ignore_template_table THEN
         v_template_table := NULL;
     END IF;
+
+    SELECT schemaname, tablename
+    INTO v_parent_schemaname, v_parent_tablename
+    FROM pg_catalog.pg_tables
+    WHERE schemaname = split_part(p_parent_table, '.', 1)::name
+    AND tablename = split_part(p_parent_table, '.', 2)::name;
+
+    -- Check to see if table has a default
+    v_sql := format('SELECT c.relname
+            FROM pg_catalog.pg_inherits h
+            JOIN pg_catalog.pg_class c ON c.oid = h.inhrelid
+            JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+            WHERE h.inhparent = ''%I.%I''::regclass
+            AND pg_get_expr(relpartbound, c.oid) = ''DEFAULT'''
+        , v_parent_schemaname
+        , v_parent_tablename);
+
+    EXECUTE v_sql INTO v_default_tablename;
+    IF v_default_tablename IS NOT NULL THEN
+        v_default_exists := true;
+    ELSE
+        v_default_exists := false;
+    END IF;
+
+    SELECT attnotnull INTO v_notnull
+    FROM pg_catalog.pg_attribute a
+    JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
+    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+    WHERE c.relname = v_parent_tablename::name
+    AND n.nspname = v_parent_schemaname::name
+    AND a.attname = v_control::name;
 
     v_create_parent_definition := format(
 E'SELECT @extschema@.create_parent(
@@ -111,7 +145,8 @@ E'SELECT @extschema@.create_parent(
 \tp_constraint_cols := %L,
 \tp_template_table := %L,
 \tp_jobmon := %L,
-\tp_date_trunc_interval := %L
+\tp_date_trunc_interval := %L,
+\tp_control_not_null := %L
 );',
             v_parent_table,
             v_control,
@@ -119,12 +154,13 @@ E'SELECT @extschema@.create_parent(
             v_partition_type,
             v_epoch,
             v_premake,
-            v_default_table,
+            v_default_exists,
             v_automatic_maintenance,
             v_constraint_cols,
             v_template_table,
             v_jobmon,
-            v_date_trunc_interval
+            v_date_trunc_interval,
+            v_notnull
         );
 
     v_update_part_config_definition := format(

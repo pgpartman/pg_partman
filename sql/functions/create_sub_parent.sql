@@ -11,6 +11,7 @@ CREATE FUNCTION @extschema@.create_sub_parent(
     , p_epoch text DEFAULT 'none'
     , p_jobmon boolean DEFAULT true
     , p_date_trunc_interval text DEFAULT NULL
+    , p_control_not_null boolean DEFAULT true
 )
     RETURNS boolean
     LANGUAGE plpgsql
@@ -86,7 +87,8 @@ INSERT INTO @extschema@.part_config_sub (
     , sub_epoch
     , sub_jobmon
     , sub_template_table
-    , sub_date_trunc_interval)
+    , sub_date_trunc_interval
+    , sub_control_not_null)
 VALUES (
     p_top_parent
     , p_control
@@ -99,7 +101,8 @@ VALUES (
     , p_epoch
     , p_jobmon
     , v_template_table
-    , p_date_trunc_interval);
+    , p_date_trunc_interval
+    , p_control_not_null);
 
 FOR v_row IN
     -- Loop through all current children to turn them into partitioned tables
@@ -190,7 +193,8 @@ IF v_recreate_child = false THEN
                 , p_epoch := %L
                 , p_template_table := %L
                 , p_jobmon := %L
-                , p_date_trunc_interval := %L)'
+                , p_date_trunc_interval := %L
+                , p_control_not_null := %L)'
             , v_row.child_schema||'.'||v_row.child_tablename
             , p_control
             , p_interval
@@ -203,7 +207,8 @@ IF v_recreate_child = false THEN
             , p_epoch
             , v_template_table
             , p_jobmon
-            , p_date_trunc_interval);
+            , p_date_trunc_interval
+            , p_control_not_null);
         RAISE DEBUG 'create_sub_parent: create parent v_sql: %', v_sql;
         EXECUTE v_sql;
     END IF; -- end recreate check

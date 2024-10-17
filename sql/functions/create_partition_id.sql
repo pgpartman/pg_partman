@@ -211,6 +211,7 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
             , sub_default_table
             , sub_maintenance_order
             , sub_retention_keep_publication
+            , sub_control_not_null
         FROM @extschema@.part_config_sub
         WHERE sub_parent = p_parent_table
     LOOP
@@ -230,7 +231,8 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
                 , p_template_table := %L
                 , p_jobmon := %L
                 , p_start_partition := %L
-                , p_date_trunc_interval := %L )'
+                , p_date_trunc_interval := %L
+                , p_control_not_null := %L )'
             , v_parent_schema||'.'||v_partition_name
             , v_row.sub_control
             , v_row.sub_partition_type
@@ -243,7 +245,8 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
             , v_row.sub_template_table
             , v_row.sub_jobmon
             , p_start_partition
-            , v_row.sub_date_trunc_interval);
+            , v_row.sub_date_trunc_interval
+            , v_row.sub_control_not_null);
         RAISE DEBUG 'create_partition_id (create_parent loop): %', v_sql;
         EXECUTE v_sql;
 
