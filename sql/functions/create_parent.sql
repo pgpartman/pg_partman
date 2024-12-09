@@ -129,7 +129,7 @@ SELECT general_type, exact_type INTO v_control_type, v_control_exact_type
 FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, p_control);
 
 IF v_control_type IS NULL THEN
-    RAISE EXCEPTION 'pg_partman only supports partitioning of data types that are integer, numeric or date/timestamp. Supplied column is of type %', v_control_exact_type;
+    RAISE EXCEPTION 'pg_partman only supports partitioning of data types that are integer, numeric, date/timestamp or specially encoded text. Supplied column is of type %', v_control_exact_type;
 END IF;
 
 IF (p_epoch <> 'none' AND v_control_type <> 'id') THEN

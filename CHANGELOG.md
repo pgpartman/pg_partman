@@ -1,3 +1,10 @@
+5.2.2
+=====
+BUG FIXES
+---------
+ -  Corrected SQL statements and updated functions missing from the 5.1.0 to 5.2.0 update files. If pg_partman was installed initially with 5.2.0, there are no known issues. If errors about missing functions or columns are encountered during maintenance after updating to 5.2.x, please make sure you are on this latest release. Thank you to all the users helping to test this issues!
+
+
 5.2.1
 =====
 BUG FIXES
