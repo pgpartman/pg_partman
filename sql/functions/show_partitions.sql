@@ -106,8 +106,9 @@ ELSIF v_control_type IN ('text', 'uuid') THEN
 ELSIF v_control_type = 'id' AND v_epoch = 'func' THEN
     -- Trim like below since there is no guarantee as to what type of ID it is
     v_sql := v_sql || format('
-        ORDER BY %s(trim( BOTH $QUOTE$''$QUOTE$ from (regexp_match(pg_get_expr(c.relpartbound, c.oid, true), $REGEX$\(([^)]+)\) TO \(([^)]+)\)$REGEX$))[1]::text )::bigint ) %s '
+        ORDER BY %s(trim( BOTH $QUOTE$''$QUOTE$ from (regexp_match(pg_get_expr(c.relpartbound, c.oid, true), $REGEX$\(([^)]+)\) TO \(([^)]+)\)$REGEX$))[1]::text )::%s ) %s '
         , v_time_decoder
+        , v_exact_control_type
         , p_order);
 
 ELSIF v_control_type = 'id' AND v_epoch <> 'none' THEN
