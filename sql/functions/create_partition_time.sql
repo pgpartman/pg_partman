@@ -14,6 +14,7 @@ ex_hint                         text;
 ex_message                      text;
 v_control                       text;
 v_control_type                  text;
+v_time_decoder                  text;
 v_time_encoder                  text;
 v_datetime_string               text;
 v_epoch                         text;
@@ -45,6 +46,8 @@ v_sub_timestamp_max             timestamptz;
 v_sub_timestamp_min             timestamptz;
 v_template_table                text;
 v_time                          timestamptz;
+v_partition_id_start            bigint;
+v_partition_id_end              bigint;
 v_partition_text_start          text;
 v_partition_text_end            text;
 
@@ -54,6 +57,7 @@ BEGIN
  */
 
 SELECT control
+    , time_decoder
     , time_encoder
     , partition_interval::interval -- this shared field also used in partition_id as bigint
     , epoch
@@ -62,6 +66,7 @@ SELECT control
     , template_table
     , inherit_privileges
 INTO v_control
+    , v_time_decoder
     , v_time_encoder
     , v_partition_interval
     , v_epoch
@@ -123,6 +128,7 @@ v_partition_expression := CASE
     WHEN v_epoch = 'milliseconds' THEN format('to_timestamp((%I/1000)::float)', v_control)
     WHEN v_epoch = 'microseconds' THEN format('to_timestamp((%I/1000000)::float)', v_control)
     WHEN v_epoch = 'nanoseconds' THEN format('to_timestamp((%I/1000000000)::float)', v_control)
+    WHEN v_epoch = 'func' THEN format('%s(%I)', v_time_decoder, v_control)
     ELSE format('%I', v_control)
 END;
 RAISE DEBUG 'create_partition_time: v_partition_expression: %', v_partition_expression;
@@ -237,7 +243,17 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
                 , v_partition_text_start
                 , v_partition_text_end);
         END IF;
+    ELSIF v_epoch = 'func' THEN
+        EXECUTE format('SELECT %s(%L)', v_time_encoder, v_partition_timestamp_start) INTO v_partition_id_start;
+        EXECUTE format('SELECT %s(%L)', v_time_encoder, v_partition_timestamp_end) INTO v_partition_id_end;
 
+        EXECUTE format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I FOR VALUES FROM (%L) TO (%L)'
+            , v_parent_schema
+            , v_parent_tablename
+            , v_parent_schema
+            , v_partition_name
+            , v_partition_id_start
+            , v_partition_id_end);
     ELSE
         -- Must attach with integer based values for built-in constraint and epoch
         IF v_epoch = 'seconds' THEN

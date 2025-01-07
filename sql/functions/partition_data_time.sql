@@ -38,6 +38,7 @@ v_source_schemaname         text;
 v_source_tablename          text;
 v_rowcount                  bigint;
 v_start_control             timestamptz;
+v_time_decoder              text;
 v_total_rows                bigint := 0;
 
 BEGIN
@@ -49,10 +50,12 @@ SELECT partition_interval::interval
     , control
     , datetime_string
     , epoch
+    , time_decoder
 INTO v_partition_interval
     , v_control
     , v_datetime_string
     , v_epoch
+    , v_time_decoder
 FROM @extschema@.part_config
 WHERE parent_table = p_parent_table;
 IF NOT FOUND THEN
@@ -133,6 +136,7 @@ v_partition_expression := CASE
     WHEN v_epoch = 'milliseconds' THEN format('to_timestamp((%I/1000)::float)', v_control)
     WHEN v_epoch = 'microseconds' THEN format('to_timestamp((%I/1000000)::float)', v_control)
     WHEN v_epoch = 'nanoseconds' THEN format('to_timestamp((%I/1000000000)::float)', v_control)
+    WHEN v_epoch = 'func' THEN format('%s(%I)', v_time_decoder, v_control)
     ELSE format('%I', v_control)
 END;
 

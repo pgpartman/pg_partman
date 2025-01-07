@@ -182,7 +182,9 @@ IF v_control_type NOT IN ('time', 'id', 'text', 'uuid') THEN
     RAISE EXCEPTION 'Only date/time, text/uuid or integer types are allowed for the control column.';
 ELSIF v_control_type IN ('text', 'uuid') AND (p_time_encoder IS NULL OR p_time_decoder IS NULL) THEN
     RAISE EXCEPTION 'p_time_encoder and p_time_decoder needs to be set for text/uuid type control column.';
-ELSIF v_control_type NOT IN ('text', 'uuid') AND (p_time_encoder IS NOT NULL OR p_time_decoder IS NOT NULL) THEN
+ELSIF v_control_type = 'id' AND p_epoch = 'func' AND (p_time_encoder IS NULL OR p_time_decoder IS NULL) THEN
+    RAISE EXCEPTION 'p_time_encoder and p_time_decoder functions need to be set for p_epoch=func to work.';
+ELSIF v_control_type NOT IN ('text', 'uuid', 'id') AND (p_time_encoder IS NOT NULL OR p_time_decoder IS NOT NULL) THEN
     RAISE EXCEPTION 'p_time_encoder and p_time_decoder can only be used with text/uuid type control column.';
 END IF;
 

@@ -103,6 +103,13 @@ ELSIF v_control_type IN ('text', 'uuid') THEN
         , v_time_decoder
         , p_order);
 
+ELSIF v_control_type = 'id' AND v_epoch = 'func' THEN
+    -- Trim like below since there is no guarantee as to what type of ID it is
+    v_sql := v_sql || format('
+        ORDER BY %s(trim( BOTH $QUOTE$''$QUOTE$ from (regexp_match(pg_get_expr(c.relpartbound, c.oid, true), $REGEX$\(([^)]+)\) TO \(([^)]+)\)$REGEX$))[1]::text )::bigint ) %s '
+        , v_time_decoder
+        , p_order);
+
 ELSIF v_control_type = 'id' AND v_epoch <> 'none' THEN
 
     IF v_epoch = 'seconds' THEN
