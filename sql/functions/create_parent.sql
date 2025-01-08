@@ -348,6 +348,10 @@ IF v_control_type IN ('time', 'text', 'uuid') OR (v_control_type = 'id' AND p_ep
     INTO v_base_timestamp, v_datetime_string
     FROM @extschema@.calculate_time_partition_info(v_time_interval, v_start_time, p_date_trunc_interval);
 
+    IF p_epoch = 'func' THEN
+        PERFORM @extschema@.check_time_encoder_decoder(p_time_encoder, p_time_decoder, v_control_exact_type, v_base_timestamp);
+    END IF;
+
     RAISE DEBUG 'create_parent(): parent_table: %, v_base_timestamp: %', p_parent_table, v_base_timestamp;
 
     v_partition_time_array := array_append(v_partition_time_array, v_base_timestamp);

@@ -12,14 +12,14 @@ SELECT plan(121);
 CREATE SCHEMA partman_test;
 CREATE SCHEMA partman_retention_test;
 
--- Convert to and from Julian days using Postgres builtin functions, aligned to noon UTC
+-- Convert to and from Julian days using Postgres builtin functions
 CREATE FUNCTION partman_test.timestamp_to_julian_day(ts TIMESTAMPTZ)
     RETURNS INTEGER LANGUAGE SQL IMMUTABLE PARALLEL SAFE AS
-    $$SELECT EXTRACT(julian FROM ts at time zone 'UTC+12')::INTEGER$$;
+    $$SELECT EXTRACT(julian FROM ts at time zone 'UTC')::INTEGER$$;
 
 CREATE FUNCTION partman_test.julian_day_to_timestamp(jul_day integer)
     RETURNS TIMESTAMPTZ LANGUAGE SQL IMMUTABLE PARALLEL SAFE AS
-    $$SELECT ('J' || jul_day)::TIMESTAMP AT TIME ZONE 'UTC+12'$$;
+    $$SELECT ('J' || jul_day)::TIMESTAMP AT TIME ZONE 'UTC'$$;
 
 CREATE TABLE partman_test.time_taptest_table
     (col1 int
