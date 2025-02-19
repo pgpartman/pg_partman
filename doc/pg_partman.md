@@ -417,7 +417,6 @@ run_maintenance_proc(
 ```
 
  * This procedure can be called instead of the `run_maintenance()` function to cause PostgreSQL to commit after each partition set's maintenance has finished. This greatly reduces contention issues with long running transactions when there are many partition sets to maintain.
- * NOTE: The BGW does not yet use this procedure and still uses the standard run_maintenance() function.
  * `p_wait` - How many seconds to wait between each partition set's maintenance run. Defaults to 0.
  * `p_analyze` - See p_analyze option in run_maintenance.
 
