@@ -1,9 +1,9 @@
 -- SEE CHANGELOG.md for all notes and details on this update
 
-ALTER TABLE @extschema@.part_config ADD COLUMN time_encoder text;
-ALTER TABLE @extschema@.part_config ADD COLUMN time_decoder text;
-ALTER TABLE @extschema@.part_config_sub ADD COLUMN sub_time_encoder text;
-ALTER TABLE @extschema@.part_config_sub ADD COLUMN sub_time_decoder text;
+ALTER TABLE @extschema@.part_config ADD COLUMN IF NOT EXISTS time_encoder text;
+ALTER TABLE @extschema@.part_config ADD COLUMN IF NOT EXISTS time_decoder text;
+ALTER TABLE @extschema@.part_config_sub ADD COLUMN IF NOT EXISTS sub_time_encoder text;
+ALTER TABLE @extschema@.part_config_sub ADD COLUMN IF NOT EXISTS sub_time_decoder text;
 
 
 CREATE OR REPLACE FUNCTION @extschema@.check_control_type(p_parent_schema text, p_parent_tablename text, p_control text) RETURNS TABLE (general_type text, exact_type text)
