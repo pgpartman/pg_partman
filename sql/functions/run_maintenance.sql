@@ -225,6 +225,9 @@ LOOP
 
         -- Loop through child tables starting from highest to get a timestamp from the highest non-empty partition in the set
         -- Avoids doing a scan on entire partition set and/or getting any values accidentally in default.
+        -- Lock the parent_table first to prevent deadlocks
+        RAISE DEBUG 'PERFORM LOCK %.%', v_parent_schema, v_parent_tablename;
+        PERFORM format('LOCK ''%I.%I''::regclass', v_parent_schema, v_parent_tablename);
         FOR v_row_max_time IN
             SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(v_row.parent_table, 'DESC', false)
         LOOP
