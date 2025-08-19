@@ -60,6 +60,7 @@ v_sub_timestamp_max             timestamptz;
 v_sub_timestamp_max_suffix      timestamptz;
 v_sub_timestamp_min             timestamptz;
 v_tables_list_sql               text;
+v_version_mismatch              boolean;
 
 BEGIN
 /*
@@ -94,6 +95,11 @@ IF p_jobmon THEN
     END IF;
 END IF;
 EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_new_search_path, 'false');
+
+SELECT true INTO v_version_mismatch FROM pg_available_extensions WHERE name = 'pg_partman' AND default_version != installed_version;
+IF v_version_mismatch THEN
+    RAISE WARNING 'A new version of pg_partman is available. run_maintenance might nor work as expected. Run ALTER EXTENSION pg_partman UPDATE first.';
+END IF;
 
 IF v_jobmon_schema IS NOT NULL THEN
     v_job_id := add_job('PARTMAN RUN MAINTENANCE');
