@@ -60,7 +60,8 @@ v_sub_timestamp_max             timestamptz;
 v_sub_timestamp_max_suffix      timestamptz;
 v_sub_timestamp_min             timestamptz;
 v_tables_list_sql               text;
-v_version_mismatch              boolean;
+v_default_version               text;
+v_installed_version             text;
 
 BEGIN
 /*
@@ -96,9 +97,9 @@ IF p_jobmon THEN
 END IF;
 EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_new_search_path, 'false');
 
-SELECT true INTO v_version_mismatch FROM pg_available_extensions WHERE name = 'pg_partman' AND default_version != installed_version;
-IF v_version_mismatch THEN
-    RAISE WARNING 'A new version of pg_partman is available. run_maintenance might not work as expected. Run ALTER EXTENSION pg_partman UPDATE first. A restart might be required';
+SELECT default_version, installed_version INTO v_default_version, v_intalled_version FROM pg_available_extensions WHERE name = 'pg_partman' AND default_version != installed_version;
+IF v_intalled_version IS NOT NULL THEN
+    RAISE WARNING 'pg_partman version % is installed but version % is default. run_maintenance might not work as expected. A restart might be required after update.', v_intalled_version, v_default_version;
 END IF;
 
 IF v_jobmon_schema IS NOT NULL THEN
@@ -231,9 +232,6 @@ LOOP
 
         -- Loop through child tables starting from highest to get a timestamp from the highest non-empty partition in the set
         -- Avoids doing a scan on entire partition set and/or getting any values accidentally in default.
-        -- Lock the parent_table first to prevent deadlocks
-        RAISE DEBUG 'PERFORM LOCK %.%', v_parent_schema, v_parent_tablename;
-        PERFORM format('LOCK ''%I.%I''::regclass', v_parent_schema, v_parent_tablename);
         FOR v_row_max_time IN
             SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(v_row.parent_table, 'DESC', false)
         LOOP
@@ -363,9 +361,6 @@ LOOP
         -- Must be reset to null otherwise if the next partition set in the loop is empty, the previous partition set's value could be used
         v_current_partition_id := NULL;
 
-        -- Lock the parent_table first to prevent deadlocks
-        RAISE DEBUG 'PERFORM LOCK %.%', v_parent_schema, v_parent_tablename;
-        PERFORM format('LOCK ''%I.%I''::regclass', v_parent_schema, v_parent_tablename);
         FOR v_row_max_id IN
             SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(v_row.parent_table, 'DESC', false)
         LOOP
