@@ -98,7 +98,7 @@ END IF;
 EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_new_search_path, 'false');
 
 SELECT default_version, installed_version INTO v_default_version, v_installed_version FROM pg_available_extensions WHERE name = 'pg_partman' AND default_version != installed_version;
-IF v_intalled_version IS NOT NULL THEN
+IF v_installed_version IS NOT NULL THEN
     RAISE WARNING 'pg_partman version % is installed but version % is default. run_maintenance might not work as expected. A restart might be required after update.', v_installed_version, v_default_version;
 END IF;
 
