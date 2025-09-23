@@ -127,6 +127,8 @@ IF v_control_type IN ('time', 'text', 'uuid') OR (v_control_type = 'id' AND v_ep
             child_start_time := to_timestamp((v_start_string::double precision) / 1000000);
         ELSIF v_epoch = 'nanoseconds' THEN
             child_start_time := to_timestamp((v_start_string::double precision) / 1000000000);
+        ELSIF v_epoch = 'func' THEN
+            EXECUTE format('SELECT %s(%s)', v_time_decoder, v_start_string) INTO child_start_time;
         END IF;
     ELSE
         RAISE EXCEPTION 'Unexpected code path in show_partition_info(). Please report this bug with the configuration that lead to it.';

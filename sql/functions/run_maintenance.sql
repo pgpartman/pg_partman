@@ -18,7 +18,6 @@ v_analyze                       boolean := FALSE;
 v_check_subpart                 int;
 v_child_timestamp               timestamptz;
 v_control_type                  text;
-v_time_encoder                  text;
 v_time_decoder                  text;
 v_create_count                  int := 0;
 v_current_partition_id          bigint;
@@ -33,6 +32,7 @@ v_last_partition                text;
 v_last_partition_created        boolean;
 v_last_partition_id             bigint;
 v_last_partition_timestamp      timestamptz;
+v_max_control_expression        text;
 v_max_id                        bigint;
 v_max_id_default                bigint;
 v_max_time_default              timestamptz;
@@ -135,7 +135,7 @@ LOOP
     -- When sub-partitioning, retention may drop tables that were already put into the query loop values.
     -- Check if they still exist in part_config before continuing
     v_parent_exists := NULL;
-    SELECT parent_table, time_encoder, time_decoder INTO v_parent_exists, v_time_encoder, v_time_decoder FROM @extschema@.part_config WHERE parent_table = v_row.parent_table;
+    SELECT parent_table, time_decoder INTO v_parent_exists, v_time_decoder FROM @extschema@.part_config WHERE parent_table = v_row.parent_table;
     IF v_parent_exists IS NULL THEN
         RAISE DEBUG 'run_maint: Parent table possibly removed from part_config by retenion';
     END IF;
@@ -193,6 +193,7 @@ LOOP
         WHEN v_row.epoch = 'milliseconds' THEN format('to_timestamp((%I/1000)::float)', v_row.control)
         WHEN v_row.epoch = 'microseconds' THEN format('to_timestamp((%I/1000000)::float)', v_row.control)
         WHEN v_row.epoch = 'nanoseconds' THEN format('to_timestamp((%I/1000000000)::float)', v_row.control)
+        WHEN v_row.epoch = 'func' THEN format('%s(%I)', v_time_decoder, v_row.control)
         ELSE format('%I', v_row.control)
     END;
     RAISE DEBUG 'run_maint: v_partition_expression: %', v_partition_expression;
@@ -261,6 +262,15 @@ LOOP
             v_current_partition_timestamp = CURRENT_TIMESTAMP;
         END IF;
 
+        -- avoids the need for a functional index using to_timestamp or decoder on control column to quickly find the max
+        v_max_control_expression := CASE
+            WHEN v_row.epoch = 'seconds' THEN format('to_timestamp(max(%I))', v_row.control)
+            WHEN v_row.epoch = 'milliseconds' THEN format('to_timestamp((max(%I)/1000)::float)', v_row.control)
+            WHEN v_row.epoch = 'microseconds' THEN format('to_timestamp((max(%I)/1000000)::float)', v_row.control)
+            WHEN v_row.epoch = 'nanoseconds' THEN format('to_timestamp((max(%I)/1000000000)::float)', v_row.control)
+            WHEN v_row.epoch = 'func' THEN format('%s(max(%I))', v_time_decoder, v_row.control)
+            ELSE format('max(%I)', v_row.control)
+        END;
 
         -- If not ignoring the default table, check for max values there. If they are there and greater than all child values, use that instead
         -- Note the default is NOT to care about data in the default, so maintenance will fail if new child table boundaries overlap with
@@ -268,7 +278,7 @@ LOOP
         IF v_row.ignore_default_data THEN
             v_max_time_default := NULL;
         ELSE
-            EXECUTE format('SELECT max(%s) FROM ONLY %I.%I', v_partition_expression, v_parent_schema, v_default_tablename) INTO v_max_time_default;
+            EXECUTE format('SELECT %s FROM ONLY %I.%I', v_max_control_expression, v_parent_schema, v_default_tablename) INTO v_max_time_default;
         END IF;
         RAISE DEBUG 'run_maint: v_current_partition_timestamp: %, v_max_time_default: %', v_current_partition_timestamp, v_max_time_default;
         IF v_current_partition_timestamp IS NULL AND v_max_time_default IS NULL THEN

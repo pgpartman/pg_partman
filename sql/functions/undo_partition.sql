@@ -182,6 +182,7 @@ v_partition_expression := CASE
     WHEN v_epoch = 'milliseconds' THEN format('to_timestamp((%I/1000)::float)', v_control)
     WHEN v_epoch = 'microseconds' THEN format('to_timestamp((%I/1000000)::float)', v_control)
     WHEN v_epoch = 'nanoseconds' THEN format('to_timestamp((%I/1000000000)::float)', v_control)
+    WHEN v_epoch = 'func' THEN format('%s(%I)', v_time_decoder, v_control)
     ELSE format('%I', v_control)
 END;
 

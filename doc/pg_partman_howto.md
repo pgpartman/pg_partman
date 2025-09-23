@@ -4,6 +4,7 @@ Example Guide On Setting Up Native Partitioning
 - [Simple Time Based: 1 Partition Per Day](#simple-time-based-1-partition-per-day)
 - [Simple Time Based with UUIDv7 type: 1 Partition Per Day](#simple-time-based-with-uuidv7-type-1-partition-per-day)
 - [Simple Time Based with Text Type: 1 Partition Per Day](#simple-time-based-with-text-type-1-partition-per-day)
+- [Simple Time Based with Snowflake IDs: 1 Partition Per Hour](#simple-time-based-with-snowflake-ids-1-partition-per-hour)
 - [Simple Serial ID: 1 Partition Per 10 ID Values](#simple-serial-id-1-partition-Per-10-id-values)
 - [Partitioning an Existing Table](#partitioning-an-existing-table)
   * [Offline Partitioning](#offline-partitioning)
@@ -285,6 +286,107 @@ Indexes:
     "time_taptest_table_p20240815_pkey" PRIMARY KEY, btree (col3)
 Access method: heap
 ```
+
+### Simple Time Based with Snowflake IDs: 1 Partition Per Hour
+This example demonstrates how to use an integer control column that contains integers that encode a timestamp together with other data.
+
+```sql
+CREATE SCHEMA IF NOT EXISTS partman_test;
+
+CREATE TABLE partman_test.time_taptest_table(
+    col1 BIGINT NOT NULL PRIMARY KEY,
+    col2 text default 'stuff')
+PARTITION BY RANGE (col1);
+```
+
+```sql
+\d+ partman_test.time_taptest_table
+                             Partitioned table "partman_test.time_taptest_table"
+ Column |  Type  | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description
+--------+--------+-----------+----------+---------------+----------+-------------+--------------+-------------
+ col1   | bigint |           | not null |               | plain    |             |              |
+ col2   | text   |           |          | 'stuff'::text | extended |             |              |
+Partition key: RANGE (col1)
+Indexes:
+    "time_taptest_table_pkey" PRIMARY KEY, btree (col1)
+Number of partitions: 0
+```
+
+Snowflake IDs are used in some distributed systems to generate unique, time-ordered IDs without centralization or coordination between nodes. X, Discord, Mastodon and Instagram are known to use these identifiers, and this example will use [Discord's scheme](https://discord.com/developers/docs/reference#snowflakes). The timestamp is encoded in the top 42 bits of a 64-bit integer, and the rest is for worker data and a counter. Discord also measures time from 2015 UTC instead of the UNIX epoch of 1970 UTC, a gap of 1420070400 seconds. The BIGINT type is limited to 63 bits since it is a signed integer, but 63 bits is sufficient to hold Discord IDs until September 2084.
+
+The following functions respectively encode and decode snowflake IDs from/to timestamps. Note that when encoding the timestamp, the worker/counter bits are zero, so the returned value is useful as a partition boundary, not as a real ID.
+
+```sql
+CREATE FUNCTION public.timestamp_to_snowflake(p_timestamp timestamptz, OUT encoded bigint)
+    RETURNS bigint
+    LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+    AS $$
+BEGIN
+    SELECT 1000*(EXTRACT(epoch FROM p_timestamp) - 1420070400)::BIGINT << 22 INTO encoded;
+END
+$$;
+
+CREATE FUNCTION public.snowflake_to_timestamp(p_snowflake bigint, OUT ts timestamptz)
+    RETURNS TIMESTAMPTZ
+    LANGUAGE plpgsql IMMUTABLE STRICT PARALLEL SAFE
+    AS $$
+BEGIN
+    SELECT TO_TIMESTAMP((p_snowflake >> 22)/1000 + 1420070400) INTO ts;
+END
+$$;
+```
+
+Now we will instruct partman to use the snowflake encoder and decoder functions with the special value 'func' for `p_epoch`.
+
+```sql
+SELECT partman.create_parent('partman_test.time_taptest_table'
+    , p_control      := 'col1'
+    , p_interval     := '1 hour'
+    , p_epoch        := 'func'
+    , p_time_encoder := 'public.timestamp_to_snowflake'
+    , p_time_decoder := 'public.snowflake_to_timestamp'
+);
+ create_parent
+---------------
+ t
+(1 row)
+```
+
+```sql
+\d+ partman_test.time_taptest_table
+                             Partitioned table "partman_test.time_taptest_table"
+ Column |  Type  | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description
+--------+--------+-----------+----------+---------------+----------+-------------+--------------+-------------
+ col1   | bigint |           | not null |               | plain    |             |              |
+ col2   | text   |           |          | 'stuff'::text | extended |             |              |
+Partition key: RANGE (col1)
+Indexes:
+    "time_taptest_table_pkey" PRIMARY KEY, btree (col1)
+Partitions: partman_test.time_taptest_table_p20250107_030000 FOR VALUES FROM ('1326022498713600000') TO ('1326037598208000000'),
+            partman_test.time_taptest_table_p20250107_040000 FOR VALUES FROM ('1326037598208000000') TO ('1326052697702400000'),
+            partman_test.time_taptest_table_p20250107_050000 FOR VALUES FROM ('1326052697702400000') TO ('1326067797196800000'),
+            partman_test.time_taptest_table_p20250107_060000 FOR VALUES FROM ('1326067797196800000') TO ('1326082896691200000'),
+            partman_test.time_taptest_table_p20250107_070000 FOR VALUES FROM ('1326082896691200000') TO ('1326097996185600000'),
+            partman_test.time_taptest_table_p20250107_080000 FOR VALUES FROM ('1326097996185600000') TO ('1326113095680000000'),
+            partman_test.time_taptest_table_p20250107_090000 FOR VALUES FROM ('1326113095680000000') TO ('1326128195174400000'),
+            partman_test.time_taptest_table_p20250107_100000 FOR VALUES FROM ('1326128195174400000') TO ('1326143294668800000'),
+            partman_test.time_taptest_table_p20250107_110000 FOR VALUES FROM ('1326143294668800000') TO ('1326158394163200000'),
+            partman_test.time_taptest_table_default DEFAULT
+```
+```sql
+\d+ partman_test.time_taptest_table_p20250107_030000
+                           Table "partman_test.time_taptest_table_p20250107_030000"
+ Column |  Type  | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description
+--------+--------+-----------+----------+---------------+----------+-------------+--------------+-------------
+ col1   | bigint |           | not null |               | plain    |             |              |
+ col2   | text   |           |          | 'stuff'::text | extended |             |              |
+Partition of: partman_test.time_taptest_table FOR VALUES FROM ('1326022498713600000') TO ('1326037598208000000')
+Partition constraint: ((col1 IS NOT NULL) AND (col1 >= '1326022498713600000'::bigint) AND (col1 < '1326037598208000000'::bigint))
+Indexes:
+    "time_taptest_table_p20250107_030000_pkey" PRIMARY KEY, btree (col1)
+Access method: heap
+```
+
 ### Simple Serial ID: 1 Partition Per 10 ID Values
 For this use-case, the template table is not created manually before calling `create_parent()`. So it shows that if a primary/unique key is added later, it does not apply to the currently existing child tables. That will have to be done manually.
 
