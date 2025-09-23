@@ -112,12 +112,12 @@ FOR v_row IN EXECUTE v_sql LOOP
             PERFORM @extschema@.apply_constraints(p_parent_table, format('%s.%s', v_row.partition_schemaname, v_row.partition_tablename)::text);
         END IF;
     END IF; -- end apply
+    COMMIT;
 
     IF v_row.partition_tablename = v_child_stop THEN
         RAISE DEBUG 'reapply_constraint: Reached stop at %.%', v_row.partition_schemaname, v_row.partition_tablename;
         EXIT; -- stop creating constraints after optimize target is reached
     END IF;
-    COMMIT;
     PERFORM pg_sleep(p_wait);
 END LOOP;
 
