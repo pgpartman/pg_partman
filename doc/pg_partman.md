@@ -1,3 +1,5 @@
+_Last Updated: July 24, 2025_
+
 PostgreSQL Partition Manager Extension (`pg_partman`)
 =====================================================
 
@@ -92,7 +94,7 @@ If you are using the IDENTITY feature for sequences, the automatic generation of
 IMPORTANT NOTES:
  * The template table feature is only a temporary solution to help speed up declarative partitioning adoption. As things are handled better in core, the use of the template table will be phased out quickly from pg_partman. If a feature that was managed by the template is supported in core in the future, it will eventually be removed from template management in pg_partman, so please plan ahead for that during major version upgrading if it applies to you.
  * If you are needing to use the REPLICA IDENTITY property for logical replication with the USING INDEX clause, note that this is only supported if the index you need to use has been created on the actual parent table, NOT the template. Since there is no way to limit whether the REPLICA IDENTITY is made on both the parent table and the template, there's no way to tell which one is the "right" identity. Therefore only the parent table was chosen as the source to be consistent with the other identity inheritance methods (FULL & NONE).
- * The UNLOGGED status is managed via pg_partman's template due to an inconsistency in the way the property is handled when either enabling or disabling UNLOGGED on the parent table of a partition set. That property does not actually change on the parent table when the ALTER command is written so new child tables will continue to use the property that existed before. So if you wanted to change a partition set from UNLOGGED to LOGGED for all future children, it does not work. With the property now being managed on the template table, changing it there will allow the change to propagate to newly created children. Pre-existing child tables will have to be changed manually, but that has always been the case. See reported bug at https://www.postgresql.org/message-id/flat/15954-b61523bed4b110c4%40postgresql.org
+ * The UNLOGGED status is managed via pg_partman's template since as of PostgreSQL 18 it is no longer possible to set the unlogged flag on the parent table of a partition set. Prior to 18, this was not handled consistently. When you upgrade to PG18, the unlogged flag will be removed from any parent table in a partition set, but can still be set on the lowest level child tables.
 
 ### Time Zones
 
@@ -223,7 +225,7 @@ RETURNS boolean
  * `p_date_trunc_interval` - By default, pg_partman's time-based partitioning will truncate the child table starting values to line up at the beginning of typical boundaries (midnight for daily, day 1 for monthly, Jan 1 for yearly, etc). If a partitioning interval that does not fall on those boundaries is desired, this option may be required to ensure the child table has the expected boundaries (especially if you also set `p_start_partition`). The valid values allowed for this parameter are the interval values accepted by PostgreSQL's built-in `date_trunc()` function (day, week, month, etc). For example, if you set a 9-week interval, by default pg_partman would truncate the tables by month (since the interval is greater than one month but less than 1 year) and unexpectedly start on the first of the month in some cases. Set this parameter value to `week`, so that the child table start values are properly truncated on a weekly basis to line up with the 9-week interval. If you are using a custom time interval, please experiment with this option to get the expected set of child tables you desire or use a more typical partitioning interval to simplify partition management.
  * `p_control_not_null` - By default, this value is true and the control column must be set to NOT NULL. Setting this to false allows the control column to be NULL. Allowing this is not advised without very careful review and an explicit use-case defined as it can cause excessive data in the DEFAULT child partition.
  * `p_time_encoder` - name of function that encodes a timestamp into a string representing your partition bounds. Setting this implicitly enables time based partitioning and is mandatory for text/uuid control column types. This enables partitioning tables using time based identifiers like uuidv7, ulid, snowflake ids and others. The function must handle NULL input safely. See test-time-daily.sql and test-uuid-daily for usage examples.
- * `p_time_decoder` - name of function that decodes a text/uuid control value into a timestamp. Setting this implicitly enables time based partitioning and is mandatory for text/uuid control column types. This enables partitioning tables using time based identifiers like uuidv7, ulid, snowflake ids and others. The function must handle NULL input safely. See test-time-daily.sql and test-uuid-daily for usage examples.
+ * `p_time_decoder` - name of function that decodes a text/uuid control value into a timestamp. Setting this implicitly enables time based partitioning and is mandatory for text/uuid control column types. This enables partitioning tables using time based identifiers like uuidv7, ulid, snowflake ids and others. The function must handle NULL input safely and it also must take a TEXT type for its input parameter at this time. See test-time-daily.sql and test-uuid-daily for usage examples.
 
 
 <a id="create_sub_parent"></a>
@@ -754,7 +756,6 @@ Stores all configuration data for partition sets managed by the extension.
     , undo_in_progress boolean NOT NULL DEFAULT false
     , inherit_privileges boolean DEFAULT false
     , constraint_valid boolean DEFAULT true NOT NULL
-    , subscription_refresh text
     , ignore_default_data boolean NOT NULL DEFAULT true
     , maintenance_order int DEFAULT NULL
     , retention_keep_publication boolean NOT NULL DEFAULT false
@@ -814,8 +815,6 @@ Stores all configuration data for partition sets managed by the extension.
     - Sets whether to inherit the ownership/privileges of the parent table to all child tables. Defaults to false and should only be necessary if you need direct access to child tables, by-passing the parent table.
   - `constraint_valid`
     - Boolean value that allows the additional constraints that pg_partman can manage for you to be created as NOT VALID. See "Constraint Exclusion" section at the beginning for more details on these constraints. This can allow maintenance to run much quicker on large partition sets since the existing data is not validated before additing the constraint. Newly inserted data is validated, so this is a perfectly safe option to set for data integrity. Note that constraint exclusion WILL NOT work until the constraints are validated. Defaults to true so that constraints are created as VALID. Set to false to set new constraints as NOT VALID.
-  - `subscription_refresh`
-    - Name of a logical replication subscription to refresh when maintenance runs. If the partition set is subscribed to a publication that will be adding/removing tables and you need your partition set to be aware of these changes, you must name that subscription with this option. Otherwise the subscription will never become aware of the new tables added to the publisher unless you are refreshing the subscription via some other means. See the PG documentation for ALTER SUBSCRIPTION for more info on refreshing subscriptions - https://www.postgresql.org/docs/current/sql-altersubscription.html
  - `ignore_default_data`
     - By default, maintenance will ignore data in the default table when determining whether a new child table should be made. This means that if data is in the default and new child table would contain that data, an error will be thrown. If you need maintenance to acknowledge data in the default to fix a maintenance issue, this can be set to false. Note this can cause gaps in child table coverage, which can made data going into the default even worse, so it should not be left enabled once maintenance issues have been fixed.
  - `maintenance_order`
