@@ -1,6 +1,7 @@
 -- ########## TIME DAILY TESTS ##########
 -- Other tests:
     -- Test generated always columns
+    -- Test partition_data_time function
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true

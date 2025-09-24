@@ -1,7 +1,7 @@
 -- ########## ID 10 TESTS ##########
 -- Additional tests:
     -- turn off pg_jobmon logging
-    -- UNLOGGED
+    -- UNLOGGED - Parent table not allowed to be unlogged in PG18+, but the child tables can be
     -- PUBLIC role
     -- start with higher number
     -- native inherit FK
@@ -15,7 +15,7 @@
 BEGIN;
 SELECT set_config('search_path','partman, public',false);
 
-SELECT plan(135);
+SELECT plan(134);
 CREATE SCHEMA partman_test;
 CREATE SCHEMA partman_retention_test;
 CREATE ROLE partman_basic;
@@ -25,7 +25,7 @@ CREATE ROLE partman_owner;
 CREATE TABLE partman_test.fk_test_reference (col2 text unique not null);
 INSERT INTO partman_test.fk_test_reference VALUES ('stuff');
 
-CREATE UNLOGGED TABLE partman_test.id_taptest_table
+CREATE TABLE partman_test.id_taptest_table
     (col1 bigint PRIMARY KEY
         , col2 text not null default 'stuff'
         , col3 timestamptz DEFAULT now()
@@ -89,7 +89,8 @@ SELECT table_privs_are('partman_test', 'id_taptest_table_p3000000020', 'partman_
 SELECT table_privs_are('partman_test', 'id_taptest_table_p3000000030', 'partman_revoke', ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'], 'Check partman_revoke privileges of id_taptest_table_p3000000030');
 SELECT table_privs_are('partman_test', 'id_taptest_table_p3000000040', 'partman_revoke', ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'], 'Check partman_revoke privileges of id_taptest_table_p3000000040');
 SELECT table_privs_are('partman_test', 'id_taptest_table_default', 'partman_revoke', ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'], 'Check partman_revoke privileges of id_taptest_table_default');
-SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table''::regclass', ARRAY['u'], 'Check that parent table is unlogged');
+-- PG18 does not allow the parent to be unlogged, but child tables can. Just leaving this here with a note so I don't forget why I don't test this anymore
+--SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table''::regclass', ARRAY['u'], 'Check that parent table is unlogged');
 SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p3000000000''::regclass', ARRAY['u'], 'Check that id_taptest_table_p3000000000 is unlogged');
 SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p3000000010''::regclass', ARRAY['u'], 'Check that id_taptest_table_p3000000010 is unlogged');
 SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p3000000020''::regclass', ARRAY['u'], 'Check that id_taptest_table_p3000000020 is unlogged');

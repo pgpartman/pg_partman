@@ -22,7 +22,7 @@ v_control_type                  text;
 v_datetime_string               text;
 v_epoch                         text;
 v_given_timestamp               timestamptz;
-v_parent_schema                 text;
+v_parent_schemaname                 text;
 v_parent_tablename              text;
 v_partition_interval            text;
 v_row                           record;
@@ -54,7 +54,7 @@ IF v_type IS NULL THEN
     RAISE EXCEPTION 'Parent table given is not managed by pg_partman (%)', p_parent_table;
 END IF;
 
-SELECT n.nspname, c.relname INTO v_parent_schema, v_parent_tablename
+SELECT n.nspname, c.relname INTO v_parent_schemaname, v_parent_tablename
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
 WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
@@ -63,20 +63,25 @@ IF v_parent_tablename IS NULL THEN
     RAISE EXCEPTION 'Parent table given does not exist (%)', p_parent_table;
 END IF;
 
-partition_schema := v_parent_schema;
+partition_schema := v_parent_schemaname;
 
-SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
+SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schemaname, v_parent_tablename, v_control);
 
 IF (v_control_type IN ('time', 'text', 'uuid') OR (v_control_type = 'id' AND v_epoch <> 'none')) THEN
 
     v_given_timestamp := p_value::timestamptz;
+    RAISE DEBUG 'show_partition_name: v_given_timestamp: %, v_child_start_time: %, v_child_end_time: % ', v_given_timestamp, v_child_start_time, v_child_end_time;
+
     FOR v_row IN
         SELECT partition_schemaname ||'.'|| partition_tablename AS child_table FROM @extschema@.show_partitions(p_parent_table, 'DESC')
     LOOP
+    RAISE DEBUG 'show_partition_name: v_row.child_table: %', v_row.child_table;
         SELECT child_start_time INTO v_child_start_time
             FROM @extschema@.show_partition_info(v_row.child_table, v_partition_interval, p_parent_table);
         -- Don't use child_end_time from above function to avoid edge cases around user supplied timestamps
         v_child_end_time := v_child_start_time + v_partition_interval::interval;
+    RAISE DEBUG 'show_partition_name: v_given_timestamp: %, v_child_start_time: %, v_child_end_time: % ', v_given_timestamp, v_child_start_time, v_child_end_time;
+
         IF v_given_timestamp >= v_child_end_time THEN
             -- given value is higher than any existing child table. handled below.
             v_child_larger := true;

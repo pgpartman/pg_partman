@@ -1,3 +1,32 @@
+5.3.0
+=====
+
+NEW FEATURES
+------------
+ - Added new function partition_data_async() to allow smaller batching of data per transaction when moving data out of the default partition. (Github Issue #353)
+    - Note this function currently only works with time-based partitioning. ID/integer partitioning is in development.
+    - WARNING: While data is in transition between the default and the destination child table using this procedure, it is NOT visible to users of the partition table. See documentation for this function for additional details.
+ - Better support filtering out any columns with `p_ignored_columns` while partitioning data using the `partition_data_time()`, `partition_data_id()`, or `partition_data_proc()` utilities. (Github PR#723)
+    - Allows for filtering out GENERATED columns while moving data so that newly generated values will be entered for moved rows.
+    - Non-GENERATED columns that are filtered out will either have NULL values or use the default value when rows are moved.
+    - TODO update partition_data_id
+ - Added support for uuid-based partition sets to partition_data_time()/partition_data_proc() functions (Github #789)
+ - Allow a starting offset to id/integer based partitioning. Added a new parameter to create_parent: p_offset_id. Note that the offset will carry through to all subsequent child tables. Ex: offset of 5 with interval 10 will make lower boundaries 5, 15, 25, etc. (Github Issue #339)
+ - Reduce the logging of the dynamic background working runs to be DEBUG1. Changed existing DEBUG1 logging messages in the BGW to DEBUG2.
+ - Unlogged tables are still supported in pg_partman as of PostgreSQL 18 and newer, but the parent table can no longer be flagged unlogged. This only works through the template table system in pg_partman.
+
+BUGFIXES
+--------
+ - Allow `partition_data_*()` utilities to properly work when a PK/Unique key is set to GENERATE ALWAYS.
+ - Handle if the given default table already exists when calling `create_parent()`. Helps to better handle migrating an existing partition set to pg_partman.
+ - Added check to ensure that the default table cannot be manually set as the value of p_source_table in partitioning functions and procedures. This would previously cause an unhandled edge case endless loop since the data moved out of the default was getting moved right back into the default again instead of a new child partition. (Github Issue #353)
+ - Always ensure transaction is committed at proper time when using reapply_constraints_proc(). (Github PR#780)
+ - Added plpgsql as a required dependency in the extension control file. (Github PR# 808)
+
+DOCUMENTATION
+-------------
+ - Updated documentation for the time decoder function to note that it must take a TEXT value as its parameter at this time.
+
 5.2.4
 =====
 BUG FIXES

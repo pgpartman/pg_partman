@@ -38,7 +38,6 @@ SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMES
 
 DROP SCHEMA IF EXISTS partman_test CASCADE;
 
-
 SELECT diag('!!! Final test complete !!!');
 
 SELECT * FROM finish();

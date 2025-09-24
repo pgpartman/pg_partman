@@ -21,10 +21,10 @@ v_epoch             text;
 v_is_autovac_off    boolean := false;
 v_lockwait_count    int := 0;
 v_loop_count        int := 0;
-v_parent_schema     text;
+v_parent_schemaname     text;
 v_parent_tablename  text;
 v_rows_moved        bigint;
-v_source_schema     text;
+v_source_schemaname     text;
 v_source_tablename  text;
 v_sql               text;
 v_total             bigint := 0;
@@ -45,7 +45,7 @@ IF NOT FOUND THEN
     RAISE EXCEPTION 'ERROR: No entry in part_config found for given table: %', p_parent_table;
 END IF;
 
-SELECT n.nspname, c.relname INTO v_parent_schema, v_parent_tablename
+SELECT n.nspname, c.relname INTO v_parent_schemaname, v_parent_tablename
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
 WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
@@ -55,7 +55,7 @@ AND c.relname = split_part(p_parent_table, '.', 2)::name;
     END IF;
 
 IF p_source_table IS NOT NULL THEN
-    SELECT n.nspname, c.relname INTO v_source_schema, v_source_tablename
+    SELECT n.nspname, c.relname INTO v_source_schemaname, v_source_tablename
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
     WHERE n.nspname = split_part(p_source_table, '.', 1)::name
@@ -65,7 +65,7 @@ IF p_source_table IS NOT NULL THEN
         END IF;
 END IF;
 
-SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
+SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schemaname, v_parent_tablename, v_control);
 
 IF v_control_type = 'id' AND v_epoch <> 'none' THEN
         v_control_type := 'time';
@@ -76,12 +76,15 @@ END IF;
 -- Leaving the functions to turn off/reset in to let people do that manually if desired
 IF p_autovacuum_on = false THEN         -- Add this parameter back to definition when this is working
     -- Turn off autovac for parent, source table if set, and all child tables
-    v_is_autovac_off := @extschema@.autovacuum_off(v_parent_schema, v_parent_tablename, v_source_schema, v_source_tablename);
+    v_is_autovac_off := @extschema@.autovacuum_off(v_parent_schemaname, v_parent_tablename, v_source_schema, v_source_tablename);
     COMMIT;
 END IF;
 */
 
-v_sql := format('SELECT %s.partition_data_%s (p_parent_table := %L, p_lock_wait := %L, p_order := %L, p_analyze := false'
+v_sql := format('SELECT %s.partition_data_%s (p_parent_table := %L
+                                                , p_lock_wait := %L
+                                                , p_order := %L
+                                                , p_analyze := false'
         , '@extschema@', v_control_type, p_parent_table, p_lock_wait, p_order);
 IF p_interval IS NOT NULL THEN
     v_sql := v_sql || format(', p_batch_interval := %L', p_interval);
@@ -127,7 +130,7 @@ END LOOP;
 /*
 IF v_is_autovac_off = true THEN
     -- Reset autovac back to default if it was turned off by this procedure
-    PERFORM @extschema@.autovacuum_reset(v_parent_schema, v_parent_tablename, v_source_schema, v_source_tablename);
+    PERFORM @extschema@.autovacuum_reset(v_parent_schemaname, v_parent_tablename, v_source_schema, v_source_tablename);
     COMMIT;
 END IF;
 */
@@ -154,5 +157,6 @@ EXCEPTION
         END IF;
         RAISE EXCEPTION '%', SQLERRM;
 */
+
 END;
 $$;

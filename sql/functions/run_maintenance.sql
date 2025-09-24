@@ -114,6 +114,7 @@ v_tables_list_sql := 'SELECT parent_table
                 , datetime_string
                 , maintenance_order
                 , date_trunc_interval
+                , async_partitioning_in_progress
             FROM @extschema@.part_config
             WHERE undo_in_progress = false';
 
@@ -131,6 +132,11 @@ FOR v_row IN EXECUTE v_tables_list_sql
 LOOP
 
     CONTINUE WHEN v_row.undo_in_progress;
+
+    IF v_row.async_partitioning_in_progress IS NOT NULL THEN
+        RAISE WARNING 'Async partitioning in progress for partition set: %. Maintenance is being skipped for this partition set while this is in progress and will resume when it is complete during the next maintenance run. If this is not expected, please check the value of "async_partitioning_in_progress" in the "part_config" table and investigate for any incomplete asynchronous partitioning job attempts for this partition set.', v_row.parent_table;
+        CONTINUE;
+    END IF;
 
     -- When sub-partitioning, retention may drop tables that were already put into the query loop values.
     -- Check if they still exist in part_config before continuing

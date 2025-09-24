@@ -21,6 +21,8 @@ BEGIN
 END;
 $$;
 
+
+-- Currently time decoder function must take a text parameter. See if this can be more flexible in the future
 CREATE FUNCTION @extschema@.uuid7_time_decoder(uuidv7 TEXT)
 RETURNS TIMESTAMPTZ
 LANGUAGE plpgsql

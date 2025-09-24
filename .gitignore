@@ -9,3 +9,4 @@ ignore/*
 sql/*.sql
 test/not_working_yet/*
 *.zip
+*.fuse*

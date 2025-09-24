@@ -15,6 +15,7 @@ CREATE FUNCTION @extschema@.create_parent(
     , p_control_not_null boolean DEFAULT true
     , p_time_encoder text DEFAULT NULL
     , p_time_decoder text DEFAULT NULL
+    , p_offset_id bigint DEFAULT 0
 )
     RETURNS boolean
     LANGUAGE plpgsql
@@ -48,7 +49,7 @@ v_old_search_path               text;
 v_parent_owner                  text;
 v_parent_partition_id           bigint;
 v_parent_partition_timestamp    timestamptz;
-v_parent_schema                 text;
+v_parent_schemaname                 text;
 v_parent_tablename              text;
 v_parent_tablespace             name;
 v_part_col                      text;
@@ -97,11 +98,9 @@ END IF;
 
 SELECT n.nspname
     , c.relname
-    , c.relpersistence
     , t.spcname
-INTO v_parent_schema
+INTO v_parent_schemaname
     , v_parent_tablename
-    , v_unlogged
     , v_parent_tablespace
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
@@ -117,7 +116,7 @@ FROM pg_catalog.pg_attribute a
 JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
 WHERE c.relname = v_parent_tablename::name
-AND n.nspname = v_parent_schema::name
+AND n.nspname = v_parent_schemaname::name
 AND a.attname = p_control::name;
     IF (v_notnull IS NULL) THEN
         RAISE EXCEPTION 'Control column given (%) for parent table (%) does not exist', p_control, p_parent_table;
@@ -126,7 +125,7 @@ AND a.attname = p_control::name;
     END IF;
 
 SELECT general_type, exact_type INTO v_control_type, v_control_exact_type
-FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, p_control);
+FROM @extschema@.check_control_type(v_parent_schemaname, v_parent_tablename, p_control);
 
 IF v_control_type IS NULL THEN
     RAISE EXCEPTION 'pg_partman only supports partitioning of data types that are integer, numeric, date/timestamp or specially encoded text. Supplied column is of type %', v_control_exact_type;
@@ -152,7 +151,7 @@ INTO v_partstrat
 FROM pg_catalog.pg_partitioned_table p
 JOIN pg_catalog.pg_class c ON p.partrelid = c.oid
 JOIN pg_namespace n ON c.relnamespace = n.oid
-WHERE n.nspname = v_parent_schema::name
+WHERE n.nspname = v_parent_schemaname::name
 AND c.relname = v_parent_tablename::name;
 
 IF v_partstrat NOT IN ('r', 'l') OR v_partstrat IS NULL THEN
@@ -169,7 +168,7 @@ FROM pg_attribute a
 JOIN pg_class c ON a.attrelid = c.oid
 JOIN pg_namespace n ON c.relnamespace = n.oid
 JOIN pg_type t ON a.atttypid = t.oid
-WHERE n.nspname = v_parent_schema::name
+WHERE n.nspname = v_parent_schemaname::name
 AND c.relname = v_parent_tablename::name
 AND attnum IN (SELECT unnest(partattrs) FROM pg_partitioned_table p WHERE a.attrelid = p.partrelid);
 
@@ -189,13 +188,13 @@ END IF;
 -- Table to handle properties not managed by core PostgreSQL yet
 IF p_template_table IS NULL THEN
     v_template_schema := '@extschema@';
-    v_template_tablename := @extschema@.check_name_length('template_'||v_parent_schema||'_'||v_parent_tablename);
-    EXECUTE format('CREATE TABLE IF NOT EXISTS %I.%I (LIKE %I.%I)', v_template_schema, v_template_tablename, v_parent_schema, v_parent_tablename);
+    v_template_tablename := @extschema@.check_name_length('template_'||v_parent_schemaname||'_'||v_parent_tablename);
+    EXECUTE format('CREATE TABLE IF NOT EXISTS %I.%I (LIKE %I.%I)', v_template_schema, v_template_tablename, v_parent_schemaname, v_parent_tablename);
 
     SELECT pg_get_userbyid(c.relowner) INTO v_parent_owner
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-    WHERE n.nspname = v_parent_schema::name
+    WHERE n.nspname = v_parent_schemaname::name
     AND c.relname = v_parent_tablename::name;
 
     EXECUTE format('ALTER TABLE %s.%I OWNER TO %I'
@@ -231,7 +230,7 @@ IF p_jobmon THEN
 END IF;
 EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_new_search_path, 'false');
 
-EXECUTE format('LOCK TABLE %I.%I IN ACCESS EXCLUSIVE MODE', v_parent_schema, v_parent_tablename);
+EXECUTE format('LOCK TABLE %I.%I IN ACCESS EXCLUSIVE MODE', v_parent_schemaname, v_parent_tablename);
 
 IF v_jobmon_schema IS NOT NULL THEN
     v_job_id := add_job(format('PARTMAN SETUP PARENT: %s', p_parent_table));
@@ -247,7 +246,7 @@ FOR v_row IN
         JOIN pg_catalog.pg_class c ON h.inhrelid = c.oid
         JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
         WHERE c.relname = v_parent_tablename::name
-        AND n.nspname = v_parent_schema::name
+        AND n.nspname = v_parent_schemaname::name
     ), sibling_children AS (
         SELECT i.inhrelid::regclass::text AS tablename
         FROM pg_inherits i
@@ -415,7 +414,7 @@ IF v_control_type IN ('time', 'text', 'uuid') OR (v_control_type = 'id' AND p_ep
             JOIN pg_catalog.pg_class c ON c.oid = i.inhrelid
             JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
             WHERE c.relname = v_parent_tablename::name
-            AND n.nspname = v_parent_schema::name
+            AND n.nspname = v_parent_schemaname::name
         ) SELECT n.nspname, c.relname
         INTO v_top_parent_schema, v_top_parent_table
         FROM pg_catalog.pg_class c
@@ -513,7 +512,7 @@ IF v_control_type = 'id' AND p_epoch = 'none' THEN
         EXECUTE v_sql INTO v_max;
     END IF;
 
-    v_starting_partition_id := (v_max - (v_max % v_id_interval));
+    v_starting_partition_id := ((v_max - (v_max % v_id_interval)) + p_offset_id);
     FOR i IN 0..p_premake LOOP
         -- Only make previous partitions if ID value is less than the starting value and positive (and custom start partition wasn't set)
         IF p_start_partition IS NULL AND
@@ -561,7 +560,7 @@ IF v_control_type = 'id' AND p_epoch = 'none' THEN
             JOIN pg_catalog.pg_class c ON c.oid = i.inhrelid
             JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
             WHERE c.relname = v_parent_tablename::name
-            AND n.nspname = v_parent_schema::name
+            AND n.nspname = v_parent_schemaname::name
         ) SELECT n.nspname||'.'||c.relname
         INTO v_top_parent_table
         FROM pg_catalog.pg_class c
@@ -612,30 +611,24 @@ IF p_default_table THEN
     v_default_partition := @extschema@.check_name_length(v_parent_tablename, '_default', FALSE);
     v_sql := 'CREATE';
 
-    -- Left this here as reminder to revisit once core PG figures out how it is handling changing unlogged stats
-    -- Currently handed via template table below
-    /*
-    IF v_unlogged = 'u' THEN
-         v_sql := v_sql ||' UNLOGGED';
-    END IF;
-    */
-
     -- Same INCLUDING list is used in create_partition_*(). INDEXES is handled when partition is attached if it's supported.
-    v_sql := v_sql || format(' TABLE %I.%I (LIKE %I.%I INCLUDING COMMENTS INCLUDING COMPRESSION INCLUDING CONSTRAINTS INCLUDING DEFAULTS INCLUDING GENERATED INCLUDING STATISTICS INCLUDING STORAGE)'
-        , v_parent_schema, v_default_partition, v_parent_schema, v_parent_tablename);
+    v_sql := v_sql || format(' TABLE IF NOT EXISTS %I.%I (LIKE %I.%I INCLUDING COMMENTS INCLUDING COMPRESSION INCLUDING CONSTRAINTS INCLUDING DEFAULTS INCLUDING GENERATED INCLUDING STATISTICS INCLUDING STORAGE)'
+        , v_parent_schemaname, v_default_partition, v_parent_schemaname, v_parent_tablename);
     IF v_parent_tablespace IS NOT NULL THEN
         v_sql := format('%s TABLESPACE %I ', v_sql, v_parent_tablespace);
     END IF;
     EXECUTE v_sql;
 
     v_sql := format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I DEFAULT'
-        , v_parent_schema, v_parent_tablename, v_parent_schema, v_default_partition);
+        , v_parent_schemaname, v_parent_tablename, v_parent_schemaname, v_default_partition);
     EXECUTE v_sql;
 
-    PERFORM @extschema@.inherit_replica_identity(v_parent_schema, v_parent_tablename, v_default_partition);
+    PERFORM @extschema@.inherit_replica_identity(v_parent_schemaname, v_parent_tablename, v_default_partition);
 
     -- Manage template inherited properties
-    PERFORM @extschema@.inherit_template_properties(p_parent_table, v_parent_schema, v_default_partition);
+    IF v_template_tablename IS NOT NULL THEN
+        PERFORM @extschema@.inherit_template_properties(p_parent_table, v_parent_schemaname, v_default_partition);
+    END IF;
 
 END IF;
 
