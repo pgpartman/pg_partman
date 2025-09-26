@@ -16,7 +16,7 @@
 --BEGIN;
 SELECT set_config('search_path','partman, public',false);
 
-SELECT plan(122);
+SELECT plan(121);
 CREATE SCHEMA partman_test;
 CREATE SCHEMA partman_retention_test;
 CREATE ROLE partman_basic;
@@ -26,7 +26,7 @@ CREATE ROLE partman_owner;
 CREATE TABLE partman_test.fk_test_reference (col2 text unique not null);
 INSERT INTO partman_test.fk_test_reference VALUES ('stuff');
 
-CREATE UNLOGGED TABLE partman_test.id_taptest_table (
+CREATE TABLE partman_test.id_taptest_table (
     col1 int primary key
     , col2 text not null default 'stuff' references partman_test.fk_test_reference (col2)
     , col3 timestamptz DEFAULT now() )
@@ -72,7 +72,7 @@ SELECT table_privs_are('partman_test', 'id_taptest_table_p10', 'partman_revoke',
 SELECT table_privs_are('partman_test', 'id_taptest_table_p20', 'partman_revoke', ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'], 'Check partman_revoke privileges of id_taptest_table_p20');
 SELECT table_privs_are('partman_test', 'id_taptest_table_p30', 'partman_revoke', ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'], 'Check partman_revoke privileges of id_taptest_table_p30');
 SELECT table_privs_are('partman_test', 'id_taptest_table_p40', 'partman_revoke', ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'], 'Check partman_revoke privileges of id_taptest_table_p40');
-SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table''::regclass', ARRAY['u'], 'Check that parent table is unlogged');
+--SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table''::regclass', ARRAY['u'], 'Check that parent table is unlogged');
 SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p0''::regclass', ARRAY['u'], 'Check that id_taptest_table_p0 is unlogged');
 SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p10''::regclass', ARRAY['u'], 'Check that id_taptest_table_p10 is unlogged');
 SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p20''::regclass', ARRAY['u'], 'Check that id_taptest_table_p20 is unlogged');
