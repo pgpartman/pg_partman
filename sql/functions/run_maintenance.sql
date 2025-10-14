@@ -18,6 +18,7 @@ v_analyze                       boolean := FALSE;
 v_check_subpart                 int;
 v_child_timestamp               timestamptz;
 v_control_type                  text;
+v_exception                     boolean;
 v_time_encoder                  text;
 v_time_decoder                  text;
 v_create_count                  int := 0;
@@ -241,39 +242,43 @@ LOOP
         FOR v_row_max_time IN
             SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(v_row.parent_table, 'DESC', false)
         LOOP
+            BEGIN
+                IF v_control_type = 'time' OR (v_control_type = 'id' AND v_row.epoch <> 'none') THEN
+                    EXECUTE format('SELECT %s::text FROM %I.%I LIMIT 1'
+                                        , v_partition_expression
+                                        , v_row_max_time.partition_schemaname
+                                        , v_row_max_time.partition_tablename
+                                    ) INTO v_child_timestamp;
+                ELSIF v_control_type IN ('text', 'uuid') THEN
+                    EXECUTE format('SELECT %s(%s::text) FROM %I.%I LIMIT 1'
+                                        , v_time_decoder
+                                        , v_partition_expression
+                                        , v_row_max_time.partition_schemaname
+                                        , v_row_max_time.partition_tablename
+                                    ) INTO v_child_timestamp;
+                END IF;
 
-            IF v_control_type = 'time' OR (v_control_type = 'id' AND v_row.epoch <> 'none') THEN
-                EXECUTE format('SELECT %s::text FROM %I.%I LIMIT 1'
-                                    , v_partition_expression
-                                    , v_row_max_time.partition_schemaname
-                                    , v_row_max_time.partition_tablename
-                                ) INTO v_child_timestamp;
-            ELSIF v_control_type IN ('text', 'uuid') THEN
-                EXECUTE format('SELECT %s(%s::text) FROM %I.%I LIMIT 1'
-                                    , v_time_decoder
-                                    , v_partition_expression
-                                    , v_row_max_time.partition_schemaname
-                                    , v_row_max_time.partition_tablename
-                                ) INTO v_child_timestamp;
-            END IF;
-
-            IF v_row.infinite_time_partitions AND v_child_timestamp < CURRENT_TIMESTAMP THEN
-                -- No new data has been inserted relative to "now", but keep making child tables anyway
-                v_current_partition_timestamp = CURRENT_TIMESTAMP;
-                -- Nothing else to do in this case so just end early
-                EXIT;
-            END IF;
-            IF v_child_timestamp IS NOT NULL THEN
-                SELECT suffix_timestamp INTO v_current_partition_timestamp FROM @extschema@.show_partition_name(v_row.parent_table, v_child_timestamp::text);
-                EXIT;
-            END IF;
+                IF v_row.infinite_time_partitions AND v_child_timestamp < CURRENT_TIMESTAMP THEN
+                    -- No new data has been inserted relative to "now", but keep making child tables anyway
+                    v_current_partition_timestamp = CURRENT_TIMESTAMP;
+                    -- Nothing else to do in this case so just end early
+                    EXIT;
+                END IF;
+                IF v_child_timestamp IS NOT NULL THEN
+                    SELECT suffix_timestamp INTO v_current_partition_timestamp FROM @extschema@.show_partition_name(v_row.parent_table, v_child_timestamp::text);
+                    EXIT;
+                END IF;
+            EXCEPTION WHEN others THEN
+                GET STACKED DIAGNOSTICS ex_message = MESSAGE_TEXT;
+                RAISE WARNING 'Child partition creation skipped for parent table %: %', v_row.parent_table, ex_message;
+                CONTINUE;
+            END;
         END LOOP;
         IF v_row.infinite_time_partitions AND v_child_timestamp IS NULL THEN
             -- If partition set is completely empty, still keep making child tables anyway
             -- Has to be separate check outside above loop since "future" tables are likely going to be empty, hence ignored in that loop
             v_current_partition_timestamp = CURRENT_TIMESTAMP;
         END IF;
-
 
         -- If not ignoring the default table, check for max values there. If they are there and greater than all child values, use that instead
         -- Note the default is NOT to care about data in the default, so maintenance will fail if new child table boundaries overlap with
@@ -342,8 +347,15 @@ LOOP
                 CONTINUE;
             END;
 
-            v_last_partition_created := @extschema@.create_partition_time(v_row.parent_table
+            BEGIN
+                v_last_partition_created := @extschema@.create_partition_time(v_row.parent_table
                                                         , ARRAY[v_next_partition_timestamp]);
+            EXCEPTION WHEN others THEN
+                v_exception := true;
+                GET STACKED DIAGNOSTICS ex_message = MESSAGE_TEXT;
+                EXIT;
+            END;
+
             IF v_last_partition_created THEN
                 v_analyze := true;
                 v_create_count := v_create_count + 1;
@@ -433,7 +445,13 @@ LOOP
                 EXIT;
             END IF;
             v_next_partition_id := v_next_partition_id + v_row.partition_interval::bigint;
-            v_last_partition_created := @extschema@.create_partition_id(v_row.parent_table, ARRAY[v_next_partition_id]);
+            BEGIN
+                v_last_partition_created := @extschema@.create_partition_id(v_row.parent_table, ARRAY[v_next_partition_id]);
+            EXCEPTION WHEN others THEN
+                v_exception := true;
+                GET STACKED DIAGNOSTICS ex_message = MESSAGE_TEXT;
+                EXIT;
+            END;
             IF v_last_partition_created THEN
                 v_analyze := true;
                 v_create_count := v_create_count + 1;
@@ -447,6 +465,13 @@ LOOP
         END IF;
 
     END IF; -- end main IF check for time or id
+
+    -- on Exception with one table continue with the next
+    IF v_exception THEN
+        v_exception := false;
+        RAISE WARNING 'Child partition creation skipped for parent table %: %', v_row.parent_table, ex_message;
+        CONTINUE;
+    END IF;
 
     IF v_analyze AND p_analyze THEN
         IF v_jobmon_schema IS NOT NULL THEN
