@@ -60,6 +60,8 @@ v_sub_timestamp_max             timestamptz;
 v_sub_timestamp_max_suffix      timestamptz;
 v_sub_timestamp_min             timestamptz;
 v_tables_list_sql               text;
+v_default_version               text;
+v_installed_version             text;
 
 BEGIN
 /*
@@ -94,6 +96,11 @@ IF p_jobmon THEN
     END IF;
 END IF;
 EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_new_search_path, 'false');
+
+SELECT default_version, installed_version INTO v_default_version, v_installed_version FROM pg_available_extensions WHERE name = 'pg_partman' AND default_version != installed_version;
+IF v_installed_version IS NOT NULL THEN
+    RAISE WARNING 'pg_partman version % is installed but version % is default. run_maintenance might not work as expected. A restart might be required after update.', v_installed_version, v_default_version;
+END IF;
 
 IF v_jobmon_schema IS NOT NULL THEN
     v_job_id := add_job('PARTMAN RUN MAINTENANCE');
