@@ -1,4 +1,4 @@
-CREATE FUNCTION @extschema@.run_maintenance(
+CREATE OR REPLACE FUNCTION @extschema@.run_maintenance(
     p_parent_table text DEFAULT NULL
     -- If these defaults change reflect them in `run_maintenance_proc`!
     , p_analyze boolean DEFAULT false

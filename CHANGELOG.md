@@ -1,3 +1,12 @@
+5.3.1
+=====
+
+BUGFIXES
+--------
+ - In PostgreSQL 18, handle the case where the shared library used by the background worker may be a greater version than the installed version of pg_partman (Ex. new package installed, but the extension wasn't updated). This will cause an exception to avoid any unpredictable behavior. Note this can still happen with versions lower than 18, but the ability to give the shared library a trackable version was not added until 18.
+ - For all versions of PostgreSQL, throw a warning if the version of the extension that has been installed to the host system (default version) is different than the version that is installed in the database. Note this can cause the same issue as the above mismatched shared library, but it also accounts for other scenarios that are not as serious to warrant an error exception. (Github PR #799)
+
+
 5.3.0
 =====
 

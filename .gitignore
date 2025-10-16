@@ -10,3 +10,4 @@ sql/*.sql
 test/not_working_yet/*
 *.zip
 *.fuse*
+.DS_Store
