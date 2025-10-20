@@ -1,3 +1,16 @@
+5.4.0
+=====
+
+NEW FEATURES
+------------
+ - Created a new function `create_partition()` to replace `create_parent()`. This is to bring more consistent naming to the functions since the opposite of this function is `undo_partition()`. `create_parent()` will still exist for backward compatibility until at least the next major release. (Github Issue #706)
+ - Added a boolean parameter to `reapply_constraints_proc()` to control the ANALYZE run. (Github Issue #814)
+
+BUGFIXES
+--------
+ - Stopped analyze from running when calling the `reapply_constraints_proc()` in dryrun mode. (Github Issue #814)
+
+
 5.3.1
 =====
 
