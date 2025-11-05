@@ -151,7 +151,7 @@ FOR i IN 1..p_batch_count LOOP
         IF v_start_control IS NULL THEN
             EXIT;
         END IF;
-        v_min_partition_id = v_start_control - (v_start_control % v_partition_interval);
+        v_min_partition_id := v_start_control - (v_start_control % v_partition_interval);
         v_partition_id := ARRAY[v_min_partition_id];
         -- Check if custom batch interval overflows current partition maximum
         IF (v_start_control + p_batch_interval) >= (v_min_partition_id + v_partition_interval) THEN
@@ -165,13 +165,13 @@ FOR i IN 1..p_batch_count LOOP
         IF v_start_control IS NULL THEN
             EXIT;
         END IF;
-        v_min_partition_id = v_start_control - (v_start_control % v_partition_interval);
+        v_min_partition_id := v_start_control - (v_start_control % v_partition_interval);
         -- Must be greater than max value still in parent table since query below grabs < max
         v_max_partition_id := v_min_partition_id + v_partition_interval;
         v_partition_id := ARRAY[v_min_partition_id];
         -- Make sure minimum doesn't underflow current partition minimum
         IF (v_start_control - p_batch_interval) >= v_min_partition_id THEN
-            v_min_partition_id = v_start_control - p_batch_interval;
+            v_min_partition_id := v_start_control - p_batch_interval;
         END IF;
     ELSE
         RAISE EXCEPTION 'Invalid value for p_order. Must be ASC or DESC';

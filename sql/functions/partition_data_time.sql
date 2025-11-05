@@ -249,7 +249,7 @@ FOR i IN 1..p_batch_count LOOP
         v_max_partition_timestamp := v_min_partition_timestamp + v_partition_interval;
         -- Ensure batch interval given as parameter doesn't cause minimum to underflow current partition minimum
         IF (v_start_control - p_batch_interval) >= v_min_partition_timestamp THEN
-            v_min_partition_timestamp = v_start_control - p_batch_interval;
+            v_min_partition_timestamp := v_start_control - p_batch_interval;
         END IF;
     ELSE
         RAISE EXCEPTION 'Invalid value for p_order. Must be ASC or DESC';
