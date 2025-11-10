@@ -2,6 +2,7 @@ CREATE FUNCTION @extschema@.check_name_length (
     p_object_name text
     , p_suffix text DEFAULT NULL
     , p_table_partition boolean DEFAULT FALSE
+    , p_simple_naming boolean DEFAULT FALSE
 )
     RETURNS text
     LANGUAGE plpgsql IMMUTABLE
@@ -22,7 +23,14 @@ IF p_table_partition IS TRUE AND (NULLIF(p_suffix, '') IS NULL) THEN
 END IF;
 
 
-v_suffix := format('%s%s', CASE WHEN p_table_partition THEN '_p' END, p_suffix);
+v_suffix := format('%s%s',
+    CASE
+        WHEN p_table_partition AND p_simple_naming THEN '_'
+        WHEN p_table_partition THEN '_p'
+    END,
+    p_suffix
+);
+
 -- Use optimistic behavior: in almost all cases `v_new_name` will be less than allowed maximum.
 -- Do "heavy" work only in rare cases.
 v_new_name := p_object_name || v_suffix;
