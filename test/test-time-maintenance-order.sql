@@ -31,9 +31,9 @@ CREATE TABLE partman_test.time_taptest_table3
         , col3 timestamptz NOT NULL DEFAULT now())
     PARTITION BY RANGE (col3);
 
-SELECT create_parent('partman_test.time_taptest_table1', 'col3', '1 day');
-SELECT create_parent('partman_test.time_taptest_table2', 'col3', '1 day');
-SELECT create_parent('partman_test.time_taptest_table3', 'col3', '1 day');
+SELECT create_partition('partman_test.time_taptest_table1', 'col3', '1 day');
+SELECT create_partition('partman_test.time_taptest_table2', 'col3', '1 day');
+SELECT create_partition('partman_test.time_taptest_table3', 'col3', '1 day');
 
 SELECT is_partitioned('partman_test', 'time_taptest_table1', 'Check that time_taptest_table1 is natively partitioned');
 SELECT is_partitioned('partman_test', 'time_taptest_table2', 'Check that time_taptest_table2 is natively partitioned');

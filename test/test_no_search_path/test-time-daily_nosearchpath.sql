@@ -27,7 +27,7 @@ ALTER TABLE partman_test.time_taptest_table_template ADD PRIMARY KEY (col1);
 GRANT ALL ON partman_test.time_taptest_table TO partman_revoke;
 CREATE TABLE partman_test.undo_taptest (LIKE partman_test.time_taptest_table INCLUDING ALL);
 
-SELECT partman.create_parent(
+SELECT partman.create_partition(
     'partman_test.time_taptest_table'
     , 'col3'
     , '1 day'

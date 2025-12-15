@@ -8,6 +8,7 @@ CREATE FUNCTION @extschema@.partition_data_time(
     , p_source_table text DEFAULT NULL
     , p_ignored_columns text[] DEFAULT NULL
     , p_override_system_value boolean DEFAULT false
+    , p_ignore_infinity boolean DEFAULT false
 )
     RETURNS bigint
     LANGUAGE plpgsql
@@ -22,17 +23,19 @@ v_control                   text;
 v_control_type              text;
 v_datetime_string           text;
 v_current_partition_name    text;
+v_decoded_col               text;
 v_default_exists            boolean;
 v_default_schemaname        text;
 v_default_tablename         text;
 v_epoch                     text;
+v_infinity_sql              text;
 v_last_partition            text;
 v_lock_iter                 int := 1;
 v_lock_obtained             boolean := FALSE;
 v_max_partition_timestamp   timestamptz;
 v_min_partition_timestamp   timestamptz;
 v_override_statement        text;
-v_parent_schemaname             text;
+v_parent_schemaname         text;
 v_parent_tablename          text;
 v_partition_expression      text;
 v_partition_interval        interval;
@@ -41,10 +44,11 @@ v_partition_timestamp       timestamptz[];
 v_source_schemaname         text;
 v_source_tablename          text;
 v_rowcount                  bigint;
+v_sql                       text;
 v_start_control             timestamptz;
 v_temp_storage_table        text;
-v_time_encoder                  text;
-v_time_decoder                  text;
+v_time_encoder              text;
+v_time_decoder              text;
 v_total_rows                bigint := 0;
 
 BEGIN
@@ -70,19 +74,21 @@ IF NOT FOUND THEN
     RAISE EXCEPTION 'ERROR: No entry in part_config found for given table:  %', p_parent_table;
 END IF;
 
---TODO this was setting parent table as source back during trigger-based.
---      Probably don't need to do that anymore and can simplify this without needing to preserve the parent table names since those
---      will never be the source
---          TODO Also do this for ID partitioning
-SELECT schemaname, tablename INTO v_source_schemaname, v_source_tablename
+IF p_ignore_infinity THEN
+    IF p_source_table IS NOT NULL THEN
+        RAISE EXCEPTION 'The ignore infinity parameter is only for usage when moving data out of the default. Found that p_source_table was set: %', p_source_table;
+    END IF;
+    IF v_time_encoder IS NOT NULL OR v_time_decoder IS NOT NULL THEN
+        RAISE EXCEPTION 'p_ignore_infinity cannot be set when using encoded time values. part_config.time_encoder has value: %', v_time_encoder;
+    END IF;
+END IF;
+
+SELECT schemaname, tablename INTO v_parent_schemaname, v_parent_tablename
 FROM pg_catalog.pg_tables
 WHERE schemaname = split_part(p_parent_table, '.', 1)::name
 AND tablename = split_part(p_parent_table, '.', 2)::name;
 
--- Preserve real parent tablename for use below
-v_parent_schemaname    := v_source_schemaname;
-v_parent_tablename := v_source_tablename;
-SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_source_schemaname, v_source_tablename, v_control);
+SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schemaname, v_parent_tablename, v_control);
 IF v_control_type <> 'time' THEN
     IF (v_control_type = 'id' AND v_epoch = 'none') OR v_control_type NOT IN ('text', 'id', 'uuid') OR (v_control_type IN ('text', 'uuid') AND v_time_encoder IS NULL) THEN
         RAISE EXCEPTION 'Cannot run on partition set without time based control column, an epoch flag set with an id column or time_encoder set with text column. Found control: %, epoch: %, time_encoder: %s', v_control_type, v_epoch, v_time_encoder;
@@ -94,10 +100,9 @@ INTO v_default_schemaname, v_default_tablename
 FROM pg_catalog.pg_inherits h
 JOIN pg_catalog.pg_class c ON c.oid = h.inhrelid
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-WHERE h.inhparent = format('%I.%I', v_source_schemaname, v_source_tablename)::regclass
+WHERE h.inhparent = format('%I.%I', v_parent_schemaname, v_parent_tablename)::regclass
 AND pg_get_expr(relpartbound, c.oid) = 'DEFAULT';
 
--- Replace the parent variables with the source variables if using source table for child table data
 IF p_source_table IS NOT NULL THEN
     -- Set source table to user given source table instead of default table
     v_source_schemaname := NULL;
@@ -129,7 +134,7 @@ ELSE
     END IF;
 
     -- Set source table to default table if p_source_table is not set, and it exists
-    -- Otherwise just return with a DEBUG that no data source exists
+    -- Otherwise just return with a NOTICE that no data source exists
 
     IF v_default_tablename IS NOT NULL THEN
         v_source_schemaname := v_default_schemaname;
@@ -141,7 +146,7 @@ ELSE
             EXECUTE format ('CREATE TEMP TABLE IF NOT EXISTS %s (LIKE %I.%I INCLUDING INDEXES) ON COMMIT DROP', v_temp_storage_table, v_source_schemaname, v_source_tablename);
 
     ELSE
-        RAISE DEBUG 'No default table found when partition_data_time() was called';
+        RAISE NOTICE 'No default table found when partition_data_time() was called';
         RETURN v_total_rows;
     END IF;
 END IF;
@@ -183,19 +188,28 @@ AND c.relname = v_source_tablename
 AND a.attnum > 0
 AND a.attisdropped = false;
 
+IF p_ignore_infinity AND v_time_decoder IS NULL THEN
+    v_infinity_sql := format(' WHERE %I NOT IN (''-infinity'', ''infinity'')', v_control);
+ELSIF p_ignore_infinity AND v_time_decoder IS NOT NULL THEN
+    RAISE EXCEPTION 'When using a decoder for partition values, infinity cannot be ignored and is generally not supported as a value.';
+ELSE
+    v_infinity_sql := '';
+END IF;
+
 FOR i IN 1..p_batch_count LOOP
 
     IF v_time_decoder IS NULL THEN
         IF p_order = 'ASC' THEN
-            EXECUTE format('SELECT min(%s) FROM ONLY %I.%I', v_partition_expression, v_source_schemaname, v_source_tablename) INTO v_start_control;
+            EXECUTE format('SELECT min(%s) FROM ONLY %I.%I %s', v_partition_expression, v_source_schemaname, v_source_tablename, v_infinity_sql) INTO v_start_control;
         ELSIF p_order = 'DESC' THEN
-            EXECUTE format('SELECT max(%s) FROM ONLY %I.%I', v_partition_expression, v_source_schemaname, v_source_tablename) INTO v_start_control;
+            EXECUTE format('SELECT max(%s) FROM ONLY %I.%I %s', v_partition_expression, v_source_schemaname, v_source_tablename, v_infinity_sql) INTO v_start_control;
         ELSE
             RAISE EXCEPTION 'Invalid value for p_order. Must be ASC or DESC';
         END IF;
 
     ELSE
 	-- Currently time decoder function must take a text parameter. See if this can be more flexible in the future
+    -- infinity value not supported in uuid columns, so shouldn't have to worry about it. Exception catches it above if user tries to ignore infinity.
         IF p_order = 'ASC' THEN
             EXECUTE format('SELECT min(%s(%s::text)) FROM ONLY %I.%I', v_time_decoder, v_partition_expression, v_source_schemaname, v_source_tablename) INTO v_start_control;
         ELSIF p_order = 'DESC' THEN
@@ -208,7 +222,6 @@ FOR i IN 1..p_batch_count LOOP
     IF v_start_control IS NULL THEN
        EXIT;
     END IF;
-
 
     SELECT child_start_time INTO v_min_partition_timestamp FROM @extschema@.show_partition_info(v_parent_schemaname||'.'||v_last_partition
         , v_partition_interval::text
@@ -261,12 +274,13 @@ FOR i IN 1..p_batch_count LOOP
         WHILE v_lock_iter <= 5 LOOP
             v_lock_iter := v_lock_iter + 1;
             BEGIN
-                EXECUTE format('SELECT * FROM ONLY %I.%I WHERE %s >= %L AND %4$s < %6$L FOR UPDATE NOWAIT'
+                v_sql := format('SELECT * FROM ONLY %I.%I WHERE %s >= %L AND %4$s < %6$L FOR UPDATE NOWAIT'
                     , v_source_schemaname
                     , v_source_tablename
                     , v_partition_expression
                     , v_min_partition_timestamp
                     , v_max_partition_timestamp);
+                EXECUTE v_sql;
                 v_lock_obtained := TRUE;
             EXCEPTION
                 WHEN lock_not_available THEN
@@ -290,6 +304,13 @@ FOR i IN 1..p_batch_count LOOP
         v_override_statement = ' ';
     END IF;
 
+    -- Create a variable to use in all scenarios below for handling encoded columns
+    IF v_time_decoder IS NULL THEN
+        v_decoded_col := format('%s::text', v_partition_expression);
+    ELSE
+        v_decoded_col := format('%s(%s::text)', v_time_decoder, v_partition_expression);
+    END IF;
+
     IF v_default_exists THEN
         -- Child tables cannot be created if data that belongs to it exists in the default
         -- Have to move data out to temporary location, create child table, then move it back
@@ -298,30 +319,21 @@ FOR i IN 1..p_batch_count LOOP
         -- Must use full column list here since the temp table cannot have generated/identity values for defaults.
         --      This allows for all scenarios where some people may want newly generated values and others may not.
         --      Those that want them are handled by the filtered column list when moving to the real table
-        IF v_time_encoder IS NULL THEN
-            EXECUTE format('WITH partition_data AS (
-                    DELETE FROM %1$I.%2$I WHERE %3$s >= %4$L AND %3$s < %5$L RETURNING *)
-                INSERT INTO %6$s (%7$s) SELECT %7$s FROM partition_data'
+
+        -- Infinity only needs to be of concern when being removed from the default
+
+            v_sql := format('DELETE FROM %1$I.%2$I WHERE %3$s >= %4$L AND %3$s < %5$L RETURNING *'
                 , v_source_schemaname
                 , v_source_tablename
-                , v_partition_expression
+                , v_decoded_col
                 , v_min_partition_timestamp
-                , v_max_partition_timestamp
+                , v_max_partition_timestamp);
+            v_sql := format('WITH partition_data AS (%s) INSERT INTO %2$s (%3$s) SELECT %3$s FROM partition_data'
+                , v_sql
                 , v_temp_storage_table
                 , v_column_list_full);
-        ELSE
-            EXECUTE format('WITH partition_data AS (
-                    DELETE FROM %1$I.%2$I WHERE %8$s(%3$s::text) >= %4$L AND %8$s(%3$s::text) < %5$L RETURNING *)
-                INSERT INTO %6$s (%7$s) SELECT %7$s FROM partition_data'
-                , v_source_schemaname
-                , v_source_tablename
-                , v_partition_expression
-                , v_min_partition_timestamp
-                , v_max_partition_timestamp
-                , v_temp_storage_table
-                , v_column_list_full
-                , v_time_decoder);
-        END IF;
+
+            EXECUTE v_sql;
 
             -- Set analyze to true if a table is created
         v_analyze := @extschema@.create_partition_time(p_parent_table, v_partition_timestamp);
@@ -340,35 +352,20 @@ FOR i IN 1..p_batch_count LOOP
         -- Set analyze to true if a table is created
         v_analyze := @extschema@.create_partition_time(p_parent_table, v_partition_timestamp);
 
-        IF v_time_encoder IS NULL THEN
-            EXECUTE format('WITH partition_data AS (
-                                DELETE FROM ONLY %I.%I WHERE %s >= %L AND %3$s < %5$L RETURNING *)
+            v_sql := format('WITH partition_data AS (
+                                DELETE FROM ONLY %I.%I WHERE %3$s >= %L AND %3$s < %5$L RETURNING *)
                              INSERT INTO %6$I.%7$I (%8$s) %9$s SELECT %8$s FROM partition_data'
                                 , v_source_schemaname
                                 , v_source_tablename
-                                , v_partition_expression
+                                , v_decoded_col
                                 , v_min_partition_timestamp
                                 , v_max_partition_timestamp
                                 , v_parent_schemaname
                                 , v_current_partition_name
                                 , v_column_list_filtered
                                 , v_override_statement);
-        ELSE
-            EXECUTE format('WITH partition_data AS (
-                                DELETE FROM ONLY %I.%I WHERE %10$s(%3$s::text) >= %L AND %10$s(%3$s::text) < %5$L RETURNING *)
-                             INSERT INTO %6$I.%7$I (%8$s) %9$s SELECT %8$s FROM partition_data'
-                                , v_source_schemaname
-                                , v_source_tablename
-                                , v_partition_expression
-                                , v_min_partition_timestamp
-                                , v_max_partition_timestamp
-                                , v_parent_schemaname
-                                , v_current_partition_name
-                                , v_column_list_filtered
-                                , v_override_statement
-                                , v_time_decoder);
+            EXECUTE v_sql;
 
-        END IF;
     END IF;
 
     GET DIAGNOSTICS v_rowcount = ROW_COUNT;
@@ -380,7 +377,7 @@ FOR i IN 1..p_batch_count LOOP
 END LOOP;
 
 -- v_analyze is a local check if a new table is made.
--- p_analyze is a parameter to say whether to run the analyze at all. Used by create_parent() to avoid long exclusive lock or run_maintenence() to avoid long creation runs.
+-- p_analyze is a parameter to say whether to run the analyze at all. Used by create_partition() to avoid long exclusive lock or run_maintenence() to avoid long creation runs.
 IF v_analyze AND p_analyze THEN
     RAISE DEBUG 'partiton_data_time: Begin analyze of %.%', v_parent_schemaname, v_parent_tablename;
     EXECUTE format('ANALYZE %I.%I', v_parent_schemaname, v_parent_tablename);

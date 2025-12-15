@@ -9,6 +9,7 @@ CREATE PROCEDURE @extschema@.partition_data_proc (
     , p_source_table text DEFAULT NULL
     , p_ignored_columns text[] DEFAULT NULL
     , p_quiet boolean DEFAULT false
+    , p_ignore_infinity boolean DEFAULT false
 )
     LANGUAGE plpgsql
     AS $$
@@ -31,9 +32,9 @@ v_total             bigint := 0;
 
 BEGIN
 
-v_adv_lock := pg_try_advisory_xact_lock(hashtext('pg_partman partition_data_proc'), hashtext(p_parent_table));
+v_adv_lock := pg_try_advisory_lock(hashtext('pg_partman partition_data_proc'), hashtext(p_parent_table));
 IF v_adv_lock = 'false' THEN
-    RAISE NOTICE 'Partman partition_data_proc already running for given parent table: %.', p_parent_table;
+    RAISE NOTICE 'Advisory lock notice (pg_partman partition_data_proc): This procedure is already running for given parent table (%) or another session has not released its advisory lock.', p_parent_table;
     RETURN;
 END IF;
 
@@ -85,7 +86,7 @@ v_sql := format('SELECT %s.partition_data_%s (p_parent_table := %L
                                                 , p_lock_wait := %L
                                                 , p_order := %L
                                                 , p_analyze := false'
-        , '@extschema@', v_control_type, p_parent_table, p_lock_wait, p_order);
+        , '@extschema@', v_control_type, p_parent_table, p_lock_wait, p_order, p_ignore_infinity);
 IF p_interval IS NOT NULL THEN
     v_sql := v_sql || format(', p_batch_interval := %L', p_interval);
 END IF;
@@ -94,6 +95,9 @@ IF p_source_table IS NOT NULL THEN
 END IF;
 IF p_ignored_columns IS NOT NULL THEN
     v_sql := v_sql || format(', p_ignored_columns := %L', p_ignored_columns);
+END IF;
+IF v_control_type = 'time' THEN
+    v_sql := v_sql || format(', p_ignore_infinity := %L', p_ignore_infinity);
 END IF;
 v_sql := v_sql || ')';
 RAISE DEBUG 'partition_data sql: %', v_sql;
@@ -158,5 +162,6 @@ EXCEPTION
         RAISE EXCEPTION '%', SQLERRM;
 */
 
+PERFORM pg_advisory_unlock(hashtext('pg_partman partition_data_proc'), hashtext(p_parent_table));
 END;
 $$;

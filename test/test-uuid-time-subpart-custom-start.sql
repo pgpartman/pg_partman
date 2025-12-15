@@ -1,6 +1,6 @@
 -- ########## NATIVE ID PARENT / UUID7 SUBPARENT TESTS ##########
 -- Additional tests: no pg_jobmon
-    -- Test using a pre-created template table and passing to create_parent. Should allow indexes to be made for initial children.
+    -- Test using a pre-created template table and passing to create_partition. Should allow indexes to be made for initial children.
     -- additional constraint column
 
 \set ON_ERROR_ROLLBACK 1
@@ -31,7 +31,7 @@ ALTER TABLE partman_test.template_id_taptest_table ADD PRIMARY KEY (col1);
 CREATE INDEX ON partman_test.id_taptest_table (col3);
 ALTER TABLE partman_test.id_taptest_table ADD FOREIGN KEY (col2) REFERENCES partman_test.fk_test_reference(col2);
 
-SELECT create_parent('partman_test.id_taptest_table', 'col1', '10', p_constraint_cols =>'{"col3"}', p_jobmon => false, p_template_table => 'partman_test.template_id_taptest_table');
+SELECT create_partition('partman_test.id_taptest_table', 'col1', '10', p_constraint_cols =>'{"col3"}', p_jobmon => false, p_template_table => 'partman_test.template_id_taptest_table');
 INSERT INTO partman_test.id_taptest_table (col1) VALUES (generate_series(1,9));
 
 SELECT is_partitioned('partman_test', 'id_taptest_table', 'Check that id_taptest_table is natively partitioned');

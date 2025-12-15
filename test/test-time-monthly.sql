@@ -23,7 +23,7 @@ CREATE TABLE partman_test.undo_taptest (LIKE partman_test.time_taptest_table INC
 
 CREATE INDEX ON partman_test.time_taptest_table (col3);
 
-SELECT create_parent('partman_test.time_taptest_table', 'col3', '1 month', p_template_table => 'partman_test.time_taptest_table_template', p_start_partition := date_trunc('month', (CURRENT_TIMESTAMP-'12 months'::interval))::text );
+SELECT create_partition('partman_test.time_taptest_table', 'col3', '1 month', p_template_table => 'partman_test.time_taptest_table_template', p_start_partition := date_trunc('month', (CURRENT_TIMESTAMP-'12 months'::interval))::text );
 
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(1,10), CURRENT_TIMESTAMP);
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(1,10), CURRENT_TIMESTAMP-'12 month'::interval);

@@ -4,6 +4,7 @@
     -- check that maintenance catches up if tables are missing
     -- Test using default template table. Initial child tables will have no indexes or primary keys. New tables after template has indexes added should.
     -- Test for native FK inheritance
+    -- Test create_parent() alias
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true

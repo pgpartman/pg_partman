@@ -1,5 +1,7 @@
 -- ########## NATIVE TIME WEEKLY EPOCH TESTS ##########
--- Other tests: combination of start_partition & constraint_cols/optimize_constraint.
+-- Other tests:
+    -- combination of start_partition & constraint_cols/optimize_constraint.
+    -- Test create_parent() alias
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true

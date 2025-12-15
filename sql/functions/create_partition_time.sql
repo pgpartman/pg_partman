@@ -175,22 +175,8 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
 
     v_sql := 'CREATE';
 
-    /*
-    -- As of PG12, the unlogged/logged status of a parent table cannot be changed via an ALTER TABLE in order to affect its children.
-    -- As of partman v4.2x, the unlogged state will be managed via the template table
-    -- TODO Test UNLOGGED status in PG17 to see if this can be done without template yet. Add to create_partition_id then as well.
-    SELECT relpersistence INTO v_unlogged
-    FROM pg_catalog.pg_class c
-    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-    WHERE c.relname = v_parent_tablename::name
-    AND n.nspname = v_parent_schema::name;
 
-    IF v_unlogged = 'u' THEN
-        v_sql := v_sql || ' UNLOGGED';
-    END IF;
-    */
-
-    -- Same INCLUDING list is used in create_parent()
+    -- Same INCLUDING list is used in create_partition()
     v_sql := v_sql || format(' TABLE %I.%I (LIKE %I.%I INCLUDING COMMENTS INCLUDING COMPRESSION INCLUDING CONSTRAINTS INCLUDING DEFAULTS INCLUDING GENERATED INCLUDING STATISTICS INCLUDING STORAGE) '
                                 , v_parent_schema
                                 , v_partition_name
@@ -228,7 +214,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         ELSE
             EXECUTE format('SELECT %s(%L)', v_time_encoder, v_partition_timestamp_start) INTO v_partition_text_start;
             EXECUTE format('SELECT %s(%L)', v_time_encoder, v_partition_timestamp_end) INTO v_partition_text_end;
-            
+
             EXECUTE format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I FOR VALUES FROM (%L) TO (%L)'
                 , v_parent_schema
                 , v_parent_tablename
@@ -295,7 +281,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
     -- Will only loop once and only if sub_partitioning is actually configured
     -- This seemed easier than assigning a bunch of variables and doing an IF condition
     -- This column list must be kept consistent between:
-    --   create_parent, check_subpart_sameconfig, create_partition_id, create_partition_time, dump_partitioned_table_definition, and table definition
+    --   create_partition, check_subpart_sameconfig, create_partition_id, create_partition_time, dump_partitioned_table_definition, and table definition
     FOR v_row IN
         SELECT
             sub_parent
@@ -330,7 +316,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
         IF v_jobmon_schema IS NOT NULL THEN
             v_step_id := add_step(v_job_id, format('Subpartitioning %s.%s', v_parent_schema, v_partition_name));
         END IF;
-        v_sql := format('SELECT @extschema@.create_parent(
+        v_sql := format('SELECT @extschema@.create_partition(
                  p_parent_table := %L
                 , p_control := %L
                 , p_time_encoder := %L
@@ -364,7 +350,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             , v_row.sub_date_trunc_interval
             , v_row.sub_control_not_null);
 
-        RAISE DEBUG 'create_partition_time (create_parent loop): %', v_sql;
+        RAISE DEBUG 'create_partition_time (create_partition loop): %', v_sql;
         EXECUTE v_sql;
 
         UPDATE @extschema@.part_config SET

@@ -41,7 +41,7 @@ CREATE UNIQUE INDEX ON partman_test.time_taptest_table_template (peaktemp_f) TAB
 -- Yes next index is sort of duped. This is just for testing proper tablespace setting
 CREATE INDEX ON partman_test.time_taptest_table (id, peaktemp_f) TABLESPACE mytablespace;
 
-SELECT create_parent('partman_test.time_taptest_table', 'logdate', '1 day', 'range', p_template_table := 'partman_test.time_taptest_table_template');
+SELECT create_partition('partman_test.time_taptest_table', 'logdate', '1 day', 'range', p_template_table := 'partman_test.time_taptest_table_template');
 
 SELECT is_partitioned('partman_test', 'time_taptest_table', 'Check that time_taptest_table is natively partitioned');
 SELECT has_table('partman_test', 'time_taptest_table_template', 'Check template table was created');

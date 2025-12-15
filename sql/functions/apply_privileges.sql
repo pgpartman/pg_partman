@@ -7,7 +7,7 @@ ex_context          text;
 ex_detail           text;
 ex_hint             text;
 ex_message          text;
-v_all               text[] := ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'];
+v_all               text[];
 v_child_grant       record;
 v_child_owner       text;
 v_grantees          text[];
@@ -27,9 +27,12 @@ BEGIN
  * Apply privileges and ownership that exist on a given parent to the given child table
  */
 
+/* init v_all to a list of all table-related privileges available to current user */
+v_all := array(select (aclexplode(acldefault('r'::"char", usesysid))).privilege_type from pg_catalog.pg_user pu where pu.usename = current_user);
+
 SELECT jobmon INTO v_jobmon FROM @extschema@.part_config WHERE parent_table = p_parent_schema ||'.'|| p_parent_tablename;
 IF v_jobmon IS NULL THEN
-    RAISE EXCEPTION 'Given table is not managed by this extention: %.%', p_parent_schema, p_parent_tablename;
+    RAISE EXCEPTION 'Given table is not managed by this extension: %.%', p_parent_schema, p_parent_tablename;
 END IF;
 
 SELECT pg_get_userbyid(c.relowner) INTO v_parent_owner

@@ -4,6 +4,7 @@
     -- check that maintenance catches up if tables are missing
     -- Test using default template table. Initial child tables will have no indexes or primary keys. New tables after template has indexes added should.
     -- Test for native FK inheritance
+    -- test create_parent() alias
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true
@@ -57,7 +58,7 @@ GRANT SELECT,INSERT,UPDATE ON partman_test.time_taptest_table TO partman_basic;
 GRANT ALL ON partman_test.time_taptest_table TO partman_revoke;
 ALTER TABLE partman_test.time_taptest_table OWNER TO partman_owner;
 
-SELECT create_parent('partman_test.time_taptest_table', 'col3', '1 day', p_time_encoder := 'partman_test.encode_timestamp', p_time_decoder := 'partman_test.decode_timestamp');
+SELECT create_partition('partman_test.time_taptest_table', 'col3', '1 day', p_time_encoder := 'partman_test.encode_timestamp', p_time_decoder := 'partman_test.decode_timestamp');
 UPDATE part_config SET inherit_privileges = TRUE;
 SELECT reapply_privileges('partman_test.time_taptest_table');
 
@@ -663,4 +664,3 @@ SELECT hasnt_table('partman', 'template_partman_test_time_taptest_table', 'Check
 
 SELECT * FROM finish();
 ROLLBACK;
-

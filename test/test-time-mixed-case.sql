@@ -26,7 +26,7 @@ GRANT SELECT,INSERT,UPDATE ON "Partman_Test"."Time_Taptest_Table" TO "Partman_Ba
 GRANT ALL ON "Partman_Test"."Time_Taptest_Table" TO "Partman_Revoke";
 ALTER TABLE "Partman_Test"."Time_Taptest_Table" OWNER TO "Partman_Owner";
 
-SELECT create_parent('Partman_Test.Time_Taptest_Table', 'Col3', '1 day');
+SELECT create_partition('Partman_Test.Time_Taptest_Table', 'Col3', '1 day');
 UPDATE part_config SET inherit_privileges = TRUE;
 SELECT reapply_privileges('Partman_Test.Time_Taptest_Table');
 

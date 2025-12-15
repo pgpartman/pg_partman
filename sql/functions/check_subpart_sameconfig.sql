@@ -50,7 +50,7 @@ AS $$
     )
     -- Column order here must match the RETURNS TABLE definition
     -- This column list must be kept consistent between:
-    --   create_parent, check_subpart_sameconfig, create_partition_id, create_partition_time, dump_partitioned_table_definition, and table definition
+    --   create_partition, check_subpart_sameconfig, create_partition_id, create_partition_time, dump_partitioned_table_definition, and table definition
     --   Also check return table list from this function
     SELECT DISTINCT
         a.sub_control

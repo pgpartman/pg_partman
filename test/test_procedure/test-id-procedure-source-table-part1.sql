@@ -35,7 +35,7 @@ CREATE INDEX ON partman_test.id_taptest_table (col3);
 
 CREATE TABLE partman_test.template_id_taptest_table (LIKE partman_test.id_taptest_table INCLUDING ALL);
 
-SELECT create_parent('partman_test.id_taptest_table', 'col1', '100000', p_jobmon := false, p_template_table := 'partman_test.template_id_taptest_table');
+SELECT create_partition('partman_test.id_taptest_table', 'col1', '100000', p_jobmon := false, p_template_table := 'partman_test.template_id_taptest_table');
 
 SELECT has_table('partman_test', 'id_taptest_table_default', 'Check id_taptest_table_default exists');
 SELECT has_table('partman_test', 'id_taptest_table_p0', 'Check id_taptest_table_p0 exists');

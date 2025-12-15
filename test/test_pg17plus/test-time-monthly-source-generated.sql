@@ -32,7 +32,7 @@ INSERT INTO partman_source.time_taptest_table_source (col3) VALUES (generate_ser
 
 SELECT results_eq('SELECT count(*)::int FROM partman_source.time_taptest_table_source', ARRAY[366], 'Ensure source has expected row count');
 
-SELECT create_parent('partman_test.time_taptest_table', 'col3', '1 month', p_template_table => 'partman_test.time_taptest_table_template');
+SELECT create_partition('partman_test.time_taptest_table', 'col3', '1 month', p_template_table => 'partman_test.time_taptest_table_template');
 
 SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(date_trunc('month', CURRENT_TIMESTAMP), 'YYYYMMDD'), 'Check time_taptest_table_p'||to_char(date_trunc('month', CURRENT_TIMESTAMP), 'YYYYMMDD')||' exists');
 SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(date_trunc('month', CURRENT_TIMESTAMP)+'1 month'::interval, 'YYYYMMDD'),

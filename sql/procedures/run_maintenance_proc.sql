@@ -14,9 +14,9 @@ v_sql                   text;
 
 BEGIN
 
-v_adv_lock := pg_try_advisory_lock(hashtext('pg_partman run_maintenance procedure'));
+v_adv_lock := pg_try_advisory_lock(hashtext('pg_partman run_maintenance_proc'));
 IF v_adv_lock = false THEN
-    RAISE NOTICE 'Partman maintenance procedure already running or another session has not released its advisory lock.';
+    RAISE NOTICE 'Advisory lock notice (pg_partman run_maintenance_proc): Partman maintenance procedure already running or another session has not released its advisory lock.';
     RETURN;
 END IF;
 
@@ -53,6 +53,6 @@ LOOP
 
 END LOOP;
 
-PERFORM pg_advisory_unlock(hashtext('pg_partman run_maintenance procedure'));
+PERFORM pg_advisory_unlock(hashtext('pg_partman run_maintenance_proc'));
 END
 $$;

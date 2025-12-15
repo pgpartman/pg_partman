@@ -29,7 +29,7 @@ v_lock_obtained             boolean := FALSE;
 v_max_partition_id          bigint;
 v_min_partition_id          bigint;
 v_override_statement        text;
-v_parent_schemaname             text;
+v_parent_schemaname         text;
 v_parent_tablename          text;
 v_partition_interval        bigint;
 v_partition_id              bigint[];
@@ -57,25 +57,26 @@ BEGIN
         RAISE EXCEPTION 'ERROR: No entry in part_config found for given table:  %', p_parent_table;
     END IF;
 
-SELECT schemaname, tablename INTO v_source_schemaname, v_source_tablename
+SELECT schemaname, tablename INTO v_parent_schemaname, v_parent_tablename
 FROM pg_catalog.pg_tables
 WHERE schemaname = split_part(p_parent_table, '.', 1)::name
 AND tablename = split_part(p_parent_table, '.', 2)::name;
 
--- Preserve given parent tablename for use below
-v_parent_schemaname    := v_source_schemaname;
-v_parent_tablename := v_source_tablename;
-
-SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_source_schemaname, v_source_tablename, v_control);
+SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schemaname, v_parent_tablename, v_control);
 
 IF v_control_type <> 'id' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
     RAISE EXCEPTION 'Control column for given partition set is not id/serial based or epoch flag is set for time-based partitioning.';
 END IF;
 
+SELECT n.nspname::text, c.relname::text
+INTO v_default_schemaname, v_default_tablename
+FROM pg_catalog.pg_inherits h
+JOIN pg_catalog.pg_class c ON c.oid = h.inhrelid
+JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+WHERE h.inhparent = format('%I.%I', v_parent_schemaname, v_parent_tablename)::regclass
+AND pg_get_expr(relpartbound, c.oid) = 'DEFAULT';
+
 IF p_source_table IS NOT NULL THEN
-    -- Set source table to user given source table instead of parent table
-    v_source_schemaname := NULL;
-    v_source_tablename := NULL;
 
     SELECT schemaname, tablename INTO v_source_schemaname, v_source_tablename
     FROM pg_catalog.pg_tables
@@ -91,18 +92,11 @@ ELSE
     IF p_batch_interval IS NOT NULL AND p_batch_interval != v_partition_interval THEN
         -- This is true because all data for a given child table must be moved out of the default partition before the child table can be created.
         -- So cannot create the child table when only some of the data has been moved out of the default partition.
-        RAISE EXCEPTION 'Custom intervals are not allowed when moving data out of the DEFAULT partition. Please leave p_interval/p_batch_interval parameters unset or NULL to allow use of partition set''s default partitioning interval.';
+        RAISE EXCEPTION 'If any interval smaller than the partition interval must be used for moving data out of the default, please use the partition_data_async() procedure.';
     END IF;
 
     -- Set source table to default table if p_source_table is not set, and it exists
-    -- Otherwise just return with a DEBUG that no data source exists
-    SELECT n.nspname::text, c.relname::text
-    INTO v_default_schemaname, v_default_tablename
-    FROM pg_catalog.pg_inherits h
-    JOIN pg_catalog.pg_class c ON c.oid = h.inhrelid
-    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-    WHERE h.inhparent = format('%I.%I', v_source_schemaname, v_source_tablename)::regclass
-    AND pg_get_expr(relpartbound, c.oid) = 'DEFAULT';
+    -- Otherwise just return with a NOTICE that no data source exists
 
     IF v_default_tablename IS NOT NULL THEN
         v_source_schemaname := v_default_schemaname;
@@ -111,7 +105,7 @@ ELSE
         v_default_exists := true;
         EXECUTE format ('CREATE TEMP TABLE IF NOT EXISTS partman_temp_data_storage (LIKE %I.%I INCLUDING DEFAULTS INCLUDING INDEXES) ON COMMIT DROP', v_source_schemaname, v_source_tablename);
     ELSE
-        RAISE DEBUG 'No default table found when partition_data_id() was called';
+        RAISE NOTICE 'No default table found when partition_data_id() was called';
         RETURN v_total_rows;
     END IF;
 
@@ -165,7 +159,7 @@ FOR i IN 1..p_batch_count LOOP
         IF v_start_control IS NULL THEN
             EXIT;
         END IF;
-        v_min_partition_id := v_start_control - (v_start_control % v_partition_interval);
+        v_min_partition_id = :v_start_control - (v_start_control % v_partition_interval);
         -- Must be greater than max value still in parent table since query below grabs < max
         v_max_partition_id := v_min_partition_id + v_partition_interval;
         v_partition_id := ARRAY[v_min_partition_id];
@@ -271,7 +265,7 @@ FOR i IN 1..p_batch_count LOOP
 END LOOP;
 
 -- v_analyze is a local check if a new table is made.
--- p_analyze is a parameter to say whether to run the analyze at all. Used by create_parent() to avoid long exclusive lock or run_maintenence() to avoid long creation runs.
+-- p_analyze is a parameter to say whether to run the analyze at all. Used by create_partition() to avoid long exclusive lock or run_maintenence() to avoid long creation runs.
 IF v_analyze AND p_analyze THEN
     RAISE DEBUG 'partiton_data_time: Begin analyze of %.%', v_parent_schemaname, v_parent_tablename;
     EXECUTE format('ANALYZE %I.%I', v_parent_schemaname, v_parent_tablename);

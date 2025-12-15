@@ -23,7 +23,7 @@ CREATE TABLE partman_test.undo_taptest (LIKE partman_test.time_taptest_table INC
 CREATE TABLE partman_test.template_time_taptest_table (LIKE partman_test.time_taptest_table);
 ALTER TABLE partman_test.template_time_taptest_table ADD PRIMARY KEY (col1);
 
-SELECT create_parent('partman_test.time_taptest_table', 'col3', '1 day', p_time_encoder := 'partman.uuid7_time_encoder', p_time_decoder := 'partman.uuid7_time_decoder', p_template_table := 'partman_test.template_time_taptest_table' );
+SELECT create_partition('partman_test.time_taptest_table', 'col3', '1 day', p_time_encoder := 'partman.uuid7_time_encoder', p_time_decoder := 'partman.uuid7_time_decoder', p_template_table := 'partman_test.template_time_taptest_table' );
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(1,10), partman.uuid7_time_encoder(CURRENT_TIMESTAMP));
 
 SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'), 'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD')||' exists');

@@ -1,5 +1,5 @@
 -- ########## TIME TESTS WITH BACKGROUND WORKER RUNNING ##########
--- Other tests: create_parent() returns true
+-- Other tests: create_partition() returns true
     -- retention to new schema
     -- retention keep indexes
     -- privileges inherited to children
@@ -36,7 +36,7 @@ ALTER TABLE partman_test.template_time_taptest_table ADD PRIMARY KEY (col1);
 
 CREATE TABLE partman_test.undo_taptest (LIKE partman_test.time_taptest_table INCLUDING ALL);
 
-SELECT create_parent('partman_test.time_taptest_table', 'col3', '1 day', p_template_table := 'partman_test.template_time_taptest_table' );
+SELECT create_partition('partman_test.time_taptest_table', 'col3', '1 day', p_template_table := 'partman_test.template_time_taptest_table' );
 
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(1,10), CURRENT_TIMESTAMP);
 

@@ -21,7 +21,7 @@ CREATE TABLE partman_test.template_time_taptest_table (LIKE partman_test.time_ta
 CREATE TABLE partman_test.target_time_taptest_table (LIKE partman_test.time_taptest_table INCLUDING ALL);
 
 -- Test that premake can be less than optimize_constraint without issues
-SELECT create_parent('partman_test.time_taptest_table'
+SELECT create_partition('partman_test.time_taptest_table'
         , 'col3'
         , '1 week'
         , p_constraint_cols => '{"col1"}'

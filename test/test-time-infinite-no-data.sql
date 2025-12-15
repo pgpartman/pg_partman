@@ -18,7 +18,7 @@ CREATE TABLE partman_test.time_taptest_table
         , col3 timestamptz NOT NULL DEFAULT now())
     PARTITION BY RANGE (col3);
 
-SELECT create_parent('partman_test.time_taptest_table', 'col3', '1 day');
+SELECT create_partition('partman_test.time_taptest_table', 'col3', '1 day');
 UPDATE part_config SET infinite_time_partitions = TRUE;
 
 SELECT is_partitioned('partman_test', 'time_taptest_table', 'Check that time_taptest_table is natively partitioned');

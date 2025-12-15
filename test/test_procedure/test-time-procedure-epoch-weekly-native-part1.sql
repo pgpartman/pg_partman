@@ -37,7 +37,7 @@ CREATE TABLE partman_test.time_taptest_table (
 PARTITION BY RANGE (col3);
 CREATE TABLE partman_test.undo_taptest (LIKE partman_test.time_taptest_table INCLUDING ALL);
 
-SELECT create_parent('partman_test.time_taptest_table', 'col3', '1 week', p_epoch := 'seconds'
+SELECT create_partition('partman_test.time_taptest_table', 'col3', '1 week', p_epoch := 'seconds'
     , p_premake := 2, p_start_partition := to_char(date_trunc('week',CURRENT_TIMESTAMP) - '8 weeks'::interval, 'YYYY-MM-DD HH24:MI:SS'));
 
 SELECT is_partitioned('partman_test', 'time_taptest_table', 'Check that time_taptest_table is natively partitioned');

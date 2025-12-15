@@ -6,7 +6,7 @@
     -- start with higher number
     -- native inherit FK
     -- inherit privileges
-    -- pre-created template table and passing to create_parent. Should allow indexes to be made for initial children.
+    -- pre-created template table and passing to create_partition. Should allow indexes to be made for initial children.
     -- Since this is id partitioning, we can use the partition key for primary key, so that should work from parent
 
 \set ON_ERROR_ROLLBACK 1
@@ -46,7 +46,7 @@ CREATE INDEX ON partman_test.template_id_taptest_table (col3);
 -- Regular unique indexes do not work on native if the partition key isn't included
 CREATE UNIQUE INDEX ON partman_test.template_id_taptest_table (col4);
 
-SELECT create_parent('partman_test.id_taptest_table', 'col1', '10', p_jobmon := false, p_start_partition := '3000000000', p_template_table := 'partman_test.template_id_taptest_table');
+SELECT create_partition('partman_test.id_taptest_table', 'col1', '10', p_jobmon := false, p_start_partition := '3000000000', p_template_table := 'partman_test.template_id_taptest_table');
 UPDATE part_config SET inherit_privileges = TRUE;
 SELECT reapply_privileges('partman_test.id_taptest_table');
 

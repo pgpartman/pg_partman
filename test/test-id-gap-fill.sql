@@ -2,6 +2,7 @@
 -- Additional tests:
     -- backfill gap in child tables, start with higher number
     -- pre-created template table with indexes
+    -- old create_parent() alias
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true
