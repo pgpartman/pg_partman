@@ -37,7 +37,7 @@ CREATE TABLE partman_test.template_time_taptest_table (LIKE partman_test.time_ta
 SELECT has_table('partman_test', 'template_time_taptest_table', 'Check that template table was made');
 
 
-SELECT create_parent('partman_test.time_taptest_table', 'col3', '1 day', p_template_table := 'partman_test.template_time_taptest_table');
+SELECT create_partition('partman_test.time_taptest_table', 'col3', '1 day', p_template_table := 'partman_test.template_time_taptest_table');
 
 SELECT has_table('partman_test', 'time_taptest_table_default', 'Check time_taptest_table_default exists');
 SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'), 'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD')||' exists');

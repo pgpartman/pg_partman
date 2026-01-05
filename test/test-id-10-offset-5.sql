@@ -1,6 +1,7 @@
 -- ########## ID 10 TESTS ##########
 -- Additional tests:
     -- offset 5
+    -- Test alias for create_parent
     -- pre-created template table and passing to create_parent. Should allow indexes to be made for initial children.
     -- Since this is id partitioning, we can use the partition key for primary key, so that should work from parent
 

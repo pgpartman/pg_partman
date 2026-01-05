@@ -1,6 +1,6 @@
 -- ########## NUMERIC TESTS ##########
 -- Additional tests:
-    -- pre-created template table and passing to create_parent. Should allow indexes to be made for initial children.
+    -- pre-created template table and passing to create_partition. Should allow indexes to be made for initial children.
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true
@@ -29,7 +29,7 @@ CREATE UNIQUE INDEX ON partman_test.template_id_taptest_table (col4);
 -- Create publication and add parent table to it
 CREATE PUBLICATION partman_test_pub FOR TABLE partman_test.id_taptest_table;
 
-SELECT create_parent('partman_test.id_taptest_table', 'col1', '100', p_template_table := 'partman_test.template_id_taptest_table');
+SELECT create_partition('partman_test.id_taptest_table', 'col1', '100', p_template_table := 'partman_test.template_id_taptest_table');
 
 INSERT INTO partman_test.id_taptest_table (col1, col4) VALUES (generate_series(1.5,90.5), 'stuff'||generate_series(1.5,90.5));
 

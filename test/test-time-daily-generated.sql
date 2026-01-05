@@ -2,6 +2,7 @@
 -- Other tests:
     -- Test generated always columns
     -- Test partition_data_time function
+    -- Test create_parent() alias
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true

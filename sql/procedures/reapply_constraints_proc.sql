@@ -1,4 +1,11 @@
-CREATE PROCEDURE @extschema@.reapply_constraints_proc(p_parent_table text, p_drop_constraints boolean DEFAULT false, p_apply_constraints boolean DEFAULT false, p_wait int DEFAULT 0, p_dryrun boolean DEFAULT false)
+CREATE PROCEDURE @extschema@.reapply_constraints_proc(
+    p_parent_table text
+    , p_drop_constraints boolean DEFAULT false
+    , p_apply_constraints boolean DEFAULT false
+    , p_analyze boolean DEFAULT true
+    , p_wait int DEFAULT 0
+    , p_dryrun boolean DEFAULT false
+)
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -121,7 +128,13 @@ FOR v_row IN EXECUTE v_sql LOOP
     PERFORM pg_sleep(p_wait);
 END LOOP;
 
-EXECUTE format('ANALYZE %I.%I', v_parent_schema, v_parent_tablename);
+IF p_analyze THEN
+    IF p_dryrun THEN
+        RAISE NOTICE 'ANALYZE %.%', v_parent_schema, v_parent_tablename;
+    ELSE
+        EXECUTE format('ANALYZE %I.%I', v_parent_schema, v_parent_tablename);
+    END IF;
+END IF;
 
 PERFORM pg_advisory_unlock(hashtext('pg_partman reapply_constraints'));
 END

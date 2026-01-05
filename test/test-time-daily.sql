@@ -33,7 +33,7 @@ GRANT SELECT,INSERT,UPDATE ON partman_test.time_taptest_table TO partman_basic;
 GRANT ALL ON partman_test.time_taptest_table TO partman_revoke;
 ALTER TABLE partman_test.time_taptest_table OWNER TO partman_owner;
 
-SELECT create_parent('partman_test.time_taptest_table', 'col3', '1 day');
+SELECT create_partition('partman_test.time_taptest_table', 'col3', '1 day');
 UPDATE part_config SET inherit_privileges = TRUE;
 SELECT reapply_privileges('partman_test.time_taptest_table');
 

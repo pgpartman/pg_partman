@@ -16,7 +16,7 @@ CREATE TABLE partman_test.time_taptest_table (
     , col3 timestamptz NOT NULL DEFAULT now()
 ) PARTITION BY RANGE (col3);
 
-SELECT create_parent('partman_test.time_taptest_table', 'col3', '1 day');
+SELECT create_partition('partman_test.time_taptest_table', 'col3', '1 day');
 
 SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'), 'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD')||' exists');
 SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'1 day'::interval, 'YYYYMMDD'),

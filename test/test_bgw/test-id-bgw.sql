@@ -5,6 +5,7 @@
     -- retention
     -- fk reference
 -- Set the pg_partman_bgw.interval setting in postgresql.conf to 10 seconds (or less) in order for this test suite to pass successfully.
+-- Test create_parent() alias
 
 -- ########### WARNING WARNING WARNING ##############
 -- Cannot run this test inside a transaction since then the BGW would not see this partition set exists

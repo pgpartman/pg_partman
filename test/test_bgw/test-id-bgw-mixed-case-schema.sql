@@ -6,6 +6,7 @@
 -- Set the pg_partman_bgw.interval setting in postgresql.conf to 10 seconds (or less) in order for this test suite to pass successfully.
 
 -- This requires installing pg_partman to the mixed case schema "PartMan"
+--      CREATE SCHEMA "PartMan";
 --      CREATE EXTENSION pg_partman SCHEMA "PartMan";
 
 -- ########### WARNING WARNING WARNING ##############
@@ -41,7 +42,7 @@ ALTER TABLE partman_test.template_id_taptest_table ADD PRIMARY KEY (col1);
 
 CREATE TABLE partman_test.undo_taptest (LIKE partman_test.id_taptest_table INCLUDING ALL);
 
-SELECT results_eq('SELECT create_parent(''partman_test.id_taptest_table'', ''col1'', ''10'', p_jobmon := false, p_template_table := ''partman_test.template_id_taptest_table'')::text', ARRAY['true'], 'Check that create_parent() returns true');
+SELECT results_eq('SELECT create_partition(''partman_test.id_taptest_table'', ''col1'', ''10'', p_jobmon := false, p_template_table := ''partman_test.template_id_taptest_table'')::text', ARRAY['true'], 'Check that create_partition() returns true');
 
 INSERT INTO partman_test.id_taptest_table (col1) VALUES (generate_series(1,9));
 

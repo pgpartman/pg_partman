@@ -14,7 +14,7 @@ CREATE SCHEMA partman_test;
 
 CREATE TABLE partman_test.time_taptest_table (col1 int, col2 text default 'stuff', col3 timestamptz NOT NULL DEFAULT now()) PARTITION BY RANGE (col3);
 
-SELECT create_parent('partman_test.time_taptest_table', 'col3', '1 day');
+SELECT create_partition('partman_test.time_taptest_table', 'col3', '1 day');
 
 SELECT is_partitioned('partman_test', 'time_taptest_table', 'Check that time_taptest_table is natively partitioned');
 SELECT has_table('partman', 'template_partman_test_time_taptest_table', 'Check that default template table was created');

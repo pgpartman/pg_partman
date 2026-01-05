@@ -1,3 +1,21 @@
+5.4.0
+=====
+
+NEW FEATURES
+------------
+ - Created a new functions `create_partition()` to replace `create_parent()` and `create_sub_partition()` to replace `create_sub_parent()`. This is to bring more consistent naming to the functions since the opposite of this function is `undo_partition()`. `create_parent()` and `create_sub_parent()` will still exist for backward compatibility until at least the next major release. (Github Issue #706)
+ - Added a boolean parameter to `reapply_constraints_proc()` to control the ANALYZE run. (Github Issue #814)
+ - Added new function `config_cleanup()` to leave the partition table intact, but remove all configuration options in pg_partman (config table entries and template table). This allows future maintenance to be handled outside of pg_partman or not be managed at all.
+ - Allow ignoring infinity values in the default table. Note leaving a large number of rows in the default table can greatly affect partition maintenance performance. See the `p_ignore_infinity` parameter for partition_data_time(), partition_data_proc(), and check_default(). (Github Issue #519)
+ - If inheriting privileges from the parent table, properly inherit all possible table privileges that could be set including the new MAINTAIN privilege introduced in PG17. Should also account for any future table-level privileges added. Thank you to fgit-hubber on Github for the fix. (Github Issue #831)
+
+BUGFIXES
+--------
+ - Stopped analyze from running when calling the `reapply_constraints_proc()` in dryrun mode. (Github Issue #814)
+ - Have partition_data_proc() take a session level advisory lock instead of a transactional one to better prevent concurrent runs. (Github Issue #819)
+ - Fix variable assignment operators in partiton_data_time() and partition_data_id() to correct error when choosing DESC order for partitioning action.
+
+
 5.3.1
 =====
 

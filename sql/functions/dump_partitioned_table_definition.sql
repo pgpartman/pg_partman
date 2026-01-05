@@ -6,7 +6,7 @@ CREATE FUNCTION @extschema@.dump_partitioned_table_definition(
     LANGUAGE PLPGSQL STABLE
     AS $$
 DECLARE
-    v_create_parent_definition text;
+    v_create_partition_definition text;
     v_update_part_config_definition text;
     -- Columns from part_config table.
     v_parent_table text; -- NOT NULL
@@ -132,8 +132,8 @@ BEGIN
     AND n.nspname = v_parent_schemaname::name
     AND a.attname = v_control::name;
 
-    v_create_parent_definition := format(
-E'SELECT @extschema@.create_parent(
+    v_create_partition_definition := format(
+E'SELECT @extschema@.create_partition(
 \tp_parent_table := %L,
 \tp_control := %L,
 \tp_interval := %L,
@@ -196,7 +196,7 @@ WHERE parent_table = %L;',
     );
 
     RETURN concat_ws(E'\n',
-        v_create_parent_definition,
+        v_create_partition_definition,
         v_update_part_config_definition
     );
 END

@@ -2,8 +2,10 @@
 -- Additional tests:
     -- Set analyze to true for maintenance
     -- Premake template table and ensure pk is made on initial child tables
+    -- Test create_parent() and create_sub_parent() aliases
 -- TODO Add additional pk checks to all children
     -- Allow NOT NULL for control (top level)
+
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true

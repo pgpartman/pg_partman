@@ -81,7 +81,7 @@ ALTER TABLE @extschema@.part_config_sub ADD CONSTRAINT retention_schema_not_empt
  * Custom view to help improve privilege lookups for pg_partman.
  * information_schema is a performance bottleneck since indexes aren't being used properly.
  */
-CREATE VIEW @extschema@.table_privs AS
+CREATE OR REPLACE VIEW @extschema@.table_privs AS
     SELECT u_grantor.rolname AS grantor,
            grantee.rolname AS grantee,
            nc.nspname AS table_schema,
@@ -101,10 +101,11 @@ CREATE VIEW @extschema@.table_privs AS
           AND c.relkind IN ('r', 'v', 'p')
           AND c.grantee = grantee.oid
           AND c.grantor = u_grantor.oid
-          AND c.prtype IN ('INSERT', 'SELECT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER')
+          AND c.prtype IN (SELECT (aclexplode(acldefault('r'::"char", c.relowner))).privilege_type)
           AND (pg_has_role(u_grantor.oid, 'USAGE')
                OR pg_has_role(grantee.oid, 'USAGE')
                OR grantee.rolname = 'PUBLIC' );
+
 
 -- Put constraint functions & definitions here because having them in a separate file makes the ordering of their creation harder to control. Some require the above tables to exist first.
 

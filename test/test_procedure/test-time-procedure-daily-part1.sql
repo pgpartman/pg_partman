@@ -1,6 +1,7 @@
 -- ########## TIME DAILY TESTS PROCEDURE ##########
 -- Other tests:
     -- partition and undo with procedures instead of functions
+    -- Test create_parent() alias
 
 \set ON_ERROR_STOP true
 

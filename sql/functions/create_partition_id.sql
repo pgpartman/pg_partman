@@ -126,7 +126,7 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
         v_step_id := add_step(v_job_id, 'Creating new partition '||v_partition_name||' with interval from '||v_id||' to '||(v_id + v_partition_interval)-1);
     END IF;
 
-    -- Same INCLUDING list is used in create_parent()
+    -- Same INCLUDING list is used in create_partition()
     v_sql := format('CREATE TABLE %I.%I (LIKE %I.%I  INCLUDING COMMENTS INCLUDING COMPRESSION INCLUDING CONSTRAINTS INCLUDING DEFAULTS INCLUDING GENERATED INCLUDING STATISTICS INCLUDING STORAGE) '
             , v_parent_schema
             , v_partition_name
@@ -184,7 +184,7 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
     -- Will only loop once and only if sub_partitioning is actually configured
     -- This seemed easier than assigning a bunch of variables then doing an IF condition
     -- This column list must be kept consistent between:
-    --   create_parent, check_subpart_sameconfig, create_partition_id, create_partition_time, dump_partitioned_table_definition, and table definition
+    --   create_partition, check_subpart_sameconfig, create_partition_id, create_partition_time, dump_partitioned_table_definition, and table definition
     FOR v_row IN
         SELECT
             sub_parent
@@ -219,7 +219,7 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
         IF v_jobmon_schema IS NOT NULL THEN
             v_step_id := add_step(v_job_id, 'Subpartitioning '||v_partition_name);
         END IF;
-        v_sql := format('SELECT @extschema@.create_parent(
+        v_sql := format('SELECT @extschema@.create_partition(
                  p_parent_table := %L
                 , p_control := %L
                 , p_time_encoder := %L
@@ -252,7 +252,7 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
             , p_start_partition
             , v_row.sub_date_trunc_interval
             , v_row.sub_control_not_null);
-        RAISE DEBUG 'create_partition_id (create_parent loop): %', v_sql;
+        RAISE DEBUG 'create_partition_id (create_partition loop): %', v_sql;
         EXECUTE v_sql;
 
         UPDATE @extschema@.part_config SET

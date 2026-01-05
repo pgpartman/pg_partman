@@ -168,8 +168,14 @@ LOOP
 END LOOP;
 -- End index creation
 
--- UNLOGGED status. Currently waiting on final stance of how upstream will handle this property being changed for its children.
--- See release notes for v4.2.0
+/*
+UNLOGGED status.
+    As of PG12, the unlogged/logged status of a parent table cannot be changed via an ALTER TABLE in order to affect its children.
+    As of partman v4.2x, the unlogged state will be managed via the template table. See 4.2.0 release notes.
+    As of PG18, the unlogged flag cannot be set on the parent table. But it can be set on the child tables. So it can continue to be supported
+      in pg_partman via the template table for now.
+*/
+
 SELECT relpersistence INTO v_template_unlogged
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid

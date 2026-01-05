@@ -1,6 +1,6 @@
 -- ########## ID TESTS ##########
 -- Additional tests: inherit FK, nonsupuseruser
-    -- Test using a pre-created template table and passing to create_parent. Should allow indexes to be made for initial children.
+    -- Test using a pre-created template table and passing to create_partition. Should allow indexes to be made for initial children.
     -- Tests that foreign keys and normal indexes for PG10 use the template and for PG11 they use the parent. Also since this is id partitioning, we can use the partition key for primary key, so that should work from parent on PG11 as well.
 
 -- NOTE: THIS FILE MUST BE RUN AS partman_owner AND CONNECT TO THE DATABASE THAT RAN PART 1 TO EFFECTIVLELY TEST AS NONSUPERUSER
@@ -37,7 +37,7 @@ ALTER TABLE partman_test.id_taptest_table ADD FOREIGN KEY (col2) REFERENCES part
 CREATE INDEX ON partman_test.id_taptest_table (col3);
 
 
-SELECT create_parent(
+SELECT create_partition(
     'partman_test.id_taptest_table'
     , 'col1'
     , '10'

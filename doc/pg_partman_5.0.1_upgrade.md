@@ -191,7 +191,7 @@ You can see that maintenance has created new partitions with our new naming patt
 
 If all is well, you can return your `premake` and `infinite_time_partitions` values back to their previous values if needed.
 
-If you want to ensure any weekly partitioned tables start on a Monday when you create them, you can use the `date_trunc()` function in the `p_start_partition` parameter to `create_parent()` to do that. The following example shows doing this on a Tuesday. Without setting a specific starting partition like this, the partition set would have started on Tues, Aug 29 2023 and every future partition would have been based on a week starting on Tuesday.
+If you want to ensure any weekly partitioned tables start on a Monday when you create them, you can use the `date_trunc()` function in the `p_start_partition` parameter to `create_partition()` to do that. The following example shows doing this on a Tuesday. Without setting a specific starting partition like this, the partition set would have started on Tues, Aug 29 2023 and every future partition would have been based on a week starting on Tuesday.
 
 ```sql
 SELECT CURRENT_TIMESTAMP;
@@ -207,7 +207,7 @@ CREATE TABLE public.time_table (
 PARTITION BY RANGE (col3);
 
 
-SELECT partman.create_parent('public.time_table', 'col3', '1 week', p_start_partition := to_char(date_trunc('week',CURRENT_TIMESTAMP), 'YYYY-MM-DD HH24:MI:SS'));
+SELECT partman.create_partition('public.time_table', 'col3', '1 week', p_start_partition := to_char(date_trunc('week',CURRENT_TIMESTAMP), 'YYYY-MM-DD HH24:MI:SS'));
 ```
 ```sql
 \d+ public.time_table
