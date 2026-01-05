@@ -159,7 +159,7 @@ FOR i IN 1..p_batch_count LOOP
         IF v_start_control IS NULL THEN
             EXIT;
         END IF;
-        v_min_partition_id = :v_start_control - (v_start_control % v_partition_interval);
+        v_min_partition_id := v_start_control - (v_start_control % v_partition_interval);
         -- Must be greater than max value still in parent table since query below grabs < max
         v_max_partition_id := v_min_partition_id + v_partition_interval;
         v_partition_id := ARRAY[v_min_partition_id];

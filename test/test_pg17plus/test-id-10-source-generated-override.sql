@@ -46,7 +46,7 @@ SELECT col_is_pk('partman_test', 'id_taptest_table_p30', ARRAY['col1'], 'Check f
 SELECT col_is_pk('partman_test', 'id_taptest_table_p40', ARRAY['col1'], 'Check for primary key in id_taptest_table_p40');
 SELECT col_is_pk('partman_test', 'id_taptest_table_default', ARRAY['col1'], 'Check for primary key in id_taptest_table_default');
 
-SELECT results_eq('SELECT partman.partition_data_id(''partman_test.id_taptest_table'', ''20'', p_source_table := ''partman_source.id_taptest_table_source'', p_override_system_value := true)::int', ARRAY[9], 'Move data out of source table into partitioned table');
+SELECT results_eq('SELECT partman.partition_data_id(''partman_test.id_taptest_table'', ''20'', p_source_table := ''partman_source.id_taptest_table_source'', p_override_system_value := true, p_order := ''DESC'')::int', ARRAY[9], 'Move data out of source table into partitioned table');
 
 SELECT is_empty('SELECT * FROM ONLY partman_test.id_taptest_table_default', 'Check that default table has no data');
 SELECT results_eq('SELECT count(*)::int FROM partman_test.id_taptest_table', ARRAY[9], 'Check count from parent table');
