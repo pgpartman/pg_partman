@@ -6,6 +6,7 @@ CREATE FUNCTION @extschema@.config_cleanup(
 )
     RETURNS void
     LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 

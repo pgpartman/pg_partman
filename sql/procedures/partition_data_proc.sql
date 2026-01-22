@@ -32,7 +32,7 @@ v_total             bigint := 0;
 
 BEGIN
 
-v_adv_lock := pg_try_advisory_lock(hashtext('pg_partman partition_data_proc'), hashtext(p_parent_table));
+v_adv_lock := pg_catalog.pg_try_advisory_lock(hashtext('pg_partman partition_data_proc'), hashtext(p_parent_table));
 IF v_adv_lock = 'false' THEN
     RAISE NOTICE 'Advisory lock notice (pg_partman partition_data_proc): This procedure is already running for given parent table (%) or another session has not released its advisory lock.', p_parent_table;
     RETURN;
@@ -60,7 +60,7 @@ IF p_source_table IS NOT NULL THEN
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
     WHERE n.nspname = split_part(p_source_table, '.', 1)::name
-    AND c.relname = split_part(p_source_table, '.', 2)::name;
+    AND c.relname = pg_catalog.split_part(p_source_table, '.', 2)::name;
         IF v_source_tablename IS NULL THEN
             RAISE EXCEPTION 'Unable to find given source table in system catalogs. Ensure it is schema qualified: %', p_source_table;
         END IF;
@@ -82,22 +82,22 @@ IF p_autovacuum_on = false THEN         -- Add this parameter back to definition
 END IF;
 */
 
-v_sql := format('SELECT %s.partition_data_%s (p_parent_table := %L
+v_sql := pg_catalog.format('SELECT %s.partition_data_%s (p_parent_table := %L
                                                 , p_lock_wait := %L
                                                 , p_order := %L
                                                 , p_analyze := false'
         , '@extschema@', v_control_type, p_parent_table, p_lock_wait, p_order, p_ignore_infinity);
 IF p_interval IS NOT NULL THEN
-    v_sql := v_sql || format(', p_batch_interval := %L', p_interval);
+    v_sql := v_sql || pg_catalog.format(', p_batch_interval := %L', p_interval);
 END IF;
 IF p_source_table IS NOT NULL THEN
-    v_sql := v_sql || format(', p_source_table := %L', p_source_table);
+    v_sql := v_sql || pg_catalog.format(', p_source_table := %L', p_source_table);
 END IF;
 IF p_ignored_columns IS NOT NULL THEN
-    v_sql := v_sql || format(', p_ignored_columns := %L', p_ignored_columns);
+    v_sql := v_sql || pg_catalog.format(', p_ignored_columns := %L', p_ignored_columns);
 END IF;
 IF v_control_type = 'time' THEN
-    v_sql := v_sql || format(', p_ignore_infinity := %L', p_ignore_infinity);
+    v_sql := v_sql || pg_catalog.format(', p_ignore_infinity := %L', p_ignore_infinity);
 END IF;
 v_sql := v_sql || ')';
 RAISE DEBUG 'partition_data sql: %', v_sql;
@@ -127,7 +127,7 @@ LOOP
         EXIT;
     END IF;
     COMMIT;
-    PERFORM pg_sleep(p_wait);
+    PERFORM pg_catalog.pg_sleep(p_wait);
     RAISE DEBUG 'v_rows_moved: %, v_loop_count: %, v_total: %, v_lockwait_count: %, p_wait: %', p_wait, v_rows_moved, v_loop_count, v_total, v_lockwait_count;
 END LOOP;
 
@@ -162,6 +162,6 @@ EXCEPTION
         RAISE EXCEPTION '%', SQLERRM;
 */
 
-PERFORM pg_advisory_unlock(hashtext('pg_partman partition_data_proc'), hashtext(p_parent_table));
+PERFORM pg_catalog.pg_advisory_unlock(hashtext('pg_partman partition_data_proc'), hashtext(p_parent_table));
 END;
 $$;

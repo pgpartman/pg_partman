@@ -4,9 +4,9 @@
  * partitioning of UUIDv7 columns
  */
 
-CREATE FUNCTION @extschema@.uuid7_time_encoder(ts TIMESTAMPTZ)
-RETURNS UUID
-LANGUAGE plpgsql
+CREATE FUNCTION @extschema@.uuid7_time_encoder(ts TIMESTAMPTZ) RETURNS UUID
+    LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
 AS $$
 DECLARE
     ts_millis BIGINT;
@@ -23,9 +23,9 @@ $$;
 
 
 -- Currently time decoder function must take a text parameter. See if this can be more flexible in the future
-CREATE FUNCTION @extschema@.uuid7_time_decoder(uuidv7 TEXT)
-RETURNS TIMESTAMPTZ
-LANGUAGE plpgsql
+CREATE FUNCTION @extschema@.uuid7_time_decoder(uuidv7 TEXT) RETURNS TIMESTAMPTZ
+    LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
 AS $$
 DECLARE
     ts_hex TEXT;

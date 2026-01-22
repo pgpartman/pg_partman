@@ -7,6 +7,7 @@ CREATE FUNCTION @extschema@.drop_partition_id(
 )
     RETURNS int
     LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 
@@ -111,19 +112,16 @@ IF v_control_type <> 'id' THEN
     RAISE EXCEPTION 'Data type of control column in given partition set is not an integer type';
 END IF;
 
-SELECT current_setting('search_path') INTO v_old_search_path;
-IF length(v_old_search_path) > 0 THEN
-   v_new_search_path := '@extschema@,pg_temp,'||v_old_search_path;
-ELSE
-    v_new_search_path := '@extschema@,pg_temp';
-END IF;
 IF v_jobmon THEN
     SELECT nspname INTO v_jobmon_schema FROM pg_catalog.pg_namespace n, pg_catalog.pg_extension e WHERE e.extname = 'pg_jobmon'::name AND e.extnamespace = n.oid;
     IF v_jobmon_schema IS NOT NULL THEN
-        v_new_search_path := format('%s,%s',v_jobmon_schema, v_new_search_path);
+        SELECT current_setting('search_path') INTO v_old_search_path;
+        IF v_jobmon_schema IS NOT NULL THEN
+            v_new_search_path := format('%s,%s',v_jobmon_schema, v_old_search_path);
+            EXECUTE format('SET LOCAL search_path TO %s', v_new_search_path);
+        END IF;
     END IF;
 END IF;
-EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_new_search_path, 'false');
 
 IF p_keep_table IS NOT NULL THEN
     v_retention_keep_table = p_keep_table;
@@ -287,8 +285,6 @@ IF v_jobmon_schema IS NOT NULL THEN
         PERFORM close_job(v_job_id);
     END IF;
 END IF;
-
-EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_old_search_path, 'false');
 
 RETURN v_drop_count;
 

@@ -19,6 +19,7 @@ CREATE FUNCTION @extschema@.create_parent(
 )
     RETURNS boolean
     LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 

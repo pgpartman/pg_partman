@@ -5,6 +5,7 @@ CREATE FUNCTION @extschema@.create_partition_time(
 )
     RETURNS boolean
     LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 
@@ -97,19 +98,16 @@ IF v_control_type <> 'time' THEN
     END IF;
 END IF;
 
-SELECT current_setting('search_path') INTO v_old_search_path;
-IF length(v_old_search_path) > 0 THEN
-   v_new_search_path := '@extschema@,pg_temp,'||v_old_search_path;
-ELSE
-    v_new_search_path := '@extschema@,pg_temp';
-END IF;
 IF v_jobmon THEN
     SELECT nspname INTO v_jobmon_schema FROM pg_catalog.pg_namespace n, pg_catalog.pg_extension e WHERE e.extname = 'pg_jobmon'::name AND e.extnamespace = n.oid;
     IF v_jobmon_schema IS NOT NULL THEN
-        v_new_search_path := format('%s,%s',v_jobmon_schema, v_new_search_path);
+        SELECT current_setting('search_path') INTO v_old_search_path;
+        IF v_jobmon_schema IS NOT NULL THEN
+            v_new_search_path := format('%s,%s',v_jobmon_schema, v_old_search_path);
+            EXECUTE format('SET LOCAL search_path TO %s', v_new_search_path);
+        END IF;
     END IF;
 END IF;
-EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_new_search_path, 'false');
 
 -- Determine if this table is a child of a subpartition parent. If so, get limits of what child tables can be created based on parent suffix
 SELECT sub_min::timestamptz, sub_max::timestamptz INTO v_sub_timestamp_min, v_sub_timestamp_max FROM @extschema@.check_subpartition_limits(p_parent_table, 'time');
@@ -389,8 +387,6 @@ IF v_jobmon_schema IS NOT NULL THEN
         PERFORM close_job(v_job_id);
     END IF;
 END IF;
-
-EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_old_search_path, 'false');
 
 RETURN v_partition_created;
 

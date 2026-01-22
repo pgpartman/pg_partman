@@ -11,6 +11,7 @@ CREATE FUNCTION @extschema@.partition_data_id(
 )
     RETURNS bigint
     LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 

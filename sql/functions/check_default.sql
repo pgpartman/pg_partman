@@ -3,7 +3,7 @@ CREATE FUNCTION @extschema@.check_default(
         , p_ignore_infinity boolean DEFAULT false)
     RETURNS SETOF @extschema@.check_default_table
     LANGUAGE plpgsql STABLE
-    SET search_path = @extschema@,pg_temp
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 

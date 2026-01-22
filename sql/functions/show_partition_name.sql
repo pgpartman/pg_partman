@@ -8,6 +8,7 @@ CREATE FUNCTION @extschema@.show_partition_name(
 )
     RETURNS record
     LANGUAGE plpgsql STABLE
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 

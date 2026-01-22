@@ -4,6 +4,7 @@ CREATE FUNCTION @extschema@.dump_partitioned_table_definition(
 )
     RETURNS text
     LANGUAGE PLPGSQL STABLE
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
     v_create_partition_definition text;

@@ -12,6 +12,7 @@ CREATE FUNCTION @extschema@.partition_data_time(
 )
     RETURNS bigint
     LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 

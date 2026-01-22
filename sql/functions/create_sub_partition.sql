@@ -17,6 +17,7 @@ CREATE FUNCTION @extschema@.create_sub_partition(
 )
     RETURNS boolean
     LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 

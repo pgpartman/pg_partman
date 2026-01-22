@@ -1,5 +1,6 @@
 CREATE FUNCTION @extschema@.stop_sub_partition(p_parent_table text, p_jobmon boolean DEFAULT true) RETURNS boolean
     LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 

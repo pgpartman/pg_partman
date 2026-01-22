@@ -5,7 +5,7 @@ CREATE FUNCTION @extschema@.show_partitions (
 )
     RETURNS TABLE (partition_schemaname text, partition_tablename text)
     LANGUAGE plpgsql STABLE
-    SET search_path = @extschema@,pg_temp
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 

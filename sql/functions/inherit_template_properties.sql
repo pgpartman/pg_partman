@@ -5,6 +5,7 @@ CREATE FUNCTION @extschema@.inherit_template_properties(
 )
     RETURNS boolean
     LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 

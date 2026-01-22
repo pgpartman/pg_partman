@@ -44,7 +44,7 @@ v_temp_storage_table                text;
 
 BEGIN
 
-v_adv_lock := pg_try_advisory_xact_lock(hashtext('pg_partman partition_data_async'), hashtext(p_parent_table));
+v_adv_lock := pg_catalog.pg_try_advisory_xact_lock(hashtext('pg_partman partition_data_async'), hashtext(p_parent_table));
 IF v_adv_lock = 'false' THEN
     RAISE NOTICE 'Partman partition_data_async already running for given parent table: %.', p_parent_table;
     RETURN;
@@ -61,12 +61,11 @@ END IF;
 SELECT n.nspname, c.relname INTO v_parent_schemaname, v_parent_tablename
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
-AND c.relname = split_part(p_parent_table, '.', 2)::name;
+WHERE n.nspname = pg_catalog.split_part(p_parent_table, '.', 1)::name
+AND c.relname = pg_catalog.split_part(p_parent_table, '.', 2)::name;
     IF v_parent_tablename IS NULL THEN
         RAISE EXCEPTION 'Unable to find given parent table in system catalogs. Ensure it is schema qualified: %', p_parent_table;
     END IF;
-
 
 IF p_order <> 'ASC' THEN
     RAISE EXCEPTION 'Async partitioning currently only supports going in ascending order for data migration';
@@ -85,18 +84,18 @@ INTO v_default_schemaname, v_default_tablename
 FROM pg_catalog.pg_inherits h
 JOIN pg_catalog.pg_class c ON c.oid = h.inhrelid
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-WHERE h.inhparent = format('%I.%I', v_parent_schemaname, v_parent_tablename)::regclass
+WHERE h.inhparent = pg_catalog.format('%I.%I', v_parent_schemaname, v_parent_tablename)::regclass
 AND pg_get_expr(relpartbound, c.oid) = 'DEFAULT';
 
 IF v_default_tablename IS NULL THEN
     RAISE EXCEPTION 'Default table not found for given partition set: %', p_parent_table;
 END IF;
 
-v_temp_storage_table := format('%I.%I', v_parent_schemaname, 'partman_tmp_storage_' || v_parent_tablename );
+v_temp_storage_table := pg_catalog.format('%I.%I', v_parent_schemaname, 'partman_tmp_storage_' || v_parent_tablename );
 
 -- Generate filtered column list to use in SELECT/INSERT statements below. Allows for exclusion of GENERATED (or any other desired) columns.
 -- TODO turn this into a function along with the full column list in other functions
-SELECT string_agg(quote_ident(attname), ',')
+SELECT pg_catalog.string_agg(quote_ident(attname), ',')
 INTO v_column_list_filtered
 FROM pg_catalog.pg_attribute a
 JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
@@ -113,20 +112,19 @@ IF v_control_type = 'time' THEN
         RAISE EXCEPTION 'The given interval (%) is greater than or equal to this partition set''s default interval (%). Please use a non-async partitioning function or procedure for a much simpler process to partition your data', p_interval, v_default_interval;
     END IF;
 
-
     --TODO turn this into a function
     v_partition_expression := CASE
-        WHEN v_epoch = 'seconds' THEN format('to_timestamp(%I)', v_control)
-        WHEN v_epoch = 'milliseconds' THEN format('to_timestamp((%I/1000)::float)', v_control)
-        WHEN v_epoch = 'microseconds' THEN format('to_timestamp((%I/1000000)::float)', v_control)
-        WHEN v_epoch = 'nanoseconds' THEN format('to_timestamp((%I/1000000000)::float)', v_control)
-        ELSE format('%I', v_control)
+        WHEN v_epoch = 'seconds' THEN pg_catalog.format('to_timestamp(%I)', v_control)
+        WHEN v_epoch = 'milliseconds' THEN pg_catalog.format('to_timestamp((%I/1000)::float)', v_control)
+        WHEN v_epoch = 'microseconds' THEN pg_catalog.format('to_timestamp((%I/1000000)::float)', v_control)
+        WHEN v_epoch = 'nanoseconds' THEN pg_catalog.format('to_timestamp((%I/1000000000)::float)', v_control)
+        ELSE pg_catalog.format('%I', v_control)
     END;
 
-    EXECUTE format('SELECT min(%s) FROM ONLY %I.%I', v_partition_expression, v_default_schemaname, v_default_tablename) INTO v_default_batch_min_timestamp;
+    EXECUTE pg_catalog.format('SELECT min(%s) FROM ONLY %I.%I', v_partition_expression, v_default_schemaname, v_default_tablename) INTO v_default_batch_min_timestamp;
     RAISE DEBUG 'partition_data_async: v_default_batch_min_timestamp: %', v_default_batch_min_timestamp;
 
-    SELECT format('%I.%I)', n.nspname, c.relname)
+    SELECT pg_catalog.format('%I.%I)', n.nspname, c.relname)
     INTO v_temp_exists
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
@@ -140,7 +138,7 @@ IF v_control_type = 'time' THEN
         IF v_temp_exists IS NOT NULL AND v_async_partitioning_in_progress IS NULL THEN
             RAISE EXCEPTION 'Found an already existing temporary storage table (%) for managing async partitioning for the partition set given: %. However this partition set was not marked as being in progress for an existing async partitioning operation. This is an unexpected condition and means a previous async partitioning operation may not have been completed properly. Please review the contents of the given temporary working table and make sure there is no data missing from the partition set before proceeding with further partitioning operations.', v_temp_exists, p_parent_table;
         ELSE
-            v_sql := format ('CREATE TABLE IF NOT EXISTS %s (LIKE %I.%I INCLUDING INDEXES)', v_temp_storage_table, v_parent_schemaname, v_parent_tablename);
+            v_sql := pg_catalog.format ('CREATE TABLE IF NOT EXISTS %s (LIKE %I.%I INCLUDING INDEXES)', v_temp_storage_table, v_parent_schemaname, v_parent_tablename);
             RAISE DEBUG 'partition_data_async: v_sql: %', v_sql;
             EXECUTE v_sql;
         END IF;
@@ -173,16 +171,15 @@ IF v_control_type = 'time' THEN
 
                 -- Get temp table minimum to start loop
                 v_temp_batch_min_timestamp := NULL; -- Just to be sure
-                EXECUTE format('SELECT min(%s) FROM ONLY %s', v_partition_expression, v_temp_storage_table) INTO v_temp_batch_min_timestamp;
+                EXECUTE pg_catalog.format('SELECT min(%s) FROM ONLY %s', v_partition_expression, v_temp_storage_table) INTO v_temp_batch_min_timestamp;
                 RAISE DEBUG 'partition_data_async: before loop to move data out of temp - v_temp_batch_min_timestamp: %', v_temp_batch_min_timestamp;
-
 
                 v_analyze := @extschema@.create_partition_time(p_parent_table, ARRAY[v_target_child_min_timestamp]);
 
                 WHILE v_temp_batch_min_timestamp IS NOT NULL
                 LOOP
                     -- start batch transaction to move data from temp to real child table
-                        v_sql := format('WITH partition_data AS (
+                        v_sql := pg_catalog.format('WITH partition_data AS (
                                 DELETE FROM %1$s WHERE %2$s >= %3$L AND %2$s < %4$L RETURNING *)
                             INSERT INTO %5$I.%6$I (%7$s) SELECT %7$s FROM partition_data'
                             , v_temp_storage_table
@@ -197,7 +194,7 @@ IF v_control_type = 'time' THEN
                     v_loop_count := v_loop_count + 1;
                     COMMIT; -- end batch transaction to move data from temp to real child table
 
-                    EXECUTE format('SELECT min(%s) FROM ONLY %s', v_partition_expression, v_temp_storage_table) INTO v_temp_batch_min_timestamp;
+                    EXECUTE pg_catalog.format('SELECT min(%s) FROM ONLY %s', v_partition_expression, v_temp_storage_table) INTO v_temp_batch_min_timestamp;
 
                     RAISE DEBUG 'partition_data_async: inside loop to move data out of temp - v_temp_batch_min_timestamp: %', v_temp_batch_min_timestamp;
                     EXIT WHEN p_loop_count > 0 AND v_loop_count >= p_loop_count;
@@ -225,7 +222,7 @@ IF v_control_type = 'time' THEN
                     v_lock_iter := v_lock_iter + 1;
                     RAISE DEBUG 'lock wait: v_lock_iter: %, v_lock_obtained: %', v_lock_iter, v_lock_obtained;
                     BEGIN
-                        EXECUTE format('SELECT %s FROM ONLY %I.%I WHERE %s >= %L AND %4$s < %6$L FOR UPDATE NOWAIT'
+                        EXECUTE pg_catalog.format('SELECT %s FROM ONLY %I.%I WHERE %s >= %L AND %4$s < %6$L FOR UPDATE NOWAIT'
                             , v_column_list_filtered
                             , v_default_schemaname
                             , v_default_tablename
@@ -235,7 +232,7 @@ IF v_control_type = 'time' THEN
                         v_lock_obtained := TRUE;
                     EXCEPTION
                         WHEN lock_not_available THEN
-                            PERFORM pg_sleep( p_lock_wait / 5.0 );
+                            PERFORM pg_catalog.pg_sleep( p_lock_wait / 5.0 );
                             CONTINUE;
                     END;
                     EXIT WHEN v_lock_obtained;
@@ -246,7 +243,7 @@ IF v_control_type = 'time' THEN
             END IF;
 
             -- start batch transaction to move data from default to temp
-            EXECUTE format('WITH partition_data AS (
+            EXECUTE pg_catalog.format('WITH partition_data AS (
                 DELETE FROM %1$I.%2$I WHERE %3$s >= %4$L AND %3$s < %5$L RETURNING *)
             INSERT INTO %6$s (%7$s) SELECT %7$s FROM partition_data'
                 , v_default_schemaname
@@ -262,7 +259,7 @@ IF v_control_type = 'time' THEN
 
         ELSE -- Only set these if target child table has yet to be determined or one was just created and these were reset
 
-            EXECUTE format('SELECT min(%s) FROM ONLY %s', v_partition_expression, v_temp_storage_table) INTO v_temp_batch_min_timestamp;
+            EXECUTE pg_catalog.format('SELECT min(%s) FROM ONLY %s', v_partition_expression, v_temp_storage_table) INTO v_temp_batch_min_timestamp;
             RAISE DEBUG 'partition_data_async: v_temp_batch_min_timestamp: %, v_target_child_min_timestamp: %, v_target_child_max_timestamp: %', v_temp_batch_min_timestamp, v_target_child_min_timestamp, v_target_child_max_timestamp;
 
             IF v_temp_batch_min_timestamp IS NOT NULL THEN
@@ -282,7 +279,7 @@ IF v_control_type = 'time' THEN
 
         END IF;
 
-        EXECUTE format('SELECT min(%s) FROM ONLY %I.%I', v_partition_expression, v_default_schemaname, v_default_tablename) INTO v_default_batch_min_timestamp;
+        EXECUTE pg_catalog.format('SELECT min(%s) FROM ONLY %I.%I', v_partition_expression, v_default_schemaname, v_default_tablename) INTO v_default_batch_min_timestamp;
 
         IF p_loop_count > 0 AND v_loop_count >= p_loop_count THEN
             EXIT;
@@ -301,7 +298,7 @@ IF v_run_cleanup THEN
 
     IF v_async_partitioning_in_progress IS NULL THEN
 
-       v_sql := format ('DROP TABLE IF EXISTS %s', v_temp_storage_table);
+       v_sql := pg_catalog.format('DROP TABLE IF EXISTS %s', v_temp_storage_table);
         RAISE DEBUG 'partition_data_async: v_sql %', v_sql;
         EXECUTE v_sql;
 

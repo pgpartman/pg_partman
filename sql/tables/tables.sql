@@ -115,6 +115,7 @@ CREATE OR REPLACE VIEW @extschema@.table_privs AS
  */
 CREATE FUNCTION @extschema@.check_automatic_maintenance_value (p_automatic_maintenance text) RETURNS boolean
     LANGUAGE plpgsql IMMUTABLE
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 v_result    boolean;
@@ -138,7 +139,7 @@ CHECK (@extschema@.check_automatic_maintenance_value(sub_automatic_maintenance))
  */
 CREATE FUNCTION @extschema@.check_epoch_type (p_type text) RETURNS boolean
     LANGUAGE plpgsql IMMUTABLE
-    SET search_path TO pg_catalog, pg_temp
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 v_result    boolean;
@@ -164,7 +165,7 @@ CHECK (@extschema@.check_epoch_type(sub_epoch));
 -- Allow hash in future update
 CREATE FUNCTION @extschema@.check_partition_type (p_type text) RETURNS boolean
     LANGUAGE plpgsql IMMUTABLE
-    SET search_path TO pg_catalog, pg_temp
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 v_result    boolean;

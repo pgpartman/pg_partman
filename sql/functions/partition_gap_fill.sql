@@ -1,5 +1,6 @@
 CREATE FUNCTION @extschema@.partition_gap_fill(p_parent_table text) RETURNS integer
     LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 

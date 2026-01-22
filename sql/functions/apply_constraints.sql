@@ -6,6 +6,7 @@ CREATE FUNCTION @extschema@.apply_constraints(
 )
     RETURNS void
     LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 
@@ -89,19 +90,16 @@ AND tablename = split_part(v_parent_table, '.', 2)::name;
 
 SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
 
-SELECT current_setting('search_path') INTO v_old_search_path;
-IF length(v_old_search_path) > 0 THEN
-   v_new_search_path := '@extschema@,pg_temp,'||v_old_search_path;
-ELSE
-    v_new_search_path := '@extschema@,pg_temp';
-END IF;
 IF v_jobmon THEN
     SELECT nspname INTO v_jobmon_schema FROM pg_catalog.pg_namespace n, pg_catalog.pg_extension e WHERE e.extname = 'pg_jobmon'::name AND e.extnamespace = n.oid;
     IF v_jobmon_schema IS NOT NULL THEN
-        v_new_search_path := format('%s,%s',v_jobmon_schema, v_new_search_path);
+        SELECT current_setting('search_path') INTO v_old_search_path;
+        IF v_jobmon_schema IS NOT NULL THEN
+            v_new_search_path := format('%s,%s',v_jobmon_schema, v_old_search_path);
+            EXECUTE format('SET LOCAL search_path TO %s', v_new_search_path);
+        END IF;
     END IF;
 END IF;
-EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_new_search_path, 'false');
 
 IF v_jobmon_schema IS NOT NULL THEN
     IF p_job_id IS NULL THEN
@@ -159,7 +157,6 @@ IF v_child_exists IS NULL THEN
         END IF;
     END IF;
     RAISE DEBUG 'Target child table (%) does not exist. Skipping constraint creation.', v_child_tablename;
-    EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_old_search_path, 'false');
     RETURN;
 ELSE
     IF v_jobmon_schema IS NOT NULL THEN
@@ -244,8 +241,6 @@ END IF;
 IF v_jobmon_schema IS NOT NULL THEN
     PERFORM close_job(v_job_id);
 END IF;
-
-EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_old_search_path, 'false');
 
 EXCEPTION
     WHEN OTHERS THEN

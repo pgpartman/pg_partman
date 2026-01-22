@@ -11,7 +11,7 @@ v_sql                   text;
 
 BEGIN
 
-v_adv_lock := pg_try_advisory_lock(hashtext('pg_partman run_analyze'));
+v_adv_lock := pg_catalog.pg_try_advisory_lock(hashtext('pg_partman run_analyze'));
 IF v_adv_lock = false THEN
     RAISE NOTICE 'Partman analyze already running or another session has not released its advisory lock.';
     RETURN;
@@ -30,14 +30,14 @@ LOOP
     INTO v_parent_schema, v_parent_tablename
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-    WHERE n.nspname = split_part(v_row.parent_table, '.', 1)::name
-    AND c.relname = split_part(v_row.parent_table, '.', 2)::name;
+    WHERE n.nspname = pg_catalog.split_part(v_row.parent_table, '.', 1)::name
+    AND c.relname = pg_catalog.split_part(v_row.parent_table, '.', 2)::name;
 
     v_sql := 'ANALYZE ';
     IF p_skip_locked THEN
         v_sql := v_sql || 'SKIP LOCKED ';
     END IF;
-    v_sql := format('%s %I.%I', v_sql, v_parent_schema, v_parent_tablename);
+    v_sql := pg_catalog.format('%s %I.%I', v_sql, v_parent_schema, v_parent_tablename);
 
     IF p_quiet = 'false' THEN
         RAISE NOTICE 'Analyzed partitioned table: %.%', v_parent_schema, v_parent_tablename;
@@ -47,6 +47,6 @@ LOOP
 
 END LOOP;
 
-PERFORM pg_advisory_unlock(hashtext('pg_partman run_analyze'));
+PERFORM pg_catalog.pg_advisory_unlock(hashtext('pg_partman run_analyze'));
 END
 $$;

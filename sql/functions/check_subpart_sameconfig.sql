@@ -25,7 +25,7 @@ CREATE FUNCTION @extschema@.check_subpart_sameconfig(p_parent_table text)
         , sub_control_not_null boolean
         )
     LANGUAGE sql STABLE
-    SET search_path = @extschema@,pg_temp
+    SET search_path = @extschema@, pg_catalog, pg_temp
 AS $$
 /*
  * Check for consistent data in part_config_sub table. Was unable to get this working properly as either a constraint or trigger.

@@ -19,6 +19,7 @@ CREATE FUNCTION @extschema@.create_partition(
 )
     RETURNS boolean
     LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 
@@ -217,19 +218,16 @@ ELSE
         END IF;
 END IF;
 
-SELECT current_setting('search_path') INTO v_old_search_path;
-IF length(v_old_search_path) > 0 THEN
-   v_new_search_path := '@extschema@,pg_temp,'||v_old_search_path;
-ELSE
-    v_new_search_path := '@extschema@,pg_temp';
-END IF;
 IF p_jobmon THEN
     SELECT nspname INTO v_jobmon_schema FROM pg_catalog.pg_namespace n, pg_catalog.pg_extension e WHERE e.extname = 'pg_jobmon'::name AND e.extnamespace = n.oid;
     IF v_jobmon_schema IS NOT NULL THEN
-        v_new_search_path := format('%s,%s',v_jobmon_schema, v_new_search_path);
+        SELECT current_setting('search_path') INTO v_old_search_path;
+        IF v_jobmon_schema IS NOT NULL THEN
+            v_new_search_path := format('%s,%s',v_jobmon_schema, v_old_search_path);
+            EXECUTE format('SET LOCAL search_path TO %s', v_new_search_path);
+        END IF;
     END IF;
 END IF;
-EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_new_search_path, 'false');
 
 EXECUTE format('LOCK TABLE %I.%I IN ACCESS EXCLUSIVE MODE', v_parent_schemaname, v_parent_tablename);
 
@@ -452,8 +450,6 @@ IF v_control_type IN ('time', 'text', 'uuid') OR (v_control_type = 'id' AND p_ep
                 END IF;
             END IF;
 
-            EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_old_search_path, 'false');
-
             RETURN v_success;
         END IF;
     END IF; -- End v_last_partition IF
@@ -598,8 +594,6 @@ IF v_control_type = 'id' AND p_epoch = 'none' THEN
                 END IF;
             END IF;
 
-            EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_old_search_path, 'false');
-
             RETURN v_success;
         END IF;
     END IF; -- End v_last_partition_created IF
@@ -642,8 +636,6 @@ IF v_jobmon_schema IS NOT NULL THEN
         PERFORM close_job(v_job_id);
     END IF;
 END IF;
-
-EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_old_search_path, 'false');
 
 v_success := true;
 

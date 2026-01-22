@@ -6,6 +6,7 @@ CREATE FUNCTION @extschema@.run_maintenance(
 )
     RETURNS void
     LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 
@@ -84,19 +85,16 @@ IF pg_is_in_recovery() THEN
     RETURN;
 END IF;
 
-SELECT current_setting('search_path') INTO v_old_search_path;
-IF length(v_old_search_path) > 0 THEN
-   v_new_search_path := '@extschema@,pg_temp,'||v_old_search_path;
-ELSE
-    v_new_search_path := '@extschema@,pg_temp';
-END IF;
 IF p_jobmon THEN
     SELECT nspname INTO v_jobmon_schema FROM pg_catalog.pg_namespace n, pg_catalog.pg_extension e WHERE e.extname = 'pg_jobmon'::name AND e.extnamespace = n.oid;
     IF v_jobmon_schema IS NOT NULL THEN
-        v_new_search_path := format('%s,%s',v_jobmon_schema, v_new_search_path);
+        SELECT current_setting('search_path') INTO v_old_search_path;
+        IF v_jobmon_schema IS NOT NULL THEN
+            v_new_search_path := format('%s,%s',v_jobmon_schema, v_old_search_path);
+            EXECUTE format('SET LOCAL search_path TO %s', v_new_search_path);
+        END IF;
     END IF;
 END IF;
-EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_new_search_path, 'false');
 
 IF current_setting('server_version_num')::int >= 180000 THEN
     SELECT extversion INTO v_installed_version FROM pg_catalog.pg_extension WHERE extname = 'pg_partman';
@@ -483,8 +481,6 @@ IF v_jobmon_schema IS NOT NULL THEN
         PERFORM close_job(v_job_id);
     END IF;
 END IF;
-
-EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_old_search_path, 'false');
 
 EXCEPTION
     WHEN OTHERS THEN
