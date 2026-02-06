@@ -1,3 +1,11 @@
+5.4.1
+=====
+BUGFIXES
+--------
+ - Ensure all functions have a search path set to avoid security issues around user object overrides. Ensure all procedures have all object calls schema qualified since a default search path cannot be set in them. (Github Issue #836)
+ - Fix timestamp WITHOUT timezone not working properly with the partition_data_time() function and partition_data_proc() procedure. (Github Issue #838)
+
+
 5.4.0
 =====
 
