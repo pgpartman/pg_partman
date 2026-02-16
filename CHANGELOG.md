@@ -1,3 +1,10 @@
+5.4.2
+=====
+BUGFIXES
+--------
+ - Fixed `partition_data_*` functions and procedures not working if pg_partman was not installed in the `partman` schema. (Github #842)
+
+
 5.4.1
 =====
 BUGFIXES
