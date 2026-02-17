@@ -192,7 +192,7 @@ As a note for people that were not aware, you can name arguments in function cal
 
 <a id="create_partition"></a>
 ```sql
-
+create_partition(
     p_parent_table text
     , p_control text
     , p_interval text
