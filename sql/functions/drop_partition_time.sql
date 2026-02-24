@@ -254,6 +254,12 @@ LOOP
                 IF v_jobmon_schema IS NOT NULL THEN
                     v_step_id := add_step(v_job_id, format('Drop table %s.%s', v_row.partition_schemaname, v_row.partition_tablename));
                 END IF;
+				v_sql := format('ALTER TABLE %I.%I DETACH PARTITION %I.%I'
+                , v_parent_schema
+                , v_parent_tablename
+                , v_row.partition_schemaname
+                , v_row.partition_tablename);
+				EXECUTE v_sql;
                 v_sql := 'DROP TABLE %I.%I';
                 EXECUTE format(v_sql, v_row.partition_schemaname, v_row.partition_tablename);
                 IF v_jobmon_schema IS NOT NULL THEN
