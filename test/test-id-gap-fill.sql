@@ -3,6 +3,7 @@
     -- backfill gap in child tables, start with higher number
     -- pre-created template table with indexes
     -- old create_parent() alias
+    -- Test relopt inheritance (regular table and toast)
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true
@@ -23,6 +24,10 @@ CREATE TABLE partman_test.template_id_taptest_table (LIKE partman_test.id_taptes
 
 ALTER TABLE partman_test.id_taptest_table ADD PRIMARY KEY (col1);
 CREATE INDEX ON partman_test.id_taptest_table (col3);
+
+-- TODO Add checks that these settings are in place on child tables
+ALTER TABLE partman_test.template_id_taptest_table SET (autovacuum_vacuum_threshold = 100);
+ALTER TABLE partman_test.template_id_taptest_table SET (toast.autovacuum_vacuum_threshold = 100);
 
 -- Always create the index on the template also so that we can test excluding duplicates.
 CREATE INDEX ON partman_test.template_id_taptest_table (col3);
