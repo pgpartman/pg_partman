@@ -27,7 +27,7 @@ CREATE INDEX ON partman_test.id_taptest_table (col3);
 
 -- TODO Add checks that these settings are in place on child tables
 ALTER TABLE partman_test.template_id_taptest_table SET (autovacuum_vacuum_threshold = 100);
-ALTER TABLE partman_test.template_id_taptest_table SET (toast.autovacuum_vacuum_threshold = 100);
+ALTER TABLE partman_test.template_id_taptest_table SET (toast.autovacuum_vacuum_threshold = 120);
 
 -- Always create the index on the template also so that we can test excluding duplicates.
 CREATE INDEX ON partman_test.template_id_taptest_table (col3);
@@ -59,6 +59,61 @@ SELECT is_empty('SELECT * FROM ONLY partman_test.id_taptest_table', 'Check that 
 SELECT results_eq('SELECT count(*)::int FROM partman_test.id_taptest_table', ARRAY[9], 'Check count from parent table');
 SELECT results_eq('SELECT count(*)::int FROM partman_test.id_taptest_table_p3000000000', ARRAY[9], 'Check count from id_taptest_table_p3000000000');
 
+-- Check reloptions set for child table
+SELECT results_eq('WITH relopt AS (
+    SELECT unnest(reloptions) AS relopt FROM pg_class c
+    JOIN pg_namespace n ON c.relnamespace = n.oid
+        WHERE c.relname = ''id_taptest_table_p3000000000''
+        AND n.nspname = ''partman_test''
+)
+SELECT count(*)::int from relopt WHERE relopt = ''autovacuum_vacuum_threshold=100'''
+
+    , ARRAY[1]
+    , 'Check reloptions for id_taptest_table_p3000000000 child table'
+);
+SELECT results_eq('WITH relopt AS (
+    SELECT unnest(reloptions) AS relopt FROM pg_class c
+    JOIN pg_namespace n ON c.relnamespace = n.oid
+        WHERE c.relname = ''id_taptest_table_p3000000030''
+        AND n.nspname = ''partman_test''
+)
+SELECT count(*)::int from relopt WHERE relopt = ''autovacuum_vacuum_threshold=100'''
+
+    , ARRAY[1]
+    , 'Check reloptions for id_taptest_table_p3000000030 child table'
+);
+
+-- Check reloptions set for toast
+
+SELECT results_eq('WITH child_toast AS (
+    SELECT reltoastrelid
+    FROM pg_class c1
+    JOIN pg_namespace n ON c1.relnamespace = n.oid
+    WHERE c1.relname = ''id_taptest_table_p3000000000''
+    AND n.nspname = ''partman_test''
+), toast_relopt AS (
+    SELECT unnest(reloptions) AS relopt FROM pg_class c
+    JOIN child_toast ct ON c.oid = ct.reltoastrelid
+)
+SELECT count(*)::int from toast_relopt WHERE relopt = ''autovacuum_vacuum_threshold=120'''
+    , ARRAY[1]
+    , 'Check reloptions for id_taptest_table_p3000000000 toast table'
+);
+SELECT results_eq('WITH child_toast AS (
+    SELECT reltoastrelid
+    FROM pg_class c1
+    JOIN pg_namespace n ON c1.relnamespace = n.oid
+    WHERE c1.relname = ''id_taptest_table_p3000000040''
+    AND n.nspname = ''partman_test''
+), toast_relopt AS (
+    SELECT unnest(reloptions) AS relopt FROM pg_class c
+    JOIN child_toast ct ON c.oid = ct.reltoastrelid
+)
+SELECT count(*)::int from toast_relopt WHERE relopt = ''autovacuum_vacuum_threshold=120'''
+    , ARRAY[1]
+    , 'Check reloptions for id_taptest_table_p3000000040 toast table'
+);
+
 SELECT run_maintenance();
 INSERT INTO partman_test.id_taptest_table (col1, col4) VALUES (generate_series(3000000010,3000000025), 'stuff'||generate_series(3000000010,3000000025));
 -- Run again to make new partition based on latest data
@@ -85,6 +140,32 @@ SELECT has_table('partman_test', 'id_taptest_table_p3000000070', 'Check id_tapte
 SELECT hasnt_table('partman_test', 'id_taptest_table_p3000000080', 'Check id_taptest_table_p3000000080 doesn''t exists yet');
 SELECT col_is_pk('partman_test', 'id_taptest_table_p3000000060', ARRAY['col1'], 'Check for primary key in id_taptest_table_p3000000060');
 SELECT col_is_pk('partman_test', 'id_taptest_table_p3000000070', ARRAY['col1'], 'Check for primary key in id_taptest_table_p3000000070');
+
+SELECT results_eq('WITH relopt AS (
+    SELECT unnest(reloptions) AS relopt FROM pg_class c
+    JOIN pg_namespace n ON c.relnamespace = n.oid
+        WHERE c.relname = ''id_taptest_table_p3000000070''
+        AND n.nspname = ''partman_test''
+)
+SELECT count(*)::int from relopt WHERE relopt = ''autovacuum_vacuum_threshold=100'''
+
+    , ARRAY[1]
+    , 'Check reloptions for id_taptest_table_p3000000070 child table'
+);
+SELECT results_eq('WITH child_toast AS (
+    SELECT reltoastrelid
+    FROM pg_class c1
+    JOIN pg_namespace n ON c1.relnamespace = n.oid
+    WHERE c1.relname = ''id_taptest_table_p3000000070''
+    AND n.nspname = ''partman_test''
+), toast_relopt AS (
+    SELECT unnest(reloptions) AS relopt FROM pg_class c
+    JOIN child_toast ct ON c.oid = ct.reltoastrelid
+)
+SELECT count(*)::int from toast_relopt WHERE relopt = ''autovacuum_vacuum_threshold=120'''
+    , ARRAY[1]
+    , 'Check reloptions for id_taptest_table_p3000000070 toast table'
+);
 
 DROP TABLE partman_test.id_taptest_table_p3000000020;
 DROP TABLE partman_test.id_taptest_table_p3000000040;

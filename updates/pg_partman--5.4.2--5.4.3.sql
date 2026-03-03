@@ -627,7 +627,7 @@ WHERE c.oid = v_template_oid;
 FOR v_relopt IN
     SELECT unnest(reloptions) as value
     FROM pg_catalog.pg_class
-    WHERE oid = v_template_oid
+    WHERE oid = v_toast_table_oid
 LOOP
     v_sql := format('ALTER TABLE %I.%I SET (toast.%s)'
                     , v_child_schema
