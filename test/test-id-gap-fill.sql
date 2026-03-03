@@ -11,7 +11,7 @@
 BEGIN;
 SELECT set_config('search_path','partman, public',false);
 
-SELECT plan(41);
+SELECT plan(47);
 CREATE SCHEMA partman_test;
 
 CREATE TABLE partman_test.id_taptest_table (
