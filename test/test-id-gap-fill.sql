@@ -25,8 +25,7 @@ CREATE TABLE partman_test.template_id_taptest_table (LIKE partman_test.id_taptes
 ALTER TABLE partman_test.id_taptest_table ADD PRIMARY KEY (col1);
 CREATE INDEX ON partman_test.id_taptest_table (col3);
 
--- TODO Add checks that these settings are in place on child tables
-ALTER TABLE partman_test.template_id_taptest_table SET (autovacuum_vacuum_threshold = 100);
+ALTER TABLE partman_test.template_id_taptest_table SET (fillfactor = 75);
 ALTER TABLE partman_test.template_id_taptest_table SET (toast.autovacuum_vacuum_threshold = 120);
 
 -- Always create the index on the template also so that we can test excluding duplicates.
@@ -66,7 +65,7 @@ SELECT results_eq('WITH relopt AS (
         WHERE c.relname = ''id_taptest_table_p3000000000''
         AND n.nspname = ''partman_test''
 )
-SELECT count(*)::int from relopt WHERE relopt = ''autovacuum_vacuum_threshold=100'''
+SELECT count(*)::int from relopt WHERE relopt = ''fillfactor=75'''
 
     , ARRAY[1]
     , 'Check reloptions for id_taptest_table_p3000000000 child table'
@@ -77,7 +76,7 @@ SELECT results_eq('WITH relopt AS (
         WHERE c.relname = ''id_taptest_table_p3000000030''
         AND n.nspname = ''partman_test''
 )
-SELECT count(*)::int from relopt WHERE relopt = ''autovacuum_vacuum_threshold=100'''
+SELECT count(*)::int from relopt WHERE relopt = ''fillfactor=75'''
 
     , ARRAY[1]
     , 'Check reloptions for id_taptest_table_p3000000030 child table'
@@ -147,7 +146,7 @@ SELECT results_eq('WITH relopt AS (
         WHERE c.relname = ''id_taptest_table_p3000000070''
         AND n.nspname = ''partman_test''
 )
-SELECT count(*)::int from relopt WHERE relopt = ''autovacuum_vacuum_threshold=100'''
+SELECT count(*)::int from relopt WHERE relopt = ''fillfactor=75'''
 
     , ARRAY[1]
     , 'Check reloptions for id_taptest_table_p3000000070 child table'
