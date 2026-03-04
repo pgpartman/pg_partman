@@ -105,16 +105,20 @@ IF p_table_exists THEN
     -- Look at actual partition bounds in catalog and pull values from there.
     IF v_partstrat = 'r' THEN
         SELECT (regexp_match(pg_get_expr(c.relpartbound, c.oid, true)
-            , $REGEX$\(([^)]+)\) TO \(([^)]+)\)$REGEX$))[1]::text
-        INTO v_start_string
+            , $REGEX$\(([^)]+)\) TO \(([^)]+)\)$REGEX$))[1]::text,
+(regexp_match(pg_get_expr(c.relpartbound, c.oid, true)
+            , $REGEX$\(([^)]+)\) TO \(([^)]+)\)$REGEX$))[2]::text
+        INTO v_start_string, child_end_time
         FROM pg_catalog.pg_class c
         JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
         WHERE c.relname = v_child_tablename
         AND n.nspname = v_child_schemaname;
     ELSIF v_partstrat = 'l' THEN
         SELECT (regexp_match(pg_get_expr(c.relpartbound, c.oid, true)
-            , $REGEX$FOR VALUES IN \(([^)]+)\)$REGEX$))[1]::text
-        INTO v_start_string
+            , $REGEX$FOR VALUES IN \(([^)]+)\)$REGEX$))[1]::text,
+(regexp_match(pg_get_expr(c.relpartbound, c.oid, true)
+            , $REGEX$FOR VALUES IN \(([^)]+)\)$REGEX$))[2]::text
+        INTO v_start_string, child_end_time
         FROM pg_catalog.pg_class c
         JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
         WHERE c.relname = v_child_tablename
@@ -159,8 +163,6 @@ IF v_control_type IN ('time', 'text', 'uuid') OR (v_control_type = 'id' AND v_ep
     ELSE
         RAISE EXCEPTION 'Unexpected code path in show_partition_info(). Please report this bug with the configuration that lead to it.';
     END IF;
-
-    child_end_time := (child_start_time + v_partition_interval::interval);
 
     SELECT to_char(base_timestamp, datetime_string)
     INTO suffix
