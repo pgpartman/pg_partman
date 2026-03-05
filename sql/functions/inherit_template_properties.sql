@@ -25,6 +25,7 @@ v_template_schemaname   text;
 v_template_table        text;
 v_template_tablename    name;
 v_template_unlogged     char;
+v_toast_table_oid       oid;
 
 BEGIN
 /*
@@ -212,6 +213,26 @@ LOOP
     RAISE DEBUG 'inherit_template_properties: Set relopts: %', v_sql;
     EXECUTE v_sql;
 END LOOP;
+
+-- Get toast table options
+SELECT reltoastrelid INTO v_toast_table_oid
+FROM pg_catalog.pg_class c
+JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+WHERE c.oid = v_template_oid;
+
+FOR v_relopt IN
+    SELECT unnest(reloptions) as value
+    FROM pg_catalog.pg_class
+    WHERE oid = v_toast_table_oid
+LOOP
+    v_sql := format('ALTER TABLE %I.%I SET (toast.%s)'
+                    , v_child_schema
+                    , v_child_tablename
+                    , v_relopt.value);
+    RAISE DEBUG 'inherit_template_properties: Set toast relopts: %', v_sql;
+    EXECUTE v_sql;
+END LOOP;
+
 RETURN true;
 
 END
