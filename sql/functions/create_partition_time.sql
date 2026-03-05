@@ -195,6 +195,8 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
     RAISE DEBUG 'create_partition_time v_sql: %', v_sql;
     EXECUTE v_sql;
 
+    PERFORM @extschema@.inherit_parent_properties(v_parent_schema, v_parent_tablename, v_partition_name);
+
     IF v_template_table IS NOT NULL THEN
         PERFORM @extschema@.inherit_template_properties(p_parent_table, v_parent_schema, v_partition_name);
     END IF;

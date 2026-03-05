@@ -620,6 +620,8 @@ IF p_default_table THEN
 
     PERFORM @extschema@.inherit_replica_identity(v_parent_schemaname, v_parent_tablename, v_default_partition);
 
+    PERFORM @extschema@.inherit_parent_properties(v_parent_schemaname, v_parent_tablename, v_default_partition);
+
     -- Manage template inherited properties
     IF v_template_tablename IS NOT NULL THEN
         PERFORM @extschema@.inherit_template_properties(p_parent_table, v_parent_schemaname, v_default_partition);

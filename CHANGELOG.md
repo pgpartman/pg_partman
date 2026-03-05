@@ -3,6 +3,7 @@
 NEW FEATURES
 ------------
  - Allow retention system to properly handle dropping child tables when the partition table is referenced by another table. Child tables must be detached first before dropping, so a new flag in the `part_config` table has been added: `detach_before_drop`. Set this value to true when using retention on a partition set referenced by another table. Note that all data in the referencing table must still be removed from that table first before the child table can be detached or dropped.
+ - Inherit per column statistic target from the parent table
 
 
 5.4.3
