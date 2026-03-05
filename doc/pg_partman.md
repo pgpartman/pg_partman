@@ -304,7 +304,7 @@ RETURNS bigint
 
 <a id="partition_data_id"></a>
 ```sql
-partition_data_id(p_parent_table text
+partition_data_id(
     p_parent_table text
     , p_batch_count int DEFAULT 1
     , p_batch_interval bigint DEFAULT NULL

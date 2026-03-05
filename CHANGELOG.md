@@ -5,6 +5,17 @@ NEW FEATURES
  - Allow retention system to properly handle dropping child tables when the partition table is referenced by another table. Child tables must be detached first before dropping, so a new flag in the `part_config` table has been added: `detach_before_drop`. Set this value to true when using retention on a partition set referenced by another table. Note that all data in the referencing table must still be removed from that table first before the child table can be detached or dropped.
 
 
+5.4.3
+=====
+NEW FEATURES
+------------
+ - Inherit the toast table relation options from the template table
+
+BUGFIXES
+--------
+ - Version 5.4.2 did not include the proper pg_partman version in the extension control file. If you already had version 5.4.1 installed, then it would not update properly to version 5.4.2. The changes for version 5.4.2 have also been included in the update file for 5.4.3 to ensure they are properly applied in this case. If you installed version 5.4.2 from scratch, PostgreSQL would report that version 5.4.1 was installed even though the extension code for 5.4.2 was properly installed. Installing version 5.4.3 should resolve all issues around this bug.
+
+
 5.4.2
 =====
 BUGFIXES
