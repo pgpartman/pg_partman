@@ -44,7 +44,8 @@ SELECT bag_eq(
     'maintenance_order',
     'retention_keep_publication',
     'maintenance_last_run',
-    'async_partitioning_in_progress'
+    'async_partitioning_in_progress',
+    'detach_before_drop'
   ]::TEXT[],
   'When adding a new column to part_config please ensure it is also added to the dump_partitioned_table_definition function and the tests in this file'
 );
@@ -98,7 +99,8 @@ UPDATE partman.part_config SET
 	constraint_valid = ''f'',
 	ignore_default_data = ''t'',
 	maintenance_order = NULL,
-	retention_keep_publication = ''f''
+	retention_keep_publication = ''f'',
+	detach_before_drop = ''f''
 WHERE parent_table = ''partman_test.declarative_objects'';'
 );
 
