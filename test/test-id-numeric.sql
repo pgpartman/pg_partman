@@ -1,14 +1,14 @@
 -- ########## NUMERIC TESTS ##########
 -- Additional tests:
     -- pre-created template table and passing to create_partition. Should allow indexes to be made for initial children.
-
+    -- Test per column statistics target inheritance from parent table
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true
 
 BEGIN;
 SELECT set_config('search_path','partman, public',false);
 
-SELECT plan(47);
+SELECT plan(49);
 CREATE SCHEMA partman_test;
 
 CREATE TABLE partman_test.id_taptest_table
@@ -17,6 +17,9 @@ CREATE TABLE partman_test.id_taptest_table
         , col3 timestamptz DEFAULT now()
         , col4 text)
     PARTITION BY RANGE (col1);
+ALTER TABLE partman_test.id_taptest_table
+    ALTER COLUMN col1 SET STATISTICS 1000,
+    ALTER COLUMN col4 SET STATISTICS 0;
 CREATE TABLE partman_test.undo_taptest (LIKE partman_test.id_taptest_table INCLUDING ALL);
 -- Template table
 CREATE TABLE partman_test.template_id_taptest_table (LIKE partman_test.id_taptest_table);
@@ -50,6 +53,25 @@ SELECT is_indexed('partman_test', 'id_taptest_table_default', 'col4', 'Check tha
 SELECT is_empty('SELECT * FROM ONLY partman_test.id_taptest_table_default', 'Check that default table has no data');
 SELECT results_eq('SELECT count(*)::int FROM partman_test.id_taptest_table', ARRAY[90], 'Check count from parent table');
 SELECT results_eq('SELECT count(*)::int FROM partman_test.id_taptest_table_p0', ARRAY[90], 'Check count from id_taptest_table_p0');
+
+SELECT results_eq('WITH stats_targets AS(
+    SELECT c.relname, string_agg(
+        format(''%I=%s'', a.attname, a.attstattarget::integer), '', '' ORDER BY a.attname
+    ) AS stat_targets
+    FROM pg_catalog.pg_attribute a
+    JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
+    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+    WHERE a.attnum > 0
+    AND NOT a.attisdropped
+    AND a.attstattarget is NOT NULL
+    AND c.relname = ''id_taptest_table_default''
+    AND n.nspname = ''partman_test''
+    group by c.relname
+)
+SELECT count(*)::int from stats_targets WHERE stat_targets = ''col1=1000, col4=0'''
+    , ARRAY[1]
+    , 'Check that column statistics target was inherited to default partitions'
+);
 
 SELECT run_maintenance();
 INSERT INTO partman_test.id_taptest_table (col1, col4) VALUES (generate_series(91.5,200.5), 'stuff'||generate_series(91.5,200.5));
@@ -113,6 +135,25 @@ SELECT has_table('partman_test', 'id_taptest_table_p700', 'Check id_taptest_tabl
 SELECT is_empty('SELECT * FROM partman_test.id_taptest_table_p700', 'Check child table had its data removed id_taptest_table_p700');
 
 SELECT hasnt_table('partman_test', 'template_id_taptest_table', 'Check that template table was dropped');
+
+SELECT results_eq('WITH stats_targets AS(
+    SELECT c.relname, string_agg(
+        format(''%I=%s'', a.attname, a.attstattarget::integer), '', '' ORDER BY a.attname
+    ) AS stat_targets
+    FROM pg_catalog.pg_attribute a
+    JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
+    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+    WHERE a.attnum > 0
+    AND NOT a.attisdropped
+    AND a.attstattarget is NOT NULL
+    AND c.relname like (''id_taptest_table_%'')
+    AND n.nspname = ''partman_test''
+    group by c.relname
+)
+SELECT count(*)::int from stats_targets WHERE stat_targets = ''col1=1000, col4=0'''
+    , ARRAY[5]
+    , 'Check that column statistics target was inherited to all child partitions'
+);
 
 DROP PUBLICATION partman_test_pub;
 

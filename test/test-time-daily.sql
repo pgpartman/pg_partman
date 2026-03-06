@@ -4,6 +4,7 @@
     -- check that maintenance catches up if tables are missing
     -- Test using default template table. Initial child tables will have no indexes or primary keys. New tables after template has indexes added should.
     -- Test for native FK inheritance
+    -- Test that column statistics target is inherited from parent tables
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true
@@ -11,7 +12,7 @@
 BEGIN;
 SELECT set_config('search_path','partman, public',false);
 
-SELECT plan(221);
+SELECT plan(223);
 
 CREATE SCHEMA partman_test;
 CREATE SCHEMA partman_retention_test;
@@ -28,6 +29,9 @@ CREATE TABLE partman_test.time_taptest_table
         , col3 timestamptz NOT NULL DEFAULT now()
         , CONSTRAINT fk_test FOREIGN KEY (col2) REFERENCES partman_test.fk_test_reference(col2) )
     PARTITION BY RANGE (col3);
+ALTER TABLE partman_test.time_taptest_table
+    ALTER COLUMN col1 SET STATISTICS 1000,
+    ALTER COLUMN col2 SET STATISTICS 0;
 CREATE TABLE partman_test.undo_taptest (LIKE partman_test.time_taptest_table INCLUDING ALL);
 GRANT SELECT,INSERT,UPDATE ON partman_test.time_taptest_table TO partman_basic;
 GRANT ALL ON partman_test.time_taptest_table TO partman_revoke;
@@ -151,6 +155,25 @@ SELECT is_empty('SELECT * FROM ONLY partman_test.time_taptest_table', 'Check tha
 SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table', ARRAY[10], 'Check count from parent table');
 SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'),
     ARRAY[10], 'Check count from time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'));
+
+SELECT results_eq('WITH stats_targets AS(
+    SELECT c.relname, string_agg(
+        format(''%I=%s'', a.attname, a.attstattarget::integer), '', '' ORDER BY a.attname
+    ) AS stat_targets
+    FROM pg_catalog.pg_attribute a
+    JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
+    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+    WHERE a.attnum > 0
+    AND NOT a.attisdropped
+    AND a.attstattarget is NOT NULL
+    AND c.relname = ''time_taptest_table_default''
+    AND n.nspname = ''partman_test''
+    group by c.relname
+)
+SELECT count(*)::int from stats_targets WHERE stat_targets = ''col1=1000, col2=0'''
+    , ARRAY[1]
+    , 'Check that column statistics target was inherited to default partitions'
+);
 
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON partman_test.time_taptest_table FROM partman_revoke;
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(11,20), CURRENT_TIMESTAMP + '1 day'::interval);
@@ -571,6 +594,26 @@ SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTA
     'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'9 days'::interval, 'YYYYMMDD')||' does exist');
 SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'10 days'::interval, 'YYYYMMDD'),
     'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'10 days'::interval, 'YYYYMMDD')||' does not exist');
+
+
+SELECT results_eq('WITH stats_targets AS(
+    SELECT c.relname, string_agg(
+        format(''%I=%s'', a.attname, a.attstattarget::integer), '', '' ORDER BY a.attname
+    ) AS stat_targets
+    FROM pg_catalog.pg_attribute a
+    JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
+    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+    WHERE a.attnum > 0
+    AND NOT a.attisdropped
+    AND a.attstattarget is NOT NULL
+    AND c.relname like (''time_taptest_table_%'')
+    AND n.nspname = ''partman_test''
+    group by c.relname
+)
+SELECT count(*)::int from stats_targets WHERE stat_targets = ''col1=1000, col2=0'''
+    , ARRAY[15]
+    , 'Check that column statistics target was inherited to all child partitions'
+);
 
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(31,37), CURRENT_TIMESTAMP + '4 days'::interval);
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(101,122), CURRENT_TIMESTAMP + '5 days'::interval);

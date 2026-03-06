@@ -661,6 +661,47 @@ END
 $$;
 
 
+CREATE FUNCTION @extschema@.inherit_parent_properties(p_parent_schema text, p_parent_tablename text, p_child_tablename text, p_child_schema text DEFAULT NULL) RETURNS void
+    LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
+    AS $$
+DECLARE
+
+v_sql   text;
+
+BEGIN
+/*
+ * Function to inherit properties like per column statistics target that exist on a given parent to the given child table
+ */
+
+p_child_schema := coalesce(p_child_schema, p_parent_schema);
+
+SELECT string_agg(
+    format('ALTER COLUMN %I SET STATISTICS %s', a.attname, a.attstattarget::integer),
+    ', '
+)
+INTO v_sql
+FROM pg_catalog.pg_attribute a
+JOIN pg_catalog.pg_class c ON a.attrelid = c.oid
+JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+WHERE a.attnum > 0
+AND NOT a.attisdropped
+AND c.relname = p_parent_tablename::name
+AND n.nspname= p_parent_schema::name
+AND a.attstattarget >= 0;
+
+IF v_sql IS NOT NULL THEN
+    v_sql := format('ALTER TABLE %I.%I '
+                , p_child_schema
+                , p_child_tablename) || v_sql;
+    RAISE DEBUG 'inherit_parent_properties: Set column statistics target: %', v_sql;
+    EXECUTE v_sql;
+END IF;
+
+END
+$$;
+
+
 CREATE OR REPLACE FUNCTION @extschema@.create_partition(
     p_parent_table text
     , p_control text
@@ -1286,6 +1327,8 @@ IF p_default_table THEN
 
     PERFORM @extschema@.inherit_replica_identity(v_parent_schemaname, v_parent_tablename, v_default_partition);
 
+    PERFORM @extschema@.inherit_parent_properties(v_parent_schemaname, v_parent_tablename, v_default_partition);
+
     -- Manage template inherited properties
     IF v_template_tablename IS NOT NULL THEN
         PERFORM @extschema@.inherit_template_properties(p_parent_table, v_parent_schemaname, v_default_partition);
@@ -1564,6 +1607,8 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
 
     RAISE DEBUG 'create_partition_id v_sql: %', v_sql;
     EXECUTE v_sql;
+
+    PERFORM @extschema@.inherit_parent_properties(v_parent_schema, v_parent_tablename, v_partition_name);
 
     IF v_template_table IS NOT NULL THEN
         PERFORM @extschema@.inherit_template_properties(p_parent_table, v_parent_schema, v_partition_name);
@@ -1931,6 +1976,8 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
 
     RAISE DEBUG 'create_partition_time v_sql: %', v_sql;
     EXECUTE v_sql;
+
+    PERFORM @extschema@.inherit_parent_properties(v_parent_schema, v_parent_tablename, v_partition_name);
 
     IF v_template_table IS NOT NULL THEN
         PERFORM @extschema@.inherit_template_properties(p_parent_table, v_parent_schema, v_partition_name);
