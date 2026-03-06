@@ -661,7 +661,7 @@ END
 $$;
 
 
-CREATE OR REPLACE FUNCTION @extschema@.inherit_parent_properties(p_parent_schema text, p_parent_tablename text, p_child_tablename text, p_child_schema text DEFAULT NULL) RETURNS void
+CREATE FUNCTION @extschema@.inherit_parent_properties(p_parent_schema text, p_parent_tablename text, p_child_tablename text, p_child_schema text DEFAULT NULL) RETURNS void
     LANGUAGE plpgsql
     SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
