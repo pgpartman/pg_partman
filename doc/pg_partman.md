@@ -596,6 +596,7 @@ apply_constraints(
     , p_child_table text DEFAULT NULL
     , p_analyze boolean DEFAULT FALSE
     , p_job_id bigint DEFAULT NULL
+    , p_force_not_valid boolean DEFAULT false
 )
 RETURNS void
 ```
@@ -603,12 +604,14 @@ RETURNS void
  * Apply constraints to child tables in a given partition set for the columns that are configured (constraint names are all prefixed with "partmanconstr_").
  * Note that this does not need to be called manually to maintain custom constraints. The creation of new partitions automatically manages adding constraints to old child tables.
  * Columns that are to have constraints are set in the **part_config** table **constraint_cols** array column or during creation with the parameter to `create_partition()`.
- * If the `pg_partman` constraints already exists on the child table, the function will cleanly skip over the ones that exist and not create duplicates.
+ * If the `pg_partman` constraints already exists on the child table, the function will cleanly skip over the ones that exist and not create duplicates. If `constraint_valid` is set to true in the config and an existing constraint is NOT VALID, it will be validated using `ALTER TABLE ... VALIDATE CONSTRAINT` which only requires a `SHARE UPDATE EXCLUSIVE` lock (compatible with concurrent DML).
  * If the column(s) given contain all NULL values, no constraint will be made.
  * If the child table parameter is given, only that child table will have constraints applied.
  * If the child table parameter is NOT given, constraints are placed on the last child table older than the `optimize_constraint` value. For example, if the optimize_constraint value is 30, then constraints will be placed on the child table that is 31 back from the current partition (as long as partition pre-creation has been kept up to date).
  * If you need to apply constraints to all older child tables, use the `reapply_constraints_proc` procedure. This method has options to make constraint application easier with as little impact on performance as possible.
  * The p_job_id parameter is optional. It's for internal use and allows job logging to be consolidated into the original job that called this function if applicable.
+ * `p_force_not_valid` - When set to true, overrides the `constraint_valid` config value and forces all new constraints to be created as NOT VALID regardless of the part_config setting. Used internally by `reapply_constraints_proc` in low-lock mode.
+ * When multiple constraint columns are configured, min/max value scans for all columns are performed first (under `AccessShareLock` only), and then all constraint DDL statements are executed together. This minimizes the duration of `AccessExclusiveLock` when adding constraints to partitions with multiple constraint columns.
 
 
 <a id="drop_constraints"></a>
@@ -636,6 +639,7 @@ reapply_constraints_proc(
     , p_analyze boolean DEFAULT true
     , p_wait int DEFAULT 0
     , p_dryrun boolean DEFAULT false
+    , p_low_lock boolean DEFAULT false
 )
 ```
 
@@ -648,6 +652,7 @@ reapply_constraints_proc(
  * `p_analyze` - Boolean parameter to control whether an ANALYZE is run on the partition set after constraint completion. Defaults to true.
  * `p_wait` - Wait the given number of seconds after a table has had its constraints dropped or applied before moving on to the next.
  * `p_dryrun` - Do not actually apply the drop/apply constraint commands when this procedure is run. Just outputs which tables the commands will be applied to as NOTICEs.
+ * `p_low_lock` - When set to true, applies constraints in a two-phase approach per partition to minimize locking impact on concurrent operations. For each partition: first adds constraints as NOT VALID (brief `AccessExclusiveLock` for instant DDL only), commits to release the lock, then validates the constraints using `SHARE UPDATE EXCLUSIVE` which is compatible with concurrent reads and writes. This is particularly useful for large, actively-used partition sets where acquiring and holding `AccessExclusiveLock` during constraint validation would block production traffic. Note that this requires `constraint_valid` to be set to true in the part_config table (the default) for validation to occur in the second phase.
 
 
 <a id="reapply_privileges"></a>
