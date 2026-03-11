@@ -3,7 +3,7 @@
 
 SELECT set_config('search_path','partman, public',false);
 
-SELECT plan(17);
+SELECT plan(16);
 
 -- Verify constraints were applied via low-lock mode and are VALID
 SELECT col_has_check('partman_test', 'time_taptest_table_p'||to_char(date_trunc('week',CURRENT_TIMESTAMP)-'4 weeks'::interval, 'YYYYMMDD'), 'col1'
