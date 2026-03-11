@@ -122,6 +122,13 @@ if [ "$MODE" = "--only-low-lock" ] || [ -z "$MODE" ]; then
         "CALL partman.reapply_constraints_proc('partman_test.time_taptest_table', p_drop_constraints := true, p_apply_constraints := true, p_low_lock := true);" \
         "$TEST_DIR/test_procedure/test-time-procedure-weekly-low-lock-part2.sql" \
     || FAILURES=$((FAILURES + 1))
+
+    run_procedure_test \
+        "reapply_constraints_proc (low-lock weekly, multi-column)" \
+        "$TEST_DIR/test_procedure/test-time-procedure-weekly-low-lock-multicol-part1.sql" \
+        "CALL partman.reapply_constraints_proc('partman_test.time_taptest_table', p_drop_constraints := true, p_apply_constraints := true, p_low_lock := true);" \
+        "$TEST_DIR/test_procedure/test-time-procedure-weekly-low-lock-multicol-part2.sql" \
+    || FAILURES=$((FAILURES + 1))
 fi
 
 if [ "$MODE" = "--all-top-level" ]; then
