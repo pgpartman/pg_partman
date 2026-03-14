@@ -190,6 +190,8 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
     WHERE sub_parent = p_parent_table;
     IF v_sub_partition_type = 'range' THEN
         v_sql :=  format('%s PARTITION BY RANGE (%I) ', v_sql, v_sub_control);
+    ELSIF v_sub_partition_type = 'list' THEN
+        v_sql := format('%s PARTITION BY LIST (%I) ', v_sql, v_sub_control);
     END IF;
 
     RAISE DEBUG 'create_partition_time v_sql: %', v_sql;
