@@ -28,6 +28,7 @@ CREATE TABLE @extschema@.part_config (
     , retention_keep_publication boolean NOT NULL DEFAULT false
     , maintenance_last_run timestamptz
     , async_partitioning_in_progress text
+    , partition_timezone text
     , CONSTRAINT part_config_parent_table_pkey PRIMARY KEY (parent_table)
     , CONSTRAINT positive_premake_check CHECK (premake > 0)
 );

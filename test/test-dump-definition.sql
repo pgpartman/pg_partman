@@ -44,7 +44,8 @@ SELECT bag_eq(
     'maintenance_order',
     'retention_keep_publication',
     'maintenance_last_run',
-    'async_partitioning_in_progress'
+    'async_partitioning_in_progress',
+    'partition_timezone'
   ]::TEXT[],
   'When adding a new column to part_config please ensure it is also added to the dump_partitioned_table_definition function and the tests in this file'
 );
@@ -58,8 +59,10 @@ CREATE TABLE partman_test.declarative_objects(
 ) PARTITION BY RANGE (created_at);
 SELECT create_partition('partman_test.declarative_objects', 'created_at', '1 week', p_premake := 2, p_start_partition := (NOW() - '4 weeks'::INTERVAL)::TEXT);
 -- Update config options you can't set at initial creation.
+-- partition_timezone is pinned here so the dump output is deterministic
+-- regardless of the session timezone the test runs in.
 UPDATE part_config
-SET retention='5 weeks', retention_keep_table = 'f', infinite_time_partitions = 't', constraint_valid = 'f', inherit_privileges = 't'
+SET retention='5 weeks', retention_keep_table = 'f', infinite_time_partitions = 't', constraint_valid = 'f', inherit_privileges = 't', partition_timezone = 'UTC'
 WHERE parent_table = 'partman_test.declarative_objects';
 
 -- Test output "visually" (with p_ignore_template_table = true).
@@ -83,7 +86,8 @@ E'SELECT partman.create_partition(
 	p_template_table := ''partman.template_partman_test_declarative_objects'',
 	p_jobmon := ''t'',
 	p_date_trunc_interval := NULL,
-	p_control_not_null := ''t''
+	p_control_not_null := ''t'',
+	p_timezone := ''UTC''
 );
 UPDATE partman.part_config SET
 	optimize_constraint = 30,
