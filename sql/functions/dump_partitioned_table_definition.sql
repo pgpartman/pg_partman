@@ -34,6 +34,7 @@ DECLARE
     v_date_trunc_interval text;
     v_maintenance_order int;
     v_retention_keep_publication boolean;
+    v_partition_timezone text;
     v_parent_schemaname text;
     v_parent_tablename text;
     v_default_exists boolean;
@@ -65,7 +66,8 @@ BEGIN
         pc.ignore_default_data,
         pc.date_trunc_interval,
         pc.maintenance_order,
-        pc.retention_keep_publication
+        pc.retention_keep_publication,
+        pc.partition_timezone
     INTO
         v_parent_table,
         v_control,
@@ -90,7 +92,8 @@ BEGIN
         v_ignore_default_data,
         v_date_trunc_interval,
         v_maintenance_order,
-        v_retention_keep_publication
+        v_retention_keep_publication,
+        v_partition_timezone
     FROM @extschema@.part_config pc
     WHERE pc.parent_table = p_parent_table;
 
@@ -147,7 +150,8 @@ E'SELECT @extschema@.create_partition(
 \tp_template_table := %L,
 \tp_jobmon := %L,
 \tp_date_trunc_interval := %L,
-\tp_control_not_null := %L
+\tp_control_not_null := %L,
+\tp_timezone := %L
 );',
             v_parent_table,
             v_control,
@@ -161,7 +165,8 @@ E'SELECT @extschema@.create_partition(
             v_template_table,
             v_jobmon,
             v_date_trunc_interval,
-            v_notnull
+            v_notnull,
+            v_partition_timezone
         );
 
     v_update_part_config_definition := format(

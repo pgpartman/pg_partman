@@ -48,6 +48,8 @@ v_template_table                text;
 v_time                          timestamptz;
 v_partition_text_start          text;
 v_partition_text_end            text;
+v_partition_timezone            text;
+v_timezone                      text;
 
 BEGIN
 /*
@@ -62,6 +64,7 @@ SELECT control
     , datetime_string
     , template_table
     , inherit_privileges
+    , partition_timezone
 INTO v_control
     , v_time_encoder
     , v_partition_interval
@@ -70,12 +73,18 @@ INTO v_control
     , v_datetime_string
     , v_template_table
     , v_inherit_privileges
+    , v_partition_timezone
 FROM @extschema@.part_config
 WHERE parent_table = p_parent_table;
 
 IF NOT FOUND THEN
     RAISE EXCEPTION 'ERROR: no config found for %', p_parent_table;
 END IF;
+
+-- Boundary end and child name suffix are computed in the set's own timezone so
+-- they stay aligned regardless of the session timezone. NULL falls back to the
+-- session timezone, preserving historical behavior.
+v_timezone := COALESCE(v_partition_timezone, current_setting('TimeZone'));
 
 SELECT n.nspname
     , c.relname
@@ -128,7 +137,7 @@ RAISE DEBUG 'create_partition_time: v_partition_expression: %', v_partition_expr
 FOREACH v_time IN ARRAY p_partition_times LOOP
     v_partition_timestamp_start := v_time;
     BEGIN
-        v_partition_timestamp_end := v_time + v_partition_interval;
+        v_partition_timestamp_end := (v_time AT TIME ZONE v_timezone + v_partition_interval) AT TIME ZONE v_timezone;
     EXCEPTION WHEN datetime_field_overflow THEN
         RAISE WARNING 'Attempted partition time interval is outside PostgreSQL''s supported time range.
             Child partition creation after time % skipped', v_time;
@@ -150,7 +159,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
     END IF;
 
     -- This suffix generation code is in partition_data_time() as well
-    v_partition_suffix := to_char(v_time, v_datetime_string);
+    v_partition_suffix := to_char(v_time AT TIME ZONE v_timezone, v_datetime_string);
     v_partition_name := @extschema@.check_name_length(v_parent_tablename, v_partition_suffix, TRUE);
     -- Check if child exists.
     SELECT count(*) INTO v_exists

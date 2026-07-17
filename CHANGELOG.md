@@ -1,3 +1,14 @@
+5.4.4
+=====
+BUGFIXES
+--------
+ - Fix time-based partition boundaries drifting when `run_maintenance()` is run from a session timezone different from the one the partition set was created in (e.g. a set aligned to a non-UTC timezone maintained from a UTC client such as DataGrip). Timestamptz boundary math is now done in the partition set's own timezone. A new `part_config.partition_timezone` column records the timezone at creation time (defaults to the creating session's timezone); existing sets with a NULL value keep the previous session-timezone behavior until the column is set. (Github Issue #865)
+
+NEW FEATURES
+------------
+ - `create_parent()` / `create_partition()` accept a new optional `p_timezone` parameter to explicitly set the timezone a time-based partition set is aligned to.
+
+
 5.4.3
 =====
 NEW FEATURES

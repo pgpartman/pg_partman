@@ -64,6 +64,7 @@ v_sub_timestamp_max             timestamptz;
 v_sub_timestamp_max_suffix      timestamptz;
 v_sub_timestamp_min             timestamptz;
 v_tables_list_sql               text;
+v_timezone                      text;
 
 BEGIN
 /*
@@ -131,6 +132,7 @@ v_tables_list_sql := 'SELECT parent_table
                 , maintenance_order
                 , date_trunc_interval
                 , async_partitioning_in_progress
+                , partition_timezone
             FROM @extschema@.part_config
             WHERE undo_in_progress = false';
 
@@ -219,6 +221,12 @@ LOOP
     END;
     RAISE DEBUG 'run_maint: v_partition_expression: %', v_partition_expression;
 
+    -- All timestamptz boundary math below is done in the partition set's own
+    -- timezone so boundaries stay aligned no matter which session timezone
+    -- maintenance is invoked from. A NULL partition_timezone falls back to the
+    -- session timezone, preserving the historical behavior.
+    v_timezone := COALESCE(v_row.partition_timezone, current_setting('TimeZone'));
+
     SELECT partition_tablename INTO v_last_partition FROM @extschema@.show_partitions(v_row.parent_table, 'DESC') LIMIT 1;
     RAISE DEBUG 'run_maint: parent_table: %, v_last_partition: %', v_row.parent_table, v_last_partition;
 
@@ -239,7 +247,7 @@ LOOP
             -- Need to properly truncate the interval and account for custom date truncation
             SELECT base_timestamp
             INTO v_last_partition_timestamp
-            FROM @extschema@.calculate_time_partition_info(v_row.partition_interval::interval, v_last_partition_timestamp, v_row.date_trunc_interval);
+            FROM @extschema@.calculate_time_partition_info(v_row.partition_interval::interval, v_last_partition_timestamp, v_row.date_trunc_interval, v_timezone);
         END IF;
 
         -- Must be reset to null otherwise if the next partition set in the loop is empty, the previous partition set's value could be used
@@ -338,7 +346,10 @@ LOOP
                 EXIT;
             END IF;
             BEGIN
-                v_next_partition_timestamp := v_next_partition_timestamp + v_row.partition_interval::interval;
+                -- Advance in the set's timezone so month/year intervals land on
+                -- the same wall-clock boundary (e.g. the 1st at 00:00) instead
+                -- of drifting when the session timezone differs from the set's.
+                v_next_partition_timestamp := (v_next_partition_timestamp AT TIME ZONE v_timezone + v_row.partition_interval::interval) AT TIME ZONE v_timezone;
             EXCEPTION WHEN datetime_field_overflow THEN
                 v_premade_count := v_row.premake; -- do this so it can exit the premake check loop and continue in the outer for loop
                 IF v_jobmon_schema IS NOT NULL THEN

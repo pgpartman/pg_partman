@@ -16,6 +16,7 @@ CREATE FUNCTION @extschema@.create_partition(
     , p_time_encoder text DEFAULT NULL
     , p_time_decoder text DEFAULT NULL
     , p_offset_id bigint DEFAULT 0
+    , p_timezone text DEFAULT NULL
 )
     RETURNS boolean
     LANGUAGE plpgsql
@@ -55,6 +56,7 @@ v_parent_tablename              text;
 v_parent_tablespace             name;
 v_part_col                      text;
 v_part_type                     text;
+v_partition_timezone            text;
 v_partattrs                     smallint[];
 v_partition_time                timestamptz;
 v_partition_time_array          timestamptz[];
@@ -337,12 +339,17 @@ IF v_control_type IN ('time', 'text', 'uuid') OR (v_control_type = 'id' AND p_ep
         RAISE EXCEPTION 'Partitioning interval must be 1 second or greater';
     END IF;
 
+    -- Capture the timezone the set is aligned to (defaults to the creating
+    -- session's timezone). Stored in part_config so run_maintenance() keeps
+    -- future boundaries aligned regardless of the session it runs in.
+    v_partition_timezone := COALESCE(p_timezone, current_setting('TimeZone'));
+
    -- First partition is either the min premake or p_start_partition
     v_start_time := COALESCE(p_start_partition::timestamptz, CURRENT_TIMESTAMP - (v_time_interval * p_premake));
 
     SELECT base_timestamp, datetime_string
     INTO v_base_timestamp, v_datetime_string
-    FROM @extschema@.calculate_time_partition_info(v_time_interval, v_start_time, p_date_trunc_interval);
+    FROM @extschema@.calculate_time_partition_info(v_time_interval, v_start_time, p_date_trunc_interval, v_partition_timezone);
 
     RAISE DEBUG '(): parent_table: %, v_base_timestamp: %', p_parent_table, v_base_timestamp;
 
@@ -382,7 +389,8 @@ IF v_control_type IN ('time', 'text', 'uuid') OR (v_control_type = 'id' AND p_ep
         , jobmon
         , template_table
         , inherit_privileges
-        , date_trunc_interval)
+        , date_trunc_interval
+        , partition_timezone)
     VALUES (
         p_parent_table
         , p_type
@@ -398,7 +406,8 @@ IF v_control_type IN ('time', 'text', 'uuid') OR (v_control_type = 'id' AND p_ep
         , p_jobmon
         , v_template_schema||'.'||v_template_tablename
         , v_inherit_privileges
-        , p_date_trunc_interval);
+        , p_date_trunc_interval
+        , v_partition_timezone);
 
     RAISE DEBUG ': v_partition_time_array: %', v_partition_time_array;
 

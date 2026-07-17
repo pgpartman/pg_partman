@@ -16,6 +16,7 @@ CREATE FUNCTION @extschema@.create_parent(
     , p_time_encoder text DEFAULT NULL
     , p_time_decoder text DEFAULT NULL
     , p_offset_id bigint DEFAULT 0
+    , p_timezone text DEFAULT NULL
 )
     RETURNS boolean
     LANGUAGE plpgsql
@@ -46,6 +47,7 @@ RETURN @extschema@.create_partition(
     , p_time_encoder
     , p_time_decoder
     , p_offset_id
+    , p_timezone
 );
 
 END
