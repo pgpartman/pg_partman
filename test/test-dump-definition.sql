@@ -1,5 +1,3 @@
--- Note this test assumes a user named 'keith' created the partition set. Alter this test to match the user that you run the test as to allow it to pass fully
-
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true
 
@@ -104,7 +102,7 @@ UPDATE partman.part_config SET
 	maintenance_order = NULL,
 	retention_keep_publication = ''f'',
 	detach_before_drop = ''f'',
-	maintenance_role = ''keith''
+	maintenance_role = '''|| current_user ||'''
 WHERE parent_table = ''partman_test.declarative_objects'';'
 );
 
