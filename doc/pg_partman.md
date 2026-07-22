@@ -170,11 +170,11 @@ The following configuration options are available to add into postgresql.conf to
 
  - `pg_partman_bgw.dbname`
     - Required. The database(s) that maintenance will run on. If more than one, use a comma separated list. If not set, BGW will do nothing.
+ - `pg_partman_bgw.role`
+    - Required. The role that maintenance will run as. Only a single role name is allowed. Default is an arbitrary value of "partman_maintainer". It is HIGHLY recommended that a non-superuser role be set for this value. See the README.md Setup instructions for the necessary privileges for this role.
  - `pg_partman_bgw.interval`
     - Number of seconds between maintenance calls. Default is 3600 (1 hour).
     - See further documentation below on suggested values for this based on partition types & intervals used.
- - `pg_partman_bgw.role`
-    - The role that maintenance will run as. Default is "postgres". Only a single role name is allowed.
  - `pg_partman_bgw.analyze`
     - Same purpose as the p_analyze argument to `run_maintenance()`. See below for more detail. Set to 'on' for TRUE. Set to 'off' for FALSE (Default is 'off').
  - `pg_partman_bgw.jobmon`

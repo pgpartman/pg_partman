@@ -37,6 +37,13 @@ Recommended:
 
  * [pg_jobmon](https://github.com/omniti-labs/pg_jobmon) (>=v1.4.0). PG Job Monitor will automatically be used if it is installed and setup properly.
 
+### Database (PostgreSQL) As A Service (DBAAS)
+I've received many requests for being able to install this extension on Amazon RDS. As of PostgreSQL 12.5, RDS has made the pg_partman extension available. Many thanks to the RDS team for including this extension in their environment!
+
+<https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/PostgreSQL_Partitions.html>
+
+pg_partman is also available on many other cloud services including Google, Azure, Supabase and Snowflake. If you'd like pg_partman to be available in your cloud provider, please contact their support team.
+
 ### From Source
 In the directory where you downloaded pg_partman, run
 
@@ -54,16 +61,26 @@ make NO_BGW=1 install
 ### Package
 I do not personally maintain any OS packages for pg_partman, but several repository maintainers from the PostgreSQL Development Group (PGDG) have kindly been maintaining packages for the community. Please check the [PostgreSQL Downloads](https://www.postgresql.org/download/) page to see if your OS has a package available
 
-### Setup
+
+SETUP
+-----
 The background worker must be loaded on database start by adding the library to shared_preload_libraries in postgresql.conf
 
     shared_preload_libraries = 'pg_partman_bgw'     # (change requires restart)
 
-You can also set other control variables for the BGW in postgresql.conf. "dbname" is required at a minimum for maintenance to run on the given database(s). These can be added/changed at anytime with a simple reload. See the documentation for more details. An example with some of them:
+You can also set other control variables for the BGW in postgresql.conf. "dbname" and "role" are required at a minimum for maintenance to run on the given database(s) as a role that has been given the proper privileges. These can be added/changed at anytime with a simple reload. See the reference documentation file for more details. An example with some of them:
 
     pg_partman_bgw.interval = 3600
-    pg_partman_bgw.role = 'keith'
-    pg_partman_bgw.dbname = 'keith'
+    pg_partman_bgw.role = 'partman_maintainer'
+    pg_partman_bgw.dbname = 'mydb'
+
+Note that for maintenance, the role set for `pg_partman_bgw.role` must have full access to all partman objects (see privileges below for the non-superuser privilege requirements) as well as access to modify all partitioned tables managed by pg_partman. It is STRONGLY advised to not make this a superuser to avoid unintended privilege escalations through routine maintenance operations (see CVEs in CHANGELOG). To allow the maintainer role the access it needs to the partitioned tables, you can simply grant the owner role of the table to the maintainer role. Note you will have to do this for ALL roles that own pg_partman managed partitioned tables.
+
+```sql
+GRANT table_owner_alpha TO partman_maintainer;
+GRANT table_owner_beta TO partman_maintainer;
+GRANT table_owner_charlie TO partman_maintainer;
+```
 
 Log into PostgreSQL and run the following commands. Schema is optional (but recommended) and can be whatever you wish, but it cannot be changed after installation. If you're using the BGW, the database cluster can be safely started without having the extension first created in the configured database(s). You can create the extension at any time and the BGW will automatically pick up that it exists without restarting the cluster (as long as shared_preload_libraries was set) and begin running maintenance as configured.
 
@@ -72,28 +89,66 @@ CREATE SCHEMA partman;
 CREATE EXTENSION pg_partman SCHEMA partman;
 ```
 
-pg_partman does not require a superuser to run nor to be installed (see [Extension Files](https://www.postgresql.org/docs/current/extend-extensions.html#EXTEND-EXTENSIONS-FILES) section of upstream docs) . If not using a superuser, it is recommended that a dedicated role is created for running pg_partman functions and to be the owner of all partition sets that pg_partman maintains. At a minimum this role will need the following privileges (assuming pg_partman is installed to the `partman` schema and that dedicated role is called `partman_user`):
+pg_partman does not require a superuser to run nor to be installed (see [Extension Files](https://www.postgresql.org/docs/current/extend-extensions.html#EXTEND-EXTENSIONS-FILES) section of upstream docs) . The simplest way to manage multiple partitioned tables is to have a dedicated role for running pg_partman functions and to be the owner of all partition sets that pg_partman maintains. If it's not possible to have a dedicated role as an owner, see the notes above for the BGW privileges required and see the notes below about row level security.
+
+At a minimum any role running partman will need the following privileges (assuming pg_partman is installed to the `partman` schema and that role is called `partman_maintainer`):
 
 ```sql
-CREATE ROLE partman_user WITH LOGIN;
-GRANT ALL ON SCHEMA partman TO partman_user;
-GRANT ALL ON ALL TABLES IN SCHEMA partman TO partman_user;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA partman TO partman_user;
-GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA partman TO partman_user;
-GRANT ALL ON SCHEMA my_partition_schema TO partman_user;
-GRANT TEMPORARY ON DATABASE mydb to partman_user; -- allow creation of temp tables to move data out of default
+CREATE ROLE partman_maintainer WITH LOGIN;
+GRANT ALL ON SCHEMA partman TO partman_maintainer;
+GRANT ALL ON ALL TABLES IN SCHEMA partman TO partman_maintainer;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA partman TO partman_maintainer;
+GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA partman TO partman_maintainer;
+GRANT ALL ON SCHEMA my_partition_schema TO partman_maintainer;
+GRANT TEMPORARY ON DATABASE mydb to partman_maintainer; -- allow creation of temp tables to move data out of default
 ```
 
 If you need the role to also be able to create schemas, you will need to grant create on the database as well. In general this shouldn't be required as long as you give the above role CREATE privileges on any pre-existing schemas that will contain partition sets.
 
 ```sql
-GRANT CREATE ON DATABASE mydb TO partman_user;
+GRANT CREATE ON DATABASE mydb TO partman_maintainer;
+```
+### Row Level Security
+
+Allowing multi-tenant usage of pg_partman within a single database by multiple roles has security implications due to all users having read/write privileges to the configuration tables and function call privielges. Some mitigations are in place within pg_partman to try and help manage multi-tenancy. But allowing any role access to the config table and/or partman functions risks them being able to inject errors during maintenance or moving child tables between partition sets at will. If multi-tenant partition maintenance is required, a Row Level Security (RLS) policy can help to mitigate this issue. If RLS cannot be used, it is recommended to split those role's partitioned tables into their own dedicated databases.
+
+Version 5.5 of pg_partman added a `maintenance_role` column to the `part_config` table. By default, this column is set to the role that created the partition set, so it should work as-is once the RLS policy is in place.
+
+First, enable row level security for the configuration tables. Note that this will immediately revoke access to all data in these tables for all roles until policies are put in place to allow them, so wait until the policies are ready to be added immediately after enabling RLS.
+
+```sql
+ALTER TABLE part_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE part_config_sub ENABLE ROW LEVEL SECURITY;
 ```
 
-I've received many requests for being able to install this extension on Amazon RDS. As of PostgreSQL 12.5, RDS has made the pg_partman extension available. Many thanks to the RDS team for including this extension in their environment!
+Now create the policies that will allow the roles set in the `maintenance_role` column to be able to fully access their own rows for reads and writes. Once this is in place, those roles should no longer be able to even see any other rows in the table.
 
-<https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/PostgreSQL_Partitions.html>
+```sql
+CREATE POLICY part_config_user_access_policy ON part_config 
+    FOR ALL 
+    TO PUBLIC 
+    USING (maintenance_role = current_user)
+    WITH CHECK (maintenance_role = current_user); 
 
+CREATE POLICY part_config_sub_user_access_policy ON part_config_sub
+    FOR ALL 
+    TO PUBLIC 
+    USING (sub_maintenance_role = current_user)
+    WITH CHECK (sub_maintenance_role = current_user); 
+```
+If you are using the background worker and/or have a dedicated maintence role for pg_partman, you will have to create another policy to allow them to see all rows in the partman configuration tables.
+
+```sql
+CREATE POLICY part_config_maintenance_access_policy ON part_config 
+    FOR ALL 
+    TO partman_maintainer
+    USING (true);
+
+CREATE POLICY part_config_sub_maintenance_access_policy ON part_config_sub
+    FOR ALL 
+    TO partman_maintainer
+    USING (true);
+```
 
 UPGRADE
 -------

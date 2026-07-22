@@ -10,7 +10,6 @@ CREATE FUNCTION @extschema@.show_partitions (
 DECLARE
 
 v_control               text;
-v_time_decoder          text;
 v_control_type          text;
 v_exact_control_type    text;
 v_datetime_string       text;
@@ -21,6 +20,8 @@ v_parent_schema         text;
 v_parent_tablename      text;
 v_partition_type        text;
 v_sql                   text;
+v_time_decoder          text;
+v_time_decoder_safe     text;
 
 BEGIN
 /*
@@ -69,6 +70,10 @@ RAISE DEBUG 'show_partitions: v_parent_schema: %, v_parent_tablename: %, v_datet
     , v_control_type
     , v_exact_control_type;
 
+IF v_time_decoder IS NOT NULL THEN
+    v_time_decoder_safe := partman_safe_obj_name(v_time_decoder);
+END IF;
+
 v_sql := format('SELECT n.nspname::text AS partition_schemaname
         , c.relname::text AS partition_name
         FROM pg_catalog.pg_inherits h
@@ -100,7 +105,7 @@ ELSIF v_control_type IN ('text', 'uuid') THEN
 
     v_sql := v_sql || format('
         ORDER BY %s((regexp_match(pg_get_expr(c.relpartbound, c.oid, true), $REGEX$\(''([^)]+)''\) TO \(''([^)]+)''\)$REGEX$))[1]) %s '
-        , v_time_decoder
+        , v_time_decoder_safe
         , p_order);
 
 ELSIF v_control_type = 'id' AND v_epoch <> 'none' THEN
@@ -146,3 +151,4 @@ RETURN QUERY EXECUTE v_sql;
 
 END
 $$;
+

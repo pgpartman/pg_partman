@@ -144,24 +144,32 @@ IF p_quiet = false THEN
 END IF;
 RAISE NOTICE 'Ensure to VACUUM ANALYZE the parent (and source table if used) after partitioning data';
 
+PERFORM pg_catalog.pg_advisory_unlock(hashtext('pg_partman partition_data_proc'), hashtext(p_parent_table));
+
 /* Leaving here until I can figure out what's wrong with procedures and exception handling
 EXCEPTION
     WHEN QUERY_CANCELED THEN
-        ROLLBACK;
         -- Reset autovac back to default if it was turned off by this procedure
         IF v_is_autovac_off = true THEN
             PERFORM @extschema@.autovacuum_reset(v_parent_schema, v_parent_tablename, v_source_schema, v_source_tablename);
         END IF;
+
+        PERFORM pg_catalog.pg_advisory_unlock(
+                    hashtext('pg_partman partition_data_proc'),
+                    hashtext(p_parent_table));
         RAISE EXCEPTION '%', SQLERRM;
     WHEN OTHERS THEN
-        ROLLBACK;
         -- Reset autovac back to default if it was turned off by this procedure
         IF v_is_autovac_off = true THEN
             PERFORM @extschema@.autovacuum_reset(v_parent_schema, v_parent_tablename, v_source_schema, v_source_tablename);
         END IF;
+        PERFORM pg_catalog.pg_advisory_unlock(
+                    hashtext('pg_partman partition_data_proc'),
+                    hashtext(p_parent_table));
         RAISE EXCEPTION '%', SQLERRM;
 */
 
-PERFORM pg_catalog.pg_advisory_unlock(hashtext('pg_partman partition_data_proc'), hashtext(p_parent_table));
+
 END;
 $$;
+

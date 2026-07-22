@@ -14,11 +14,11 @@ SELECT set_config('search_path','partman, public',false);
 
 SELECT plan(221);
 
-CREATE SCHEMA partman_test;
-CREATE SCHEMA partman_retention_test;
 CREATE ROLE partman_basic;
 CREATE ROLE partman_revoke;
 CREATE ROLE partman_owner;
+CREATE SCHEMA partman_test;
+CREATE SCHEMA partman_retention_test AUTHORIZATION partman_owner;
 
 CREATE TABLE partman_test.fk_test_reference (col2 text unique not null);
 INSERT INTO partman_test.fk_test_reference VALUES ('stuff');
@@ -71,7 +71,6 @@ SELECT table_owner_is ('partman', 'template_partman_test_time_taptest_table', 'p
 ALTER TABLE template_partman_test_time_taptest_table ADD PRIMARY KEY (col1);
 
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(1,10), concat('INV', to_char(CURRENT_TIMESTAMP, 'YYYYMMDD')));
-
 SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'), 'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD')||' exists');
 SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'1 day'::interval, 'YYYYMMDD'),
     'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'1 day'::interval, 'YYYYMMDD')||' exists');

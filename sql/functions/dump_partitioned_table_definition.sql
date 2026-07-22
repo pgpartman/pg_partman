@@ -7,90 +7,95 @@ CREATE FUNCTION @extschema@.dump_partitioned_table_definition(
     SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
+    v_automatic_maintenance text;
     v_create_partition_definition text;
-    v_update_part_config_definition text;
-    -- Columns from part_config table.
-    v_parent_table text; -- NOT NULL
-    v_control text; -- NOT NULL
-    v_partition_type text; -- NOT NULL
-    v_partition_interval text; -- NOT NULL
     v_constraint_cols TEXT[];
-    v_premake integer; -- NOT NULL
-    v_optimize_constraint integer; -- NOT NULL
-    v_epoch text; -- NOT NULL
-    v_retention text;
-    v_retention_schema text;
-    v_retention_keep_index boolean;
-    v_retention_keep_table boolean; -- NOT NULL
-    v_infinite_time_partitions boolean; -- NOT NULL
-    v_datetime_string text;
-    v_automatic_maintenance text; -- NOT NULL
-    v_jobmon boolean; -- NOT NULL
-    v_sub_partition_set_full boolean; -- NOT NULL
-    v_template_table text;
-    v_inherit_privileges boolean; -- DEFAULT false
-    v_constraint_valid boolean; -- DEFAULT true NOT NULL
-    v_ignore_default_data boolean; -- DEFAULT false NOT NULL
+    v_constraint_valid boolean;
+    v_control text;
     v_date_trunc_interval text;
-    v_maintenance_order int;
-    v_retention_keep_publication boolean;
-    v_parent_schemaname text;
-    v_parent_tablename text;
+    v_datetime_string text;
     v_default_exists boolean;
     v_default_tablename text;
-    v_sql text;
+    v_detach_before_drop boolean;
+    v_epoch text;
+    v_ignore_default_data boolean;
+    v_infinite_time_partitions boolean;
+    v_inherit_privileges boolean;
+    v_jobmon boolean;
+    v_maintenance_role text;
+    v_maintenance_order int;
     v_notnull boolean;
+    v_optimize_constraint integer;
+    v_parent_schemaname text;
+    v_parent_tablename text;
+    v_partition_type text;
+    v_partition_interval text;
+    v_premake integer;
+    v_parent_table text;
+    v_retention text;
+    v_retention_keep_publication boolean;
+    v_retention_keep_index boolean;
+    v_retention_keep_table boolean;
+    v_retention_schema text;
+    v_sql text;
+    v_sub_partition_set_full boolean;
+    v_template_table text;
+    v_update_part_config_definition text;
 BEGIN
     SELECT
-        pc.parent_table,
-        pc.control,
-        pc.partition_type,
-        pc.partition_interval,
-        pc.constraint_cols,
-        pc.premake,
-        pc.optimize_constraint,
-        pc.epoch,
-        pc.retention,
-        pc.retention_schema,
-        pc.retention_keep_index,
-        pc.retention_keep_table,
-        pc.infinite_time_partitions,
-        pc.datetime_string,
-        pc.automatic_maintenance,
-        pc.jobmon,
-        pc.sub_partition_set_full,
-        pc.template_table,
-        pc.inherit_privileges,
-        pc.constraint_valid,
-        pc.ignore_default_data,
-        pc.date_trunc_interval,
-        pc.maintenance_order,
-        pc.retention_keep_publication
+        pc.parent_table
+        , pc.control
+        , pc.partition_type
+        , pc.partition_interval
+        , pc.constraint_cols
+        , pc.premake
+        , pc.optimize_constraint
+        , pc.epoch
+        , pc.retention
+        , pc.retention_schema
+        , pc.retention_keep_index
+        , pc.retention_keep_table
+        , pc.infinite_time_partitions
+        , pc.datetime_string
+        , pc.automatic_maintenance
+        , pc.jobmon
+        , pc.sub_partition_set_full
+        , pc.template_table
+        , pc.inherit_privileges
+        , pc.constraint_valid
+        , pc.ignore_default_data
+        , pc.date_trunc_interval
+        , pc.maintenance_order
+        , pc.retention_keep_publication
+        , pc.detach_before_drop
+        , pc.maintenance_role
     INTO
-        v_parent_table,
-        v_control,
-        v_partition_type,
-        v_partition_interval,
-        v_constraint_cols,
-        v_premake,
-        v_optimize_constraint,
-        v_epoch,
-        v_retention,
-        v_retention_schema,
-        v_retention_keep_index,
-        v_retention_keep_table,
-        v_infinite_time_partitions,
-        v_datetime_string,
-        v_automatic_maintenance,
-        v_jobmon,
-        v_sub_partition_set_full,
-        v_template_table,
-        v_inherit_privileges,
-        v_constraint_valid,
-        v_ignore_default_data,
-        v_date_trunc_interval,
-        v_maintenance_order,
-        v_retention_keep_publication
+        v_parent_table
+        , v_control
+        , v_partition_type
+        , v_partition_interval
+        , v_constraint_cols
+        , v_premake
+        , v_optimize_constraint
+        , v_epoch
+        , v_retention
+        , v_retention_schema
+        , v_retention_keep_index
+        , v_retention_keep_table
+        , v_infinite_time_partitions
+        , v_datetime_string
+        , v_automatic_maintenance
+        , v_jobmon
+        , v_sub_partition_set_full
+        , v_template_table
+        , v_inherit_privileges
+        , v_constraint_valid
+        , v_ignore_default_data
+        , v_date_trunc_interval
+        , v_maintenance_order
+        , v_retention_keep_publication
+        , v_detach_before_drop
+        , v_maintenance_role
     FROM @extschema@.part_config pc
     WHERE pc.parent_table = p_parent_table;
 
@@ -149,19 +154,19 @@ E'SELECT @extschema@.create_partition(
 \tp_date_trunc_interval := %L,
 \tp_control_not_null := %L
 );',
-            v_parent_table,
-            v_control,
-            v_partition_interval,
-            v_partition_type,
-            v_epoch,
-            v_premake,
-            v_default_exists,
-            v_automatic_maintenance,
-            v_constraint_cols,
-            v_template_table,
-            v_jobmon,
-            v_date_trunc_interval,
-            v_notnull
+            v_parent_table
+            , v_control
+            , v_partition_interval
+            , v_partition_type
+            , v_epoch
+            , v_premake
+            , v_default_exists
+            , v_automatic_maintenance
+            , v_constraint_cols
+            , v_template_table
+            , v_jobmon
+            , v_date_trunc_interval
+            , v_notnull
         );
 
     v_update_part_config_definition := format(
@@ -178,27 +183,32 @@ E'UPDATE @extschema@.part_config SET
 \tconstraint_valid = %L,
 \tignore_default_data = %L,
 \tmaintenance_order = %L,
-\tretention_keep_publication = %L
+\tretention_keep_publication = %L,
+\tdetach_before_drop = %L,
+\tmaintenance_role = %L
 WHERE parent_table = %L;',
-        v_optimize_constraint,
-        v_retention,
-        v_retention_schema,
-        v_retention_keep_index,
-        v_retention_keep_table,
-        v_infinite_time_partitions,
-        v_datetime_string,
-        v_sub_partition_set_full,
-        v_inherit_privileges,
-        v_constraint_valid,
-        v_ignore_default_data,
-        v_maintenance_order,
-        v_retention_keep_publication,
-        v_parent_table
+        v_optimize_constraint
+        , v_retention
+        , v_retention_schema
+        , v_retention_keep_index
+        , v_retention_keep_table
+        , v_infinite_time_partitions
+        , v_datetime_string
+        , v_sub_partition_set_full
+        , v_inherit_privileges
+        , v_constraint_valid
+        , v_ignore_default_data
+        , v_maintenance_order
+        , v_retention_keep_publication
+        , v_detach_before_drop
+        , v_maintenance_role
+        , v_parent_table
     );
 
     RETURN concat_ws(E'\n',
-        v_create_partition_definition,
-        v_update_part_config_definition
+        v_create_partition_definition
+        , v_update_part_config_definition
     );
 END
 $$;
+

@@ -11,11 +11,11 @@ SELECT set_config('search_path','partman, public',false);
 
 SELECT plan(222);
 
-CREATE SCHEMA "Partman_Test";
-CREATE SCHEMA "Partman_Retention_Test";
 CREATE ROLE "Partman_Basic";
 CREATE ROLE "Partman_Revoke";
 CREATE ROLE "Partman_Owner";
+CREATE SCHEMA "Partman_Test";
+CREATE SCHEMA "Partman_Retention_Test" AUTHORIZATION "Partman_Owner";
 
 CREATE TABLE "Partman_Test"."FK_Test_Reference" ("Col2" text unique not null);
 INSERT INTO "Partman_Test"."FK_Test_Reference" VALUES ('stuff');

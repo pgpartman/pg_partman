@@ -80,6 +80,11 @@ AND c.relname = v_template_tablename;
         RAISE EXCEPTION 'Unable to find configured template table in system catalogs: %', v_template_table;
     END IF;
 
+    IF NOT pg_has_role(current_user, (SELECT relowner FROM pg_class WHERE oid = v_template_oid), 'USAGE') THEN
+        RAISE EXCEPTION 'inherit_template_properties: caller % does not own template table %', current_user, v_template_table;
+    END IF;
+
+
 -- Index creation (Only for unique, non-partition key indexes)
 FOR v_index_list IN
     SELECT
@@ -144,7 +149,8 @@ LOOP
         v_sql := format('ALTER TABLE %I.%I ADD PRIMARY KEY (%s)'
                         , v_child_schema
                         , v_child_tablename
-                        , '"' || array_to_string(v_index_list.indkey_names, '","') || '"');
+                        , (SELECT string_agg(quote_ident(c), ', ')
+                           FROM unnest(v_index_list.indkey_names) AS c));
         IF v_index_list.tablespace_name IS NOT NULL THEN
             v_sql := v_sql || format(' USING INDEX TABLESPACE %I', v_index_list.tablespace_name);
         END IF;
@@ -237,3 +243,4 @@ RETURN true;
 
 END
 $$;
+

@@ -1,3 +1,5 @@
+-- Note this test assumes a user named 'keith' created the partition set. Alter this test to match the user that you run the test as to allow it to pass fully
+
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true
 
@@ -44,7 +46,9 @@ SELECT bag_eq(
     'maintenance_order',
     'retention_keep_publication',
     'maintenance_last_run',
-    'async_partitioning_in_progress'
+    'async_partitioning_in_progress',
+    'detach_before_drop',
+    'maintenance_role'
   ]::TEXT[],
   'When adding a new column to part_config please ensure it is also added to the dump_partitioned_table_definition function and the tests in this file'
 );
@@ -98,7 +102,9 @@ UPDATE partman.part_config SET
 	constraint_valid = ''f'',
 	ignore_default_data = ''t'',
 	maintenance_order = NULL,
-	retention_keep_publication = ''f''
+	retention_keep_publication = ''f'',
+	detach_before_drop = ''f'',
+	maintenance_role = ''keith''
 WHERE parent_table = ''partman_test.declarative_objects'';'
 );
 

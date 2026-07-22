@@ -2,7 +2,7 @@
 -- Other tests:
     -- Test source table in a different schema
     -- Test generate always as identity in source and target (ignore column)
--- TODO Redo this with another more predictable time generation sequence. Day count of the year can vary
+-- TODO Redo this with another more predictable time generation sequence. Day count of group of months chosen can vary
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true

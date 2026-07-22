@@ -114,7 +114,7 @@ EXCEPTION
                                 ex_hint = PG_EXCEPTION_HINT;
         IF v_jobmon_schema IS NOT NULL THEN
             IF v_job_id IS NULL THEN
-                EXECUTE format('SELECT %I.add_job(''PARTMAN DROP CONSTRAINT: %s'')', v_jobmon_schema, p_parent_table) INTO v_job_id;
+                EXECUTE format('SELECT %I.add_job(%L)', v_jobmon_schema, format('PARTMAN DROP CONSTRAINT: %s', p_parent_table)) INTO v_job_id;
                 EXECUTE format('SELECT %I.add_step(%s, ''EXCEPTION before job logging started'')', v_jobmon_schema, v_job_id, p_parent_table) INTO v_step_id;
             ELSIF v_step_id IS NULL THEN
                 EXECUTE format('SELECT %I.add_step(%s, ''EXCEPTION before first step logged'')', v_jobmon_schema, v_job_id) INTO v_step_id;
@@ -128,3 +128,4 @@ DETAIL: %
 HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
+

@@ -147,6 +147,8 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
     RAISE DEBUG 'create_partition_id v_sql: %', v_sql;
     EXECUTE v_sql;
 
+    PERFORM @extschema@.inherit_parent_properties(v_parent_schema, v_parent_tablename, v_partition_name);
+
     IF v_template_table IS NOT NULL THEN
         PERFORM @extschema@.inherit_template_properties(p_parent_table, v_parent_schema, v_partition_name);
     END IF;
@@ -181,7 +183,7 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
 
     -- Will only loop once and only if sub_partitioning is actually configured
     -- This seemed easier than assigning a bunch of variables then doing an IF condition
-    -- This column list must be kept consistent between:
+    -- This column list and the update statement below must be kept consistent between:
     --   create_partition, check_subpart_sameconfig, create_partition_id, create_partition_time, dump_partitioned_table_definition, and table definition
     FOR v_row IN
         SELECT
@@ -211,6 +213,8 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
             , sub_maintenance_order
             , sub_retention_keep_publication
             , sub_control_not_null
+            , sub_detach_before_drop
+            , sub_maintenance_role
         FROM @extschema@.part_config_sub
         WHERE sub_parent = p_parent_table
     LOOP
@@ -263,6 +267,8 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
             , ignore_default_data = v_row.sub_ignore_default_data
             , maintenance_order = v_row.sub_maintenance_order
             , retention_keep_publication = v_row.sub_retention_keep_publication
+            , detach_before_drop = v_row.sub_detach_before_drop
+            , maintenance_role = v_row.sub_maintenance_role
         WHERE parent_table = v_parent_schema||'.'||v_partition_name;
 
         IF v_jobmon_schema IS NOT NULL THEN
@@ -299,7 +305,7 @@ EXCEPTION
                                 ex_hint = PG_EXCEPTION_HINT;
         IF v_jobmon_schema IS NOT NULL THEN
             IF v_job_id IS NULL THEN
-                EXECUTE format('SELECT %I.add_job(''PARTMAN CREATE TABLE: %s'')', v_jobmon_schema, p_parent_table) INTO v_job_id;
+                EXECUTE format('SELECT %I.add_job(%L)', v_jobmon_schema, format('PARTMAN CREATE TABLE: %s', p_parent_table)) INTO v_job_id;
                 EXECUTE format('SELECT %I.add_step(%s, ''EXCEPTION before job logging started'')', v_jobmon_schema, v_job_id, p_parent_table) INTO v_step_id;
             ELSIF v_step_id IS NULL THEN
                 EXECUTE format('SELECT %I.add_step(%s, ''EXCEPTION before first step logged'')', v_jobmon_schema, v_job_id) INTO v_step_id;
@@ -313,3 +319,4 @@ DETAIL: %
 HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
+

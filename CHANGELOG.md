@@ -1,3 +1,30 @@
+5.5.0
+=====
+BREAKING CHANGES
+----------------
+ - In order to help mitigate the vulnerabilities around running the background worker (BGW) as a superuser, the default value for the `pg_partman_bgw.role` GUC has been set to an arbitrary value of `partman_maintainer`. If this parameter had not been explicitly set before, this will cause the BGW to no longer run successfully and throw errors if this role doesn't exist with the proper privileges. If you had previously set this to any superuser role value (Ex `postgres`), it is HIGHLY recommended that you change this value to a non-superuser role and follow the setup instructions in the README.md.
+ - When using a target retention schema, the schema must now be owned by the same role that owns the child table. This is to help prevent table ownership takover in multi-tenant environments where multiple roles are allowed to use pg_partman for their own partition sets. (CVE-2026-61821)
+
+DOCUMENTATION
+-------------
+ - [IMPORTANT DOCUMENTATION UPDATES](https://github.com/pgpartman/pg_partman-ghsa-742w-3j7c-qwvp/blob/development/README.md#setup) - The CVE fixes in this update pointed out vulnerabilities around running the background worker as a superuser. Additional instructions have been added for how to run pg_partman without any superuser at all, with and/or without the background worker. Additional instructions have also been added for using Row Level Security (RLS) to limit user interaction with the partman configuration tables.
+    - Note that changing to using a non-superuser can be done before upgrading to version 5.5 if these security mitigations need to be done before updating the extension is possible. RLS policy enforcement does require 5.5 since the column to allow it is added in that version.
+
+NEW FEATURES
+------------
+ - Allow retention system to properly handle dropping child tables when the partition table is referenced by another table via a foreign key. Child tables must be detached first before dropping, so a new flag in the `part_config` table has been added: `detach_before_drop`. Set this value to true when using retention on a partition set referenced by another table. Note that all data in the referencing table must still be removed from that table first before the child table can be detached or dropped.
+ - Added a new column for allowing Row Level Security (RLS) management on the `part_config` and `part_config_sub` tables: maintenance_role. See documentation for examples of how to set row level security policies on the configuration tables to restrict access to performing maintenance operations on partition sets owned by other roles.
+ - Inherit per column statistic target from the parent table
+ - Instead of calculating the child table upper boundary limit, look up the value using the system catalogs when possible to provide more flexibility.
+ - When running maintenance, an error in a single partition set's run will no longer stop maintenance from continuing on to run on other partition sets. A warning is now issued in the PostgreSQL logs when this occurs and the last_run column in the configuration table is set to NULL. (CVE-2026-61822)
+
+BUGFIXES
+--------
+ - Fix sql injection/privilege escalation vulnerability when using time encoder/decoder functions (CVE-2026-61781, CVE-2026-61817, CVE-2026-61818)
+ - Fix sql injection/privilege escalation vulnerability when using the pg_jobmon extension (CVE-2026-61819)
+ - Fix sql injection/privilege escalation vulnerability when inheriting properties from the template table (CVE-2026-61820)
+
+
 5.4.3
 =====
 NEW FEATURES

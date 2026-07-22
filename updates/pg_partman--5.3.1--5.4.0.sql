@@ -1,8 +1,4 @@
 
--- TODO After copying changed objects to their file, check that `create_parent` didn't get inadvertently removed anywhere else due to stupid find and replace run
--- check everywhere for create_parent and create_sub_parent
-    -- Update most tests with new names but leave some with old for code coverage
-
 
 CREATE TEMP TABLE partman_preserve_privs_temp (statement text);
 

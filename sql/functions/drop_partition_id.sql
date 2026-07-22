@@ -16,9 +16,11 @@ ex_detail                           text;
 ex_hint                             text;
 ex_message                          text;
 v_adv_lock                          boolean;
+v_child_owner                       oid;
 v_control                           text;
 v_control_type                      text;
 v_count                             int;
+v_detach_before_drop                boolean;
 v_drop_count                        int := 0;
 v_index                             record;
 v_job_id                            bigint;
@@ -39,6 +41,7 @@ v_retention_keep_publication        boolean;
 v_retention_schema                  text;
 v_row                               record;
 v_row_max_id                        record;
+v_schema_owner                      oid;
 v_sql                               text;
 v_step_id                           bigint;
 v_sub_parent                        text;
@@ -65,6 +68,7 @@ IF p_retention IS NULL THEN
         , retention_keep_publication
         , retention_schema
         , jobmon
+        , detach_before_drop
     INTO
         v_partition_interval
         , v_control
@@ -74,6 +78,7 @@ IF p_retention IS NULL THEN
         , v_retention_keep_publication
         , v_retention_schema
         , v_jobmon
+        , v_detach_before_drop
     FROM @extschema@.part_config
     WHERE parent_table = p_parent_table
     AND retention IS NOT NULL;
@@ -90,6 +95,7 @@ ELSE -- Allow override of configuration options
         , retention_keep_publication
         , retention_schema
         , jobmon
+        , detach_before_drop
     INTO
         v_partition_interval
         , v_control
@@ -98,6 +104,7 @@ ELSE -- Allow override of configuration options
         , v_retention_keep_publication
         , v_retention_schema
         , v_jobmon
+        , v_detach_before_drop
     FROM @extschema@.part_config
     WHERE parent_table = p_parent_table;
     v_retention := p_retention;
@@ -181,8 +188,6 @@ LOOP
         END IF;
 
         IF v_retention_keep_table = true OR v_retention_schema IS NOT NULL THEN
-            -- No need to detach partition before dropping since it's going away anyway
-            -- TODO Review this to see how to handle based on recent FK issues
             -- Avoids issue of FKs not allowing detachment (Github Issue #294).
             v_sql := format('ALTER TABLE %I.%I DETACH PARTITION %I.%I'
                 , v_parent_schema
@@ -246,6 +251,14 @@ LOOP
                 IF v_jobmon_schema IS NOT NULL THEN
                     v_step_id := add_step(v_job_id, format('Drop table %s.%s', v_row.partition_schemaname, v_row.partition_tablename));
                 END IF;
+                IF v_detach_before_drop THEN
+                    v_sql := format('ALTER TABLE %I.%I DETACH PARTITION %I.%I'
+                    , v_parent_schema
+                    , v_parent_tablename
+                    , v_row.partition_schemaname
+                    , v_row.partition_tablename);
+                    EXECUTE v_sql;
+                END IF;
                 v_sql := 'DROP TABLE %I.%I';
                 EXECUTE format(v_sql, v_row.partition_schemaname, v_row.partition_tablename);
                 IF v_jobmon_schema IS NOT NULL THEN
@@ -253,6 +266,24 @@ LOOP
                 END IF;
             END IF;
         ELSE -- Move to new schema
+
+            SELECT c.relowner
+            INTO v_child_owner
+            FROM pg_catalog.pg_class c
+            JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+            WHERE n.nspname = v_row.partition_schemaname
+            AND c.relname = v_row.partition_tablename;
+
+            SELECT n.nspowner
+            INTO v_schema_owner
+            FROM pg_catalog.pg_namespace n
+            WHERE n.nspname = v_retention_schema
+            AND n.nspowner = v_child_owner;
+
+            IF v_schema_owner IS NULL THEN
+                RAISE EXCEPTION 'The target retention schema must be owned by the same role that owns the child table. This helps prevent taking over child tables in multi-tenant environments.';
+            END IF;
+
             IF v_jobmon_schema IS NOT NULL THEN
                 v_step_id := add_step(v_job_id, format('Moving table %s.%s to schema %s'
                                                         , v_row.partition_schemaname
@@ -296,7 +327,7 @@ EXCEPTION
                                 ex_hint = PG_EXCEPTION_HINT;
         IF v_jobmon_schema IS NOT NULL THEN
             IF v_job_id IS NULL THEN
-                EXECUTE format('SELECT %I.add_job(''PARTMAN DROP ID PARTITION: %s'')', v_jobmon_schema, p_parent_table) INTO v_job_id;
+                EXECUTE format('SELECT %I.add_job(%L)', v_jobmon_schema, format('PARTMAN DROP ID PARTITION: %s', p_parent_table)) INTO v_job_id;
                 EXECUTE format('SELECT %I.add_step(%s, ''EXCEPTION before job logging started'')', v_jobmon_schema, v_job_id, p_parent_table) INTO v_step_id;
             ELSIF v_step_id IS NULL THEN
                 EXECUTE format('SELECT %I.add_step(%s, ''EXCEPTION before first step logged'')', v_jobmon_schema, v_job_id) INTO v_step_id;
@@ -310,3 +341,4 @@ DETAIL: %
 HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
+

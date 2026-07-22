@@ -29,8 +29,6 @@ v_child_table                   text;
 v_column_list                   text;
 v_control                       text;
 v_control_type                  text;
-v_time_encoder                  text;
-v_time_decoder                  text;
 v_child_min_id                  bigint;
 v_child_min_time                timestamptz;
 v_epoch                         text;
@@ -58,6 +56,10 @@ v_template_schema               text;
 v_template_siblings             int;
 v_template_table                text;
 v_template_tablename            text;
+v_time_decoder                  text;
+v_time_decoder_safe             text;
+v_time_encoder                  text;
+v_time_encoder_safe             text;
 v_total                         bigint := 0;
 v_trig_name                     text;
 v_undo_count                    int := 0;
@@ -207,6 +209,14 @@ AND a.attnum > 0
 AND a.attisdropped = false
 AND attname <> ALL(COALESCE(p_ignored_columns, ARRAY[]::text[]));
 
+IF v_time_decoder IS NOT NULL THEN
+    v_time_decoder_safe := partman_safe_obj_name(v_time_decoder);
+END IF;
+IF v_time_encoder IS NOT NULL THEN
+    v_time_encoder_safe := partman_safe_obj_name(v_time_encoder);
+END IF;
+RAISE DEBUG 'undo_partition: v_time_decoder: %, v_time_encoder: %', v_time_decoder, v_time_encoder;
+
 <<outer_child_loop>>
 LOOP
     -- Get ordered list of child table in set. Store in variable one at a time per loop until none are left or batch count is reached.
@@ -224,7 +234,7 @@ LOOP
         EXECUTE format('SELECT min(%s) FROM %I.%I', v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_time;
     ELSIF (v_control_type IN ('text', 'uuid')) THEN
         --- This can pass NULL to decoder function
-        EXECUTE format('SELECT %s((SELECT min(%s::text) FROM %I.%I))', v_time_decoder, v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_time;
+        EXECUTE format('SELECT %s((SELECT min(%s::text) FROM %I.%I))', v_time_decoder_safe, v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_time;
     ELSIF v_control_type = 'id' THEN
         EXECUTE format('SELECT min(%s) FROM %I.%I', v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_id;
     END IF;
@@ -303,7 +313,7 @@ LOOP
                                 , v_parent_schema
                                 , v_child_table
                                 , v_control
-                                , v_time_encoder
+                                , v_time_encoder_safe
                                 , v_child_min_time + (v_batch_interval_time * v_inner_loop_count));
                         END IF;
                        v_lock_obtained := TRUE;
@@ -340,7 +350,7 @@ LOOP
                     , v_parent_schema
                     , v_child_table
                     , v_partition_expression
-                    , v_time_encoder
+                    , v_time_encoder_safe
                     , v_child_min_time + (v_batch_interval_time * v_inner_loop_count)
                     , v_column_list
                     , v_target_schema
@@ -362,7 +372,7 @@ LOOP
             IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
                 EXECUTE format('SELECT min(%s) FROM %I.%I', v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_time;
             ELSIF (v_control_type IN ('text', 'uuid')) THEN
-                EXECUTE format('SELECT %s((SELECT min(%s::text) FROM %I.%I))', v_time_decoder, v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_time;
+                EXECUTE format('SELECT %s((SELECT min(%s::text) FROM %I.%I))', v_time_decoder_safe, v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_time;
             END IF;
 
             CONTINUE outer_child_loop WHEN v_child_min_time IS NULL;
@@ -473,7 +483,7 @@ EXCEPTION
                                 ex_hint = PG_EXCEPTION_HINT;
         IF v_jobmon_schema IS NOT NULL THEN
             IF v_job_id IS NULL THEN
-                EXECUTE format('SELECT %I.add_job(''PARTMAN UNDO PARTITIONING: %s'')', v_jobmon_schema, p_parent_table) INTO v_job_id;
+                EXECUTE format('SELECT %I.add_job(%L)', v_jobmon_schema, format('PARTMAN UNDO PARTITIONING: %s', p_parent_table)) INTO v_job_id;
                 EXECUTE format('SELECT %I.add_step(%s, ''EXCEPTION before job logging started'')', v_jobmon_schema, v_job_id, p_parent_table) INTO v_step_id;
             ELSIF v_step_id IS NULL THEN
                 EXECUTE format('SELECT %I.add_step(%s, ''EXCEPTION before first step logged'')', v_jobmon_schema, v_job_id) INTO v_step_id;
@@ -487,3 +497,4 @@ DETAIL: %
 HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
+

@@ -19,8 +19,7 @@ v_child_schemaname          text;
 v_child_tablename       text;
 v_control               text;
 v_control_type          text;
-v_time_encoder          text;
-v_time_decoder          text;
+v_end_string            text;
 v_epoch                 text;
 v_exact_control_type    text;
 v_parent_schemaname     text;
@@ -30,6 +29,8 @@ v_partstrat             char;
 v_partition_interval    text;
 v_start_string          text;
 v_suffix_position       int;
+v_time_decoder_safe     text;
+v_time_decoder          text;
 
 BEGIN
 /*
@@ -60,10 +61,14 @@ AND c.relname = split_part(v_parent_table, '.', 2)::name;
         RAISE EXCEPTION 'Unable to find given parent table in system catalogs. Ensure it is schema qualified: %', p_parent_table;
     END IF;
 
-SELECT time_encoder, time_decoder
-INTO v_time_encoder, v_time_decoder
+SELECT time_decoder
+INTO v_time_decoder
 FROM @extschema@.part_config
 WHERE parent_table = v_parent_table;
+
+IF v_time_decoder IS NOT NULL THEN
+    v_time_decoder_safe := partman_safe_obj_name(v_time_decoder);
+END IF;
 
 IF p_partition_interval IS NULL THEN
     SELECT control, partition_interval, epoch
@@ -102,15 +107,18 @@ IF p_table_exists THEN
         END IF;
     END IF;
 
-    -- Look at actual partition bounds in catalog and pull values from there.
+    -- Look at actual partition bounds in catalog and pull values from there (when possible).
     IF v_partstrat = 'r' THEN
         SELECT (regexp_match(pg_get_expr(c.relpartbound, c.oid, true)
-            , $REGEX$\(([^)]+)\) TO \(([^)]+)\)$REGEX$))[1]::text
-        INTO v_start_string
+            , $REGEX$\(([^)]+)\) TO \(([^)]+)\)$REGEX$))[1]::text,
+(regexp_match(pg_get_expr(c.relpartbound, c.oid, true)
+            , $REGEX$\(([^)]+)\) TO \(([^)]+)\)$REGEX$))[2]::text
+        INTO v_start_string, v_end_string
         FROM pg_catalog.pg_class c
         JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
         WHERE c.relname = v_child_tablename
         AND n.nspname = v_child_schemaname;
+
     ELSIF v_partstrat = 'l' THEN
         SELECT (regexp_match(pg_get_expr(c.relpartbound, c.oid, true)
             , $REGEX$FOR VALUES IN \(([^)]+)\)$REGEX$))[1]::text
@@ -142,25 +150,30 @@ IF v_control_type IN ('time', 'text', 'uuid') OR (v_control_type = 'id' AND v_ep
 
     IF v_control_type = 'time' THEN
         child_start_time := v_start_string::timestamptz;
+        child_end_time := v_end_string::timestamptz;
     ELSIF v_control_type IN ('text', 'uuid') THEN
-        EXECUTE format('SELECT %s(%s)', v_time_decoder, v_start_string) INTO child_start_time;
+        EXECUTE format('SELECT %s(%s)', v_time_decoder_safe, v_start_string) INTO child_start_time;
+        EXECUTE format('SELECT %s(%s)', v_time_decoder_safe, v_end_string) INTO child_end_time;
     ELSIF (v_control_type = 'id' AND v_epoch <> 'none') THEN
         -- bigint data type is stored as a single-quoted string in the partition expression. Must strip quotes for valid type-cast.
         v_start_string := trim(BOTH '''' FROM v_start_string);
+        v_end_string := trim(BOTH '''' FROM v_start_string);
         IF v_epoch = 'seconds' THEN
             child_start_time := to_timestamp(v_start_string::double precision);
+            child_end_time := to_timestamp(v_end_string::double precision);
         ELSIF v_epoch = 'milliseconds' THEN
             child_start_time := to_timestamp((v_start_string::double precision) / 1000);
+            child_end_time := to_timestamp((v_end_string::double precision) / 1000);
         ELSIF v_epoch = 'microseconds' THEN
             child_start_time := to_timestamp((v_start_string::double precision) / 1000000);
+            child_end_time := to_timestamp((v_end_string::double precision) / 1000000);
         ELSIF v_epoch = 'nanoseconds' THEN
             child_start_time := to_timestamp((v_start_string::double precision) / 1000000000);
+            child_end_time := to_timestamp((v_end_string::double precision) / 1000000000);
         END IF;
     ELSE
         RAISE EXCEPTION 'Unexpected code path in show_partition_info(). Please report this bug with the configuration that lead to it.';
     END IF;
-
-    child_end_time := (child_start_time + v_partition_interval::interval);
 
     SELECT to_char(base_timestamp, datetime_string)
     INTO suffix
@@ -171,12 +184,12 @@ ELSIF v_control_type = 'id' THEN
     IF v_exact_control_type IN ('int8', 'int4', 'int2') THEN
         -- Have to do a trim here because of inconsistency in quoting different integer types. Ex: bigint boundary values are quoted but int values are not
         child_start_id := trim(BOTH $QUOTE$''$QUOTE$ FROM v_start_string)::bigint;
+        child_end_id := trim(BOTH $QUOTE$''$QUOTE$ FROM v_end_string)::bigint;
     ELSIF v_exact_control_type = 'numeric' THEN
         -- cast to numeric then trunc to get rid of decimal without rounding
         child_start_id := trunc(trim(BOTH $QUOTE$''$QUOTE$ FROM v_start_string)::numeric)::bigint;
+        child_end_id := trunc(trim(BOTH $QUOTE$''$QUOTE$ FROM v_end_string)::numeric)::bigint;
     END IF;
-
-    child_end_id := (child_start_id + v_partition_interval::bigint) - 1;
 
 ELSE
     RAISE EXCEPTION 'Invalid partition type encountered in show_partition_info()';
@@ -186,3 +199,4 @@ RETURN;
 
 END
 $$;
+

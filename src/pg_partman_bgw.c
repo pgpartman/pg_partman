@@ -50,7 +50,9 @@ static volatile sig_atomic_t got_sigterm = false;
 /* GUC variables */
 static int pg_partman_bgw_interval = 3600; // Default hourly
 static int pg_partman_bgw_maintenance_wait = 0; // Default no wait
-static char *pg_partman_bgw_role = "postgres"; // Default to postgres role
+// Default BGW rolw to arbitrary (hopefully) non-superuser role.
+// Cannot default to NULL otherwise BGW runs as superuser that ran initdb
+static char *pg_partman_bgw_role = "partman_maintainer";
 
 // Do not analyze by default
 static char *pg_partman_bgw_analyze = "off";
@@ -165,7 +167,7 @@ _PG_init(void)
                                "Role to be used by BGW. Must have execute permissions on run_maintenance()",
                                NULL,
                                &pg_partman_bgw_role,
-                               "postgres",
+                               "partman_maintainer",
                                PGC_SIGHUP,
                                0,
                                NULL,

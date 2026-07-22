@@ -27,6 +27,8 @@ CREATE TABLE @extschema@.part_config (
     , maintenance_order int
     , retention_keep_publication boolean NOT NULL DEFAULT false
     , maintenance_last_run timestamptz
+    , detach_before_drop BOOLEAN DEFAULT false
+    , maintenance_role TEXT DEFAULT current_user
     , async_partitioning_in_progress text
     , CONSTRAINT part_config_parent_table_pkey PRIMARY KEY (parent_table)
     , CONSTRAINT positive_premake_check CHECK (premake > 0)
@@ -64,6 +66,8 @@ CREATE TABLE @extschema@.part_config_sub (
     , sub_maintenance_order int
     , sub_retention_keep_publication boolean NOT NULL DEFAULT false
     , sub_control_not_null boolean DEFAULT true
+    , sub_detach_before_drop BOOLEAN DEFAULT false
+    , sub_maintenance_role TEXT DEFAULT current_user
     , CONSTRAINT part_config_sub_pkey PRIMARY KEY (sub_parent)
     , CONSTRAINT part_config_sub_sub_parent_fkey FOREIGN KEY (sub_parent) REFERENCES @extschema@.part_config (parent_table) ON DELETE CASCADE ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED
     , CONSTRAINT positive_premake_check CHECK (sub_premake > 0)

@@ -18,7 +18,7 @@ IF p_jobmon THEN
 END IF;
 
 IF v_jobmon_schema IS NOT NULL THEN
-    EXECUTE format('SELECT %I.add_job(''PARTMAN STOP SUBPARTITIONING'')', v_jobmon_schema) INTO v_job_id;
+    EXECUTE format('SELECT %I.add_job(%L)', v_jobmon_schema, format('PARTMAN STOP SUBPARTITIONING: %s', p_parent_table)) INTO v_job_id;
     EXECUTE format('SELECT %I.add_step(%s, ''Stopped subpartitioning for %s'')', v_jobmon_schema, v_job_id, p_parent_table) INTO v_step_id;
 END IF;
 
@@ -33,3 +33,4 @@ RETURN true;
 
 END
 $$;
+

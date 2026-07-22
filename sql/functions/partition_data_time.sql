@@ -49,8 +49,9 @@ v_rowcount                  bigint;
 v_sql                       text;
 v_start_control             timestamptz;
 v_temp_storage_table        text;
-v_time_encoder              text;
 v_time_decoder              text;
+v_time_decoder_safe         text;
+v_time_encoder              text;
 v_total_rows                bigint := 0;
 
 BEGIN
@@ -198,6 +199,10 @@ ELSE
     v_infinity_sql := '';
 END IF;
 
+IF v_time_decoder IS NOT NULL THEN
+    v_time_decoder_safe := partman_safe_obj_name(v_time_decoder);
+END IF;
+
 FOR i IN 1..p_batch_count LOOP
 
     IF v_time_decoder IS NULL THEN
@@ -212,10 +217,12 @@ FOR i IN 1..p_batch_count LOOP
     ELSE
 	-- Currently time decoder function must take a text parameter. See if this can be more flexible in the future
     -- infinity value not supported in uuid columns, so shouldn't have to worry about it. Exception catches it above if user tries to ignore infinity.
+
+
         IF p_order = 'ASC' THEN
-            EXECUTE format('SELECT min(%s(%s::text)) FROM ONLY %I.%I', v_time_decoder, v_partition_expression, v_source_schemaname, v_source_tablename) INTO v_start_control;
+            EXECUTE format('SELECT min(%s(%s::text)) FROM ONLY %I.%I', v_time_decoder_safe, v_partition_expression, v_source_schemaname, v_source_tablename) INTO v_start_control;
         ELSIF p_order = 'DESC' THEN
-            EXECUTE format('SELECT max(%s(%s::text)) FROM ONLY %I.%I', v_time_decoder, v_partition_expression, v_source_schemaname, v_source_tablename) INTO v_start_control;
+            EXECUTE format('SELECT max(%s(%s::text)) FROM ONLY %I.%I', v_time_decoder_safe, v_partition_expression, v_source_schemaname, v_source_tablename) INTO v_start_control;
         ELSE
             RAISE EXCEPTION 'Invalid value for p_order. Must be ASC or DESC';
         END IF;
@@ -317,7 +324,7 @@ FOR i IN 1..p_batch_count LOOP
             v_decoded_col := format('%s::text', v_partition_expression);
         END IF;
     ELSE
-        v_decoded_col := format('%s(%s::text)', v_time_decoder, v_partition_expression);
+        v_decoded_col := format('%s(%s::text)', v_time_decoder_safe, v_partition_expression);
     END IF;
 
     IF v_default_exists THEN
@@ -386,7 +393,7 @@ FOR i IN 1..p_batch_count LOOP
 END LOOP;
 
 -- v_analyze is a local check if a new table is made.
--- p_analyze is a parameter to say whether to run the analyze at all. Used by create_partition() to avoid long exclusive lock or run_maintenence() to avoid long creation runs.
+-- p_analyze is a parameter to say whether to run the analyze at all. Used by create_partition() to avoid long exclusive lock or run_maintenance() to avoid long creation runs.
 IF v_analyze AND p_analyze THEN
     RAISE DEBUG 'partiton_data_time: Begin analyze of %.%', v_parent_schemaname, v_parent_tablename;
     EXECUTE format('ANALYZE %I.%I', v_parent_schemaname, v_parent_tablename);
@@ -397,3 +404,4 @@ RETURN v_total_rows;
 
 END
 $$;
+

@@ -251,8 +251,8 @@ FOR v_row IN
         FROM pg_inherits i
         JOIN parent_table p ON i.inhparent = p.parent_oid
     )
-    -- This column list must be kept consistent between:
-    --   , check_subpart_sameconfig, create_partition_id, create_partition_time, dump_partitioned_table_definition and table definition
+    -- These column lists must be kept consistent between:
+    --   create_partition, check_subpart_sameconfig, create_partition_id, create_partition_time, dump_partitioned_table_definition and table definition
     SELECT DISTINCT
         a.sub_control
         , a.sub_partition_interval
@@ -275,6 +275,8 @@ FOR v_row IN
         , a.sub_ignore_default_data
         , a.sub_default_table
         , a.sub_retention_keep_publication
+        , a.sub_detach_before_drop
+        , a.sub_maintenance_role
     FROM @extschema@.part_config_sub a
     JOIN sibling_children b on a.sub_parent = b.tablename LIMIT 1
 LOOP
@@ -299,7 +301,9 @@ LOOP
         , sub_constraint_valid
         , sub_date_trunc_interval
         , sub_ignore_default_data
-        , sub_retention_keep_publication)
+        , sub_retention_keep_publication
+        , sub_detach_before_drop
+        , sub_maintenance_role)
     VALUES (
         p_parent_table
         , v_row.sub_partition_type
@@ -321,7 +325,9 @@ LOOP
         , v_row.sub_constraint_valid
         , v_row.sub_date_trunc_interval
         , v_row.sub_ignore_default_data
-        , v_row.sub_retention_keep_publication);
+        , v_row.sub_retention_keep_publication
+        , v_row.sub_detach_before_drop
+        , v_row.sub_maintenance_role);
 
     -- Set this equal to sibling configs so that newly created child table
     -- privileges are set properly below during initial setup.
@@ -620,6 +626,8 @@ IF p_default_table THEN
 
     PERFORM @extschema@.inherit_replica_identity(v_parent_schemaname, v_parent_tablename, v_default_partition);
 
+    PERFORM @extschema@.inherit_parent_properties(v_parent_schemaname, v_parent_tablename, v_default_partition);
+
     -- Manage template inherited properties
     IF v_template_tablename IS NOT NULL THEN
         PERFORM @extschema@.inherit_template_properties(p_parent_table, v_parent_schemaname, v_default_partition);
@@ -649,7 +657,7 @@ EXCEPTION
                                 ex_hint = PG_EXCEPTION_HINT;
         IF v_jobmon_schema IS NOT NULL THEN
             IF v_job_id IS NULL THEN
-                EXECUTE format('SELECT %I.add_job(''PARTMAN CREATE PARENT: %s'')', v_jobmon_schema, p_parent_table) INTO v_job_id;
+                EXECUTE format('SELECT %I.add_job(%L)', v_jobmon_schema, format('PARTMAN CREATE PARENT: %s', p_parent_table)) INTO v_job_id;
                 EXECUTE format('SELECT %I.add_step(%s, ''Partition creation for table '||p_parent_table||' failed'')', v_jobmon_schema, v_job_id, p_parent_table) INTO v_step_id;
             ELSIF v_step_id IS NULL THEN
                 EXECUTE format('SELECT %I.add_step(%s, ''EXCEPTION before first step logged'')', v_jobmon_schema, v_job_id) INTO v_step_id;
@@ -663,3 +671,4 @@ DETAIL: %
 HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
+

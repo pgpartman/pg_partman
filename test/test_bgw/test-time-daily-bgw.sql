@@ -17,11 +17,11 @@
 SELECT set_config('search_path','partman, public',false);
 
 SELECT plan(105);
-CREATE SCHEMA partman_test;
-CREATE SCHEMA partman_retention_test;
 CREATE ROLE partman_basic;
 CREATE ROLE partman_revoke;
 CREATE ROLE partman_owner;
+CREATE SCHEMA partman_test AUTHORIZATION partman_owner;
+CREATE SCHEMA partman_retention_test AUTHORIZATION partman_owner;
 
 CREATE TABLE partman_test.time_taptest_table (
     col1 int

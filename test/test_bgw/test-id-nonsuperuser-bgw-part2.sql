@@ -1,11 +1,4 @@
--- ########## ID TESTS WITH BACKGROUND WORKER RUNNING ##########
--- Additional tests:
-    -- turn off pg_jobmon logging
-    -- UNLOGGED
-    -- retention
-    -- fk reference
--- Set the pg_partman_bgw.interval setting in postgresql.conf to 10 seconds (or less) in order for this test suite to pass successfully.
--- Test create_parent() alias
+-- See part1 for full notes
 
 -- ########### WARNING WARNING WARNING ##############
 -- Cannot run this test inside a transaction since then the BGW would not see this partition set exists
@@ -17,12 +10,7 @@
 --BEGIN;
 SELECT set_config('search_path','partman, public',false);
 
-SELECT plan(121);
-CREATE ROLE partman_basic;
-CREATE ROLE partman_revoke;
-CREATE ROLE partman_owner;
-CREATE SCHEMA partman_test AUTHORIZATION partman_owner;
-CREATE SCHEMA partman_retention_test AUTHORIZATION partman_owner;
+SELECT plan(116);
 
 CREATE TABLE partman_test.fk_test_reference (col2 text unique not null);
 INSERT INTO partman_test.fk_test_reference VALUES ('stuff');
@@ -184,11 +172,9 @@ SELECT hasnt_table('partman_test', 'id_taptest_table_p0', 'Check id_taptest_tabl
 UPDATE part_config SET retention = '10', retention_schema = 'partman_retention_test' WHERE parent_table = 'partman_test.id_taptest_table';
 
 SELECT pass('Waiting 20 seconds for background worker to run...');
-
 SELECT pg_sleep(20);
 
 SELECT hasnt_table('partman_test', 'id_taptest_table_p10', 'Check id_taptest_table_p10 doesn''t exists anymore');
-
 SELECT has_table('partman_retention_test', 'id_taptest_table_p10', 'Check id_taptest_table_p10 got moved to new schema');
 
 -- Has to run twice because second time around is when it sees the partition is empty & drops it
@@ -203,17 +189,6 @@ SELECT hasnt_table('partman_test', 'id_taptest_table_p50', 'Check id_taptest_tab
 SELECT hasnt_table('partman_test', 'id_taptest_table_p60', 'Check id_taptest_table_p60 does not exist');
 SELECT hasnt_table('partman_test', 'id_taptest_table_p70', 'Check id_taptest_table_p70 does not exist');
 
-DROP SCHEMA IF EXISTS partman_test CASCADE;
-DROP SCHEMA IF EXISTS partman_retention_test CASCADE;
-DROP ROLE IF EXISTS partman_basic;
-DROP ROLE IF EXISTS partman_revoke;
-DROP ROLE IF EXISTS partman_owner;
-
-SELECT hasnt_schema('partman_test', 'Ensure partman_test schema has been dropped');
-SELECT hasnt_schema('partman_retention_test', 'Ensure partman_retention_test schema has been dropped');
-SELECT hasnt_role('partman_basic', 'Ensure partman_basic role has been dropped');
-SELECT hasnt_role('partman_revoke', 'Ensure partman_revoke role has been dropped');
-SELECT hasnt_role('partman_owner', 'Ensure partman_owner role has been dropped');
 
 SELECT * FROM finish();
 --ROLLBACK;

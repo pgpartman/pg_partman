@@ -19,8 +19,6 @@ v_analyze                       boolean := FALSE;
 v_check_subpart                 int;
 v_child_timestamp               timestamptz;
 v_control_type                  text;
-v_time_encoder                  text;
-v_time_decoder                  text;
 v_create_count                  int := 0;
 v_current_partition_id          bigint;
 v_current_partition_timestamp   timestamptz;
@@ -64,6 +62,8 @@ v_sub_timestamp_max             timestamptz;
 v_sub_timestamp_max_suffix      timestamptz;
 v_sub_timestamp_min             timestamptz;
 v_tables_list_sql               text;
+v_time_decoder                  text;
+v_time_decoder_safe             text;
 
 BEGIN
 /*
@@ -147,6 +147,7 @@ RAISE DEBUG 'run_maint: v_tables_list_sql: %', v_tables_list_sql;
 FOR v_row IN EXECUTE v_tables_list_sql
 LOOP
 
+    BEGIN
     CONTINUE WHEN v_row.undo_in_progress;
 
     IF v_row.async_partitioning_in_progress IS NOT NULL THEN
@@ -157,7 +158,11 @@ LOOP
     -- When sub-partitioning, retention may drop tables that were already put into the query loop values.
     -- Check if they still exist in part_config before continuing
     v_parent_exists := NULL;
-    SELECT parent_table, time_encoder, time_decoder INTO v_parent_exists, v_time_encoder, v_time_decoder FROM @extschema@.part_config WHERE parent_table = v_row.parent_table;
+    SELECT parent_table, time_decoder
+    INTO v_parent_exists, v_time_decoder
+    FROM @extschema@.part_config
+    WHERE parent_table = v_row.parent_table;
+
     IF v_parent_exists IS NULL THEN
         RAISE DEBUG 'run_maint: Parent table possibly removed from part_config by retenion';
     END IF;
@@ -220,7 +225,8 @@ LOOP
     RAISE DEBUG 'run_maint: v_partition_expression: %', v_partition_expression;
 
     SELECT partition_tablename INTO v_last_partition FROM @extschema@.show_partitions(v_row.parent_table, 'DESC') LIMIT 1;
-    RAISE DEBUG 'run_maint: parent_table: %, v_last_partition: %', v_row.parent_table, v_last_partition;
+
+    RAISE DEBUG 'run_maint: parent_table: %, v_last_partition: %, v_control_type: %', v_row.parent_table, v_last_partition, v_control_type;
 
     IF v_control_type = 'time' OR (v_control_type = 'id' AND v_row.epoch <> 'none') OR (v_control_type IN ('text', 'uuid')) THEN
 
@@ -244,6 +250,9 @@ LOOP
 
         -- Must be reset to null otherwise if the next partition set in the loop is empty, the previous partition set's value could be used
         v_current_partition_timestamp := NULL;
+        IF v_time_decoder IS NOT NULL THEN
+            v_time_decoder_safe := partman_safe_obj_name(v_time_decoder);
+        END IF;
 
         -- Loop through child tables starting from highest to get a timestamp from the highest non-empty partition in the set
         -- Avoids doing a scan on entire partition set and/or getting any values accidentally in default.
@@ -258,7 +267,7 @@ LOOP
                                 ) INTO v_child_timestamp;
             ELSIF v_control_type IN ('text', 'uuid') THEN
                 EXECUTE format('SELECT %s(%s::text) FROM %I.%I LIMIT 1'
-                                    , v_time_decoder
+                                    , v_time_decoder_safe
                                     , v_partition_expression
                                     , v_row_max_time.partition_schemaname
                                     , v_row_max_time.partition_tablename
@@ -470,6 +479,20 @@ LOOP
 
     UPDATE @extschema@.part_config SET maintenance_last_run = clock_timestamp() WHERE parent_table = v_row.parent_table;
 
+    EXCEPTION WHEN OTHERS THEN
+        GET STACKED DIAGNOSTICS ex_message = MESSAGE_TEXT,
+                                ex_context = PG_EXCEPTION_CONTEXT,
+                                ex_detail = PG_EXCEPTION_DETAIL,
+                                ex_hint = PG_EXCEPTION_HINT;
+        UPDATE @extschema@.part_config
+            SET maintenance_last_run = NULL   -- mark as not maintained this tick
+            WHERE parent_table = v_row.parent_table;
+        RAISE WARNING 'pg_partman maintenance skipped partition set for parent table %: %
+CONTEXT: %
+DETAIL: %
+HINT: %', v_row.parent_table, ex_message, ex_context, ex_detail, ex_hint;
+        CONTINUE;
+    END;
 END LOOP; -- end of main loop through part_config
 
 IF v_jobmon_schema IS NOT NULL THEN
@@ -504,3 +527,4 @@ DETAIL: %
 HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
+

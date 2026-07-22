@@ -1,5 +1,6 @@
 -- ########## ID 10 TESTS ##########
 -- Additional tests:
+    -- Install pg_partman to the public schema. Checks for hard coded schemas instead of using the @extschema@ macro.
     -- turn off pg_jobmon logging
     -- UNLOGGED - Parent table not allowed to be unlogged in PG18+, but the child tables can be
     -- PUBLIC role
@@ -8,7 +9,6 @@
     -- inherit privileges
     -- pre-created template table and passing to create_partition. Should allow indexes to be made for initial children.
     -- Since this is id partitioning, we can use the partition key for primary key, so that should work from parent
-    -- Install pg_partman to the public schema. Checks for hard coded schemas instead of using the @extschema@ macro.
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true
@@ -17,11 +17,11 @@ BEGIN;
 SELECT set_config('search_path','public',false);
 
 SELECT plan(134);
-CREATE SCHEMA partman_test;
-CREATE SCHEMA partman_retention_test;
 CREATE ROLE partman_basic;
 CREATE ROLE partman_revoke;
 CREATE ROLE partman_owner;
+CREATE SCHEMA partman_test;
+CREATE SCHEMA partman_retention_test AUTHORIZATION partman_owner;
 
 CREATE TABLE partman_test.fk_test_reference (col2 text unique not null);
 INSERT INTO partman_test.fk_test_reference VALUES ('stuff');
