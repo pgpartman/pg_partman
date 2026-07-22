@@ -7,7 +7,7 @@ BREAKING CHANGES
 
 DOCUMENTATION
 -------------
- - [IMPORTANT DOCUMENTATION UPDATES](https://github.com/pgpartman/pg_partman-ghsa-742w-3j7c-qwvp/blob/development/README.md#setup) - The CVE fixes in this update pointed out vulnerabilities around running the background worker as a superuser. Additional instructions have been added for how to run pg_partman without any superuser at all, with and/or without the background worker. Additional instructions have also been added for using Row Level Security (RLS) to limit user interaction with the partman configuration tables.
+ - [IMPORTANT DOCUMENTATION UPDATES](https://github.com/pgpartman/pg_partman/blob/development/README.md#setup) - The CVE fixes in this update pointed out vulnerabilities around running the background worker as a superuser. Additional instructions have been added for how to run pg_partman without any superuser at all, with and/or without the background worker. Additional instructions have also been added for using Row Level Security (RLS) to limit user interaction with the partman configuration tables.
     - Note that changing to using a non-superuser can be done before upgrading to version 5.5 if these security mitigations need to be done before updating the extension is possible. RLS policy enforcement does require 5.5 since the column to allow it is added in that version.
 
 NEW FEATURES
