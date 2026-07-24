@@ -313,8 +313,8 @@ LOOP
         , v_row.sub_premake
         , v_row.sub_retention
         , v_row.sub_retention_schema
-        , v_row.sub_retention_keep_index
         , v_row.sub_retention_keep_table
+        , v_row.sub_retention_keep_index
         , v_row.sub_automatic_maintenance
         , v_row.sub_epoch
         , v_row.sub_optimize_constraint
