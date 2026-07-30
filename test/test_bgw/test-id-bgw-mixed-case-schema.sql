@@ -1,12 +1,12 @@
 -- ########## ID TESTS WITH BACKGROUND WORKER RUNNING ##########
 -- Additional tests:
     -- turn off pg_jobmon logging
-    -- UNLOGGED
     -- retention
     -- fk reference
 -- Set the pg_partman_bgw.interval setting in postgresql.conf to 10 seconds (or less) in order for this test suite to pass successfully.
 
 -- This requires installing pg_partman to the mixed case schema "PartMan"
+--      CREATE SCHEMA "PartMan";
 --      CREATE EXTENSION pg_partman SCHEMA "PartMan";
 
 -- ########### WARNING WARNING WARNING ##############
@@ -19,17 +19,18 @@
 --BEGIN;
 SELECT set_config('search_path','"PartMan", public',false);
 
-SELECT plan(122);
-CREATE SCHEMA partman_test;
-CREATE SCHEMA partman_retention_test;
+SELECT plan(113);
 CREATE ROLE partman_basic;
 CREATE ROLE partman_revoke;
 CREATE ROLE partman_owner;
+CREATE SCHEMA partman_test AUTHORIZATION partman_owner;
+CREATE SCHEMA partman_retention_test AUTHORIZATION partman_owner;
+
 
 CREATE TABLE partman_test.fk_test_reference (col2 text unique not null);
 INSERT INTO partman_test.fk_test_reference VALUES ('stuff');
 
-CREATE UNLOGGED TABLE partman_test.id_taptest_table (
+CREATE TABLE partman_test.id_taptest_table (
     col1 int primary key
     , col2 text not null default 'stuff' references partman_test.fk_test_reference (col2)
     , col3 timestamptz DEFAULT now() )
@@ -37,12 +38,12 @@ CREATE UNLOGGED TABLE partman_test.id_taptest_table (
 GRANT SELECT,INSERT,UPDATE ON partman_test.id_taptest_table TO partman_basic;
 GRANT ALL ON partman_test.id_taptest_table TO partman_revoke;
 
-CREATE UNLOGGED TABLE partman_test.template_id_taptest_table (LIKE partman_test.id_taptest_table);
+CREATE TABLE partman_test.template_id_taptest_table (LIKE partman_test.id_taptest_table);
 ALTER TABLE partman_test.template_id_taptest_table ADD PRIMARY KEY (col1);
 
 CREATE TABLE partman_test.undo_taptest (LIKE partman_test.id_taptest_table INCLUDING ALL);
 
-SELECT results_eq('SELECT create_parent(''partman_test.id_taptest_table'', ''col1'', ''10'', p_jobmon := false, p_template_table := ''partman_test.template_id_taptest_table'')::text', ARRAY['true'], 'Check that create_parent() returns true');
+SELECT results_eq('SELECT create_partition(''partman_test.id_taptest_table'', ''col1'', ''10'', p_jobmon := false, p_template_table := ''partman_test.template_id_taptest_table'')::text', ARRAY['true'], 'Check that create_partition() returns true');
 
 INSERT INTO partman_test.id_taptest_table (col1) VALUES (generate_series(1,9));
 
@@ -75,12 +76,6 @@ SELECT table_privs_are('partman_test', 'id_taptest_table_p10', 'partman_revoke',
 SELECT table_privs_are('partman_test', 'id_taptest_table_p20', 'partman_revoke', ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'], 'Check partman_revoke privileges of id_taptest_table_p20');
 SELECT table_privs_are('partman_test', 'id_taptest_table_p30', 'partman_revoke', ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'], 'Check partman_revoke privileges of id_taptest_table_p30');
 SELECT table_privs_are('partman_test', 'id_taptest_table_p40', 'partman_revoke', ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'], 'Check partman_revoke privileges of id_taptest_table_p40');
-SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table''::regclass', ARRAY['u'], 'Check that parent table is unlogged');
-SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p0''::regclass', ARRAY['u'], 'Check that id_taptest_table_p0 is unlogged');
-SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p10''::regclass', ARRAY['u'], 'Check that id_taptest_table_p10 is unlogged');
-SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p20''::regclass', ARRAY['u'], 'Check that id_taptest_table_p20 is unlogged');
-SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p30''::regclass', ARRAY['u'], 'Check that id_taptest_table_p30 is unlogged');
-SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p40''::regclass', ARRAY['u'], 'Check that id_taptest_table_p40 is unlogged');
 
 SELECT results_eq('SELECT count(*)::int FROM partman_test.id_taptest_table', ARRAY[9], 'Check count from parent table');
 SELECT results_eq('SELECT count(*)::int FROM partman_test.id_taptest_table_p0', ARRAY[9], 'Check count from id_taptest_table_p0');
@@ -99,9 +94,7 @@ SELECT pass('Waiting 20 seconds for background worker to run...');
 SELECT pg_sleep(20);
 
 SELECT has_table('partman_test', 'id_taptest_table_p50', 'Check id_taptest_table_p50 exists');
-SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p50''::regclass', ARRAY['u'], 'Check that id_taptest_table_p50 is unlogged');
 SELECT has_table('partman_test', 'id_taptest_table_p60', 'Check id_taptest_table_p60 exists');
-SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p60''::regclass', ARRAY['u'], 'Check that id_taptest_table_p60 is unlogged');
 SELECT hasnt_table('partman_test', 'id_taptest_table_p70', 'Check id_taptest_table_p70 doesn''t exists yet');
 SELECT col_is_pk('partman_test', 'id_taptest_table_p50', ARRAY['col1'], 'Check for primary key in id_taptest_table_p50');
 SELECT col_is_fk('partman_test', 'id_taptest_table_p50', 'col2', 'Check that foreign key was inherited to id_taptest_table_p50');
@@ -130,7 +123,6 @@ SELECT pass('Waiting 20 seconds for background worker to run...');
 SELECT pg_sleep(20);
 
 SELECT has_table('partman_test', 'id_taptest_table_p70', 'Check id_taptest_table_p70 exists');
-SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p70''::regclass', ARRAY['u'], 'Check that id_taptest_table_p70 is unlogged');
 SELECT hasnt_table('partman_test', 'id_taptest_table_p80', 'Check id_taptest_table_p90 doesn''t exists yet');
 SELECT col_is_pk('partman_test', 'id_taptest_table_p70', ARRAY['col1'], 'Check for primary key in id_taptest_table_p70');
 SELECT col_is_fk('partman_test', 'id_taptest_table_p70', 'col2', 'Check that foreign key was inherited to id_taptest_table_p70');

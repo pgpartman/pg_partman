@@ -1,5 +1,6 @@
 CREATE FUNCTION @extschema@.reapply_privileges(p_parent_table text) RETURNS void
     LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 
@@ -25,29 +26,25 @@ BEGIN
 
 SELECT jobmon INTO v_jobmon FROM @extschema@.part_config WHERE parent_table = p_parent_table;
 IF v_jobmon IS NULL THEN
-    RAISE EXCEPTION 'Given table is not managed by this extention: %', p_parent_table;
+    RAISE EXCEPTION 'Given table is not managed by this extension: %', p_parent_table;
 END IF;
 
-SELECT current_setting('search_path') INTO v_old_search_path;
-IF length(v_old_search_path) > 0 THEN
-   v_new_search_path := '@extschema@,pg_temp,'||v_old_search_path;
-ELSE
-    v_new_search_path := '@extschema@,pg_temp';
-END IF;
 IF v_jobmon THEN
     SELECT nspname INTO v_jobmon_schema FROM pg_catalog.pg_namespace n, pg_catalog.pg_extension e WHERE e.extname = 'pg_jobmon'::name AND e.extnamespace = n.oid;
     IF v_jobmon_schema IS NOT NULL THEN
-        v_new_search_path := format('%s,%s',v_jobmon_schema, v_new_search_path);
+        SELECT current_setting('search_path') INTO v_old_search_path;
+        IF v_jobmon_schema IS NOT NULL THEN
+            v_new_search_path := format('%s,%s',v_jobmon_schema, v_old_search_path);
+            EXECUTE format('SET LOCAL search_path TO %s', v_new_search_path);
+        END IF;
     END IF;
 END IF;
-EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_new_search_path, 'false');
 
 SELECT schemaname, tablename INTO v_parent_schema, v_parent_tablename
 FROM pg_catalog.pg_tables
 WHERE schemaname = split_part(p_parent_table, '.', 1)::name
 AND tablename = split_part(p_parent_table, '.', 2)::name;
 IF v_parent_tablename IS NULL THEN
-    EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_old_search_path, 'false');
     RAISE EXCEPTION 'Given parent table does not exist: %', p_parent_table;
 END IF;
 
@@ -65,8 +62,6 @@ IF v_jobmon_schema IS NOT NULL THEN
     PERFORM close_job(v_job_id);
 END IF;
 
-EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_old_search_path, 'false');
-
 EXCEPTION
     WHEN OTHERS THEN
         GET STACKED DIAGNOSTICS ex_message = MESSAGE_TEXT,
@@ -75,7 +70,7 @@ EXCEPTION
                                 ex_hint = PG_EXCEPTION_HINT;
         IF v_jobmon_schema IS NOT NULL THEN
             IF v_job_id IS NULL THEN
-                EXECUTE format('SELECT %I.add_job(''PARTMAN RE-APPLYING PRIVILEGES TO ALL CHILD TABLES OF: %s'')', v_jobmon_schema, p_parent_table) INTO v_job_id;
+                EXECUTE format('SELECT %I.add_job(%L)', v_jobmon_schema, format('PARTMAN RE-APPLYING PRIVILEGES TO ALL CHILD TABLES OF: %s', p_parent_table)) INTO v_job_id;
                 EXECUTE format('SELECT %I.add_step(%s, ''EXCEPTION before job logging started'')', v_jobmon_schema, v_job_id, p_parent_table) INTO v_step_id;
             ELSIF v_step_id IS NULL THEN
                 EXECUTE format('SELECT %I.add_step(%s, ''EXCEPTION before first step logged'')', v_jobmon_schema, v_job_id) INTO v_step_id;
@@ -89,3 +84,4 @@ DETAIL: %
 HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
+

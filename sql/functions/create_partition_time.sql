@@ -5,6 +5,7 @@ CREATE FUNCTION @extschema@.create_partition_time(
 )
     RETURNS boolean
     LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 
@@ -14,7 +15,6 @@ ex_hint                         text;
 ex_message                      text;
 v_control                       text;
 v_control_type                  text;
-v_time_encoder                  text;
 v_datetime_string               text;
 v_epoch                         text;
 v_exists                        smallint;
@@ -45,6 +45,8 @@ v_sub_timestamp_max             timestamptz;
 v_sub_timestamp_min             timestamptz;
 v_template_table                text;
 v_time                          timestamptz;
+v_time_encoder                  text;
+v_time_encoder_safe             text;
 v_partition_text_start          text;
 v_partition_text_end            text;
 
@@ -97,19 +99,16 @@ IF v_control_type <> 'time' THEN
     END IF;
 END IF;
 
-SELECT current_setting('search_path') INTO v_old_search_path;
-IF length(v_old_search_path) > 0 THEN
-   v_new_search_path := '@extschema@,pg_temp,'||v_old_search_path;
-ELSE
-    v_new_search_path := '@extschema@,pg_temp';
-END IF;
 IF v_jobmon THEN
     SELECT nspname INTO v_jobmon_schema FROM pg_catalog.pg_namespace n, pg_catalog.pg_extension e WHERE e.extname = 'pg_jobmon'::name AND e.extnamespace = n.oid;
     IF v_jobmon_schema IS NOT NULL THEN
-        v_new_search_path := format('%s,%s',v_jobmon_schema, v_new_search_path);
+        SELECT current_setting('search_path') INTO v_old_search_path;
+        IF v_jobmon_schema IS NOT NULL THEN
+            v_new_search_path := format('%s,%s',v_jobmon_schema, v_old_search_path);
+            EXECUTE format('SET LOCAL search_path TO %s', v_new_search_path);
+        END IF;
     END IF;
 END IF;
-EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_new_search_path, 'false');
 
 -- Determine if this table is a child of a subpartition parent. If so, get limits of what child tables can be created based on parent suffix
 SELECT sub_min::timestamptz, sub_max::timestamptz INTO v_sub_timestamp_min, v_sub_timestamp_max FROM @extschema@.check_subpartition_limits(p_parent_table, 'time');
@@ -175,22 +174,8 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
 
     v_sql := 'CREATE';
 
-    /*
-    -- As of PG12, the unlogged/logged status of a parent table cannot be changed via an ALTER TABLE in order to affect its children.
-    -- As of partman v4.2x, the unlogged state will be managed via the template table
-    -- TODO Test UNLOGGED status in PG17 to see if this can be done without template yet. Add to create_partition_id then as well.
-    SELECT relpersistence INTO v_unlogged
-    FROM pg_catalog.pg_class c
-    JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-    WHERE c.relname = v_parent_tablename::name
-    AND n.nspname = v_parent_schema::name;
 
-    IF v_unlogged = 'u' THEN
-        v_sql := v_sql || ' UNLOGGED';
-    END IF;
-    */
-
-    -- Same INCLUDING list is used in create_parent()
+    -- Same INCLUDING list is used in create_partition()
     v_sql := v_sql || format(' TABLE %I.%I (LIKE %I.%I INCLUDING COMMENTS INCLUDING COMPRESSION INCLUDING CONSTRAINTS INCLUDING DEFAULTS INCLUDING GENERATED INCLUDING STATISTICS INCLUDING STORAGE) '
                                 , v_parent_schema
                                 , v_partition_name
@@ -211,6 +196,8 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
     RAISE DEBUG 'create_partition_time v_sql: %', v_sql;
     EXECUTE v_sql;
 
+    PERFORM @extschema@.inherit_parent_properties(v_parent_schema, v_parent_tablename, v_partition_name);
+
     IF v_template_table IS NOT NULL THEN
         PERFORM @extschema@.inherit_template_properties(p_parent_table, v_parent_schema, v_partition_name);
     END IF;
@@ -226,9 +213,11 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
                 , v_partition_timestamp_start
                 , v_partition_timestamp_end);
         ELSE
-            EXECUTE format('SELECT %s(%L)', v_time_encoder, v_partition_timestamp_start) INTO v_partition_text_start;
-            EXECUTE format('SELECT %s(%L)', v_time_encoder, v_partition_timestamp_end) INTO v_partition_text_end;
-            
+            v_time_encoder_safe := partman_safe_obj_name(v_time_encoder);
+
+            EXECUTE format('SELECT %s(%L)', v_time_encoder_safe, v_partition_timestamp_start) INTO v_partition_text_start;
+            EXECUTE format('SELECT %s(%L)', v_time_encoder_safe, v_partition_timestamp_end) INTO v_partition_text_end;
+
             EXECUTE format('ALTER TABLE %I.%I ATTACH PARTITION %I.%I FOR VALUES FROM (%L) TO (%L)'
                 , v_parent_schema
                 , v_parent_tablename
@@ -294,8 +283,8 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
 
     -- Will only loop once and only if sub_partitioning is actually configured
     -- This seemed easier than assigning a bunch of variables and doing an IF condition
-    -- This column list must be kept consistent between:
-    --   create_parent, check_subpart_sameconfig, create_partition_id, create_partition_time, dump_partitioned_table_definition, and table definition
+    -- This column list and the update statement below must be kept consistent between:
+    --   create_partition, check_subpart_sameconfig, create_partition_id, create_partition_time, dump_partitioned_table_definition, and table definition
     FOR v_row IN
         SELECT
             sub_parent
@@ -324,13 +313,15 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             , sub_maintenance_order
             , sub_retention_keep_publication
             , sub_control_not_null
+            , sub_detach_before_drop
+            , sub_maintenance_role
         FROM @extschema@.part_config_sub
         WHERE sub_parent = p_parent_table
     LOOP
         IF v_jobmon_schema IS NOT NULL THEN
             v_step_id := add_step(v_job_id, format('Subpartitioning %s.%s', v_parent_schema, v_partition_name));
         END IF;
-        v_sql := format('SELECT @extschema@.create_parent(
+        v_sql := format('SELECT @extschema@.create_partition(
                  p_parent_table := %L
                 , p_control := %L
                 , p_time_encoder := %L
@@ -364,7 +355,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             , v_row.sub_date_trunc_interval
             , v_row.sub_control_not_null);
 
-        RAISE DEBUG 'create_partition_time (create_parent loop): %', v_sql;
+        RAISE DEBUG 'create_partition_time (create_partition loop): %', v_sql;
         EXECUTE v_sql;
 
         UPDATE @extschema@.part_config SET
@@ -377,6 +368,8 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
             , ignore_default_data = v_row.sub_ignore_default_data
             , maintenance_order = v_row.sub_maintenance_order
             , retention_keep_publication = v_row.sub_retention_keep_publication
+            , detach_before_drop = v_row.sub_detach_before_drop
+            , maintenance_role = v_row.sub_maintenance_role
         WHERE parent_table = v_parent_schema||'.'||v_partition_name;
 
     END LOOP; -- end sub partitioning LOOP
@@ -404,8 +397,6 @@ IF v_jobmon_schema IS NOT NULL THEN
     END IF;
 END IF;
 
-EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_old_search_path, 'false');
-
 RETURN v_partition_created;
 
 EXCEPTION
@@ -416,7 +407,7 @@ EXCEPTION
                                 ex_hint = PG_EXCEPTION_HINT;
         IF v_jobmon_schema IS NOT NULL THEN
             IF v_job_id IS NULL THEN
-                EXECUTE format('SELECT %I.add_job(''PARTMAN CREATE TABLE: %s'')', v_jobmon_schema, p_parent_table) INTO v_job_id;
+                EXECUTE format('SELECT %I.add_job(%L)', v_jobmon_schema, format('PARTMAN CREATE TABLE: %s', p_parent_table)) INTO v_job_id;
                 EXECUTE format('SELECT %I.add_step(%s, ''EXCEPTION before job logging started'')', v_jobmon_schema, v_job_id, p_parent_table) INTO v_step_id;
             ELSIF v_step_id IS NULL THEN
                 EXECUTE format('SELECT %I.add_step(%s, ''EXCEPTION before first step logged'')', v_jobmon_schema, v_job_id) INTO v_step_id;
@@ -430,3 +421,4 @@ DETAIL: %
 HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
+

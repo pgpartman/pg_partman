@@ -4,6 +4,7 @@
     -- check that maintenance catches up if tables are missing
     -- Test using default template table. Initial child tables will have no indexes or primary keys. New tables after template has indexes added should.
     -- Test for native FK inheritance
+    -- Test create_parent() alias
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true
@@ -11,13 +12,13 @@
 BEGIN;
 SELECT set_config('search_path','partman, public',false);
 
-SELECT plan(221);
+SELECT plan(224);
 
-CREATE SCHEMA partman_test;
-CREATE SCHEMA partman_retention_test;
 CREATE ROLE partman_basic;
 CREATE ROLE partman_revoke;
 CREATE ROLE partman_owner;
+CREATE SCHEMA partman_test;
+CREATE SCHEMA partman_retention_test AUTHORIZATION partman_owner;
 
 CREATE TABLE partman_test.fk_test_reference (col2 text unique not null);
 INSERT INTO partman_test.fk_test_reference VALUES ('stuff');
@@ -147,7 +148,7 @@ SELECT table_privs_are('partman_test', 'time_taptest_table_p'||to_char(CURRENT_T
     'Check partman_revoke privileges of time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'4 days'::interval, 'YYYYMMDD'));
 
 
-SELECT is_empty('SELECT * FROM ONLY partman_test.time_taptest_table', 'Check that parent table is empty. Should be impossible for native, but leaving test here just cause.');
+SELECT is_empty('SELECT * FROM ONLY partman_test.time_taptest_table_default', 'Check that default table is empty.');
 SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table', ARRAY[10], 'Check count from parent table');
 SELECT results_eq('SELECT count(*)::int FROM partman_test.time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'),
     ARRAY[10], 'Check count from time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'));
@@ -590,6 +591,16 @@ SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMES
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(200,210), partman.uuid7_time_encoder(CURRENT_TIMESTAMP + '20 days'::interval));
 SELECT results_eq('SELECT count(*)::int FROM ONLY partman_test.time_taptest_table_default', ARRAY[11], 'Check that data child scope goes to default');
 
+-- Test partitioning function works to move data out of default
+SELECT partman.partition_data_time('partman_test.time_taptest_table', 20);
+
+SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'20 days'::interval, 'YYYYMMDD'),
+    'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'20 days'::interval, 'YYYYMMDD')||' does exist');
+SELECT is_empty('SELECT * FROM ONLY partman_test.time_taptest_table_default', 'Check that default table is empty after partitioning.');
+SELECT results_eq('SELECT count(*)::int FROM ONLY partman_test.time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'20 days'::interval, 'YYYYMMDD'), ARRAY[11], 'Check that data went to proper child table after partitioning');
+
+
+-- Test undoing stuff
 SELECT drop_partition_time('partman_test.time_taptest_table', '3 days'::interval, p_keep_table := false);
 SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'4 days'::interval, 'YYYYMMDD'),
     'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'4 days'::interval, 'YYYYMMDD')||' does not exist');
@@ -638,4 +649,3 @@ SELECT hasnt_table('partman', 'template_partman_test_time_taptest_table', 'Check
 
 SELECT * FROM finish();
 ROLLBACK;
-

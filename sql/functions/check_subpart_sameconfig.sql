@@ -23,9 +23,11 @@ CREATE FUNCTION @extschema@.check_subpart_sameconfig(p_parent_table text)
         , sub_maintenance_order int
         , sub_retention_keep_publication boolean
         , sub_control_not_null boolean
+        , sub_detach_before_drop boolean
+        , sub_maintenance_role text
         )
     LANGUAGE sql STABLE
-    SET search_path = @extschema@,pg_temp
+    SET search_path = @extschema@, pg_catalog, pg_temp
 AS $$
 /*
  * Check for consistent data in part_config_sub table. Was unable to get this working properly as either a constraint or trigger.
@@ -50,7 +52,7 @@ AS $$
     )
     -- Column order here must match the RETURNS TABLE definition
     -- This column list must be kept consistent between:
-    --   create_parent, check_subpart_sameconfig, create_partition_id, create_partition_time, dump_partitioned_table_definition, and table definition
+    --   create_partition, check_subpart_sameconfig, create_partition_id, create_partition_time, dump_partitioned_table_definition, and table definition
     --   Also check return table list from this function
     SELECT DISTINCT
         a.sub_control
@@ -76,6 +78,9 @@ AS $$
         , a.sub_maintenance_order
         , a.sub_retention_keep_publication
         , a.sub_control_not_null
+        , a.sub_detach_before_drop
+        , a.sub_maintenance_role
     FROM @extschema@.part_config_sub a
     JOIN child_tables b on a.sub_parent = b.tablename;
 $$;
+

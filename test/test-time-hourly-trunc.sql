@@ -25,7 +25,7 @@ CREATE TABLE partman_test.undo_taptest (LIKE partman_test.time_taptest_table_123
 GRANT SELECT,INSERT,UPDATE ON partman_test.time_taptest_table_1234567890123456789012345678901234567890 TO partman_basic;
 GRANT ALL ON partman_test.time_taptest_table_1234567890123456789012345678901234567890 TO partman_revoke;
 
-SELECT create_parent('partman_test.time_taptest_table_1234567890123456789012345678901234567890'
+SELECT create_partition('partman_test.time_taptest_table_1234567890123456789012345678901234567890'
     , 'col3'
     , '1 hour'
     , p_template_table => 'partman_test.template_time_taptest_table');

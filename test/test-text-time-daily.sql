@@ -4,6 +4,7 @@
     -- check that maintenance catches up if tables are missing
     -- Test using default template table. Initial child tables will have no indexes or primary keys. New tables after template has indexes added should.
     -- Test for native FK inheritance
+    -- test create_parent() alias
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true
@@ -13,11 +14,11 @@ SELECT set_config('search_path','partman, public',false);
 
 SELECT plan(221);
 
-CREATE SCHEMA partman_test;
-CREATE SCHEMA partman_retention_test;
 CREATE ROLE partman_basic;
 CREATE ROLE partman_revoke;
 CREATE ROLE partman_owner;
+CREATE SCHEMA partman_test;
+CREATE SCHEMA partman_retention_test AUTHORIZATION partman_owner;
 
 CREATE TABLE partman_test.fk_test_reference (col2 text unique not null);
 INSERT INTO partman_test.fk_test_reference VALUES ('stuff');
@@ -57,7 +58,7 @@ GRANT SELECT,INSERT,UPDATE ON partman_test.time_taptest_table TO partman_basic;
 GRANT ALL ON partman_test.time_taptest_table TO partman_revoke;
 ALTER TABLE partman_test.time_taptest_table OWNER TO partman_owner;
 
-SELECT create_parent('partman_test.time_taptest_table', 'col3', '1 day', p_time_encoder := 'partman_test.encode_timestamp', p_time_decoder := 'partman_test.decode_timestamp');
+SELECT create_partition('partman_test.time_taptest_table', 'col3', '1 day', p_time_encoder := 'partman_test.encode_timestamp', p_time_decoder := 'partman_test.decode_timestamp');
 UPDATE part_config SET inherit_privileges = TRUE;
 SELECT reapply_privileges('partman_test.time_taptest_table');
 
@@ -70,7 +71,6 @@ SELECT table_owner_is ('partman', 'template_partman_test_time_taptest_table', 'p
 ALTER TABLE template_partman_test_time_taptest_table ADD PRIMARY KEY (col1);
 
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(1,10), concat('INV', to_char(CURRENT_TIMESTAMP, 'YYYYMMDD')));
-
 SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'), 'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD')||' exists');
 SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'1 day'::interval, 'YYYYMMDD'),
     'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP+'1 day'::interval, 'YYYYMMDD')||' exists');
@@ -663,4 +663,3 @@ SELECT hasnt_table('partman', 'template_partman_test_time_taptest_table', 'Check
 
 SELECT * FROM finish();
 ROLLBACK;
-

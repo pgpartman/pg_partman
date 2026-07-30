@@ -1,5 +1,6 @@
 CREATE FUNCTION @extschema@.apply_privileges(p_parent_schema text, p_parent_tablename text, p_child_schema text, p_child_tablename text, p_job_id bigint DEFAULT NULL) RETURNS void
     LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 
@@ -7,7 +8,7 @@ ex_context          text;
 ex_detail           text;
 ex_hint             text;
 ex_message          text;
-v_all               text[] := ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'];
+v_all               text[];
 v_child_grant       record;
 v_child_owner       text;
 v_grantees          text[];
@@ -27,9 +28,12 @@ BEGIN
  * Apply privileges and ownership that exist on a given parent to the given child table
  */
 
+/* init v_all to a list of all table-related privileges available to current user */
+v_all := array(select (aclexplode(acldefault('r'::"char", usesysid))).privilege_type from pg_catalog.pg_user pu where pu.usename = current_user);
+
 SELECT jobmon INTO v_jobmon FROM @extschema@.part_config WHERE parent_table = p_parent_schema ||'.'|| p_parent_tablename;
 IF v_jobmon IS NULL THEN
-    RAISE EXCEPTION 'Given table is not managed by this extention: %.%', p_parent_schema, p_parent_tablename;
+    RAISE EXCEPTION 'Given table is not managed by this extension: %.%', p_parent_schema, p_parent_tablename;
 END IF;
 
 SELECT pg_get_userbyid(c.relowner) INTO v_parent_owner
@@ -175,7 +179,7 @@ EXCEPTION
                                 ex_hint = PG_EXCEPTION_HINT;
         IF v_jobmon_schema IS NOT NULL THEN
             IF v_job_id IS NULL THEN
-                EXECUTE format('SELECT %I.add_job(''PARTMAN RE-APPLYING PRIVILEGES TO ALL CHILD TABLES OF: %s'')', v_jobmon_schema, p_parent_tablename) INTO v_job_id;
+                EXECUTE format('SELECT %I.add_job(%L)', v_jobmon_schema, format('PARTMAN RE-APPLYING PRIVILEGES TO ALL CHILD TABLES OF: %s', p_parent_table)) INTO v_job_id;
                 EXECUTE format('SELECT %I.add_step(%s, ''EXCEPTION before job logging started'')', v_jobmon_schema, v_job_id, p_parent_tablename) INTO v_step_id;
             ELSIF v_step_id IS NULL THEN
                 EXECUTE format('SELECT %I.add_step(%s, ''EXCEPTION before first step logged'')', v_jobmon_schema, v_job_id) INTO v_step_id;
@@ -189,3 +193,4 @@ DETAIL: %
 HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
+

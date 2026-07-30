@@ -5,6 +5,7 @@
     -- privilege inheritance
     -- no default
     -- allow control to be null
+    -- retention schema
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true
@@ -13,11 +14,11 @@ BEGIN;
 SELECT set_config('search_path','partman, public',false);
 
 SELECT plan(147);
-CREATE SCHEMA partman_test;
-CREATE SCHEMA partman_retention_test;
 CREATE ROLE partman_basic;
 CREATE ROLE partman_revoke;
 CREATE ROLE partman_owner;
+CREATE SCHEMA partman_test;
+CREATE SCHEMA partman_retention_test AUTHORIZATION partman_owner;
 
 CREATE TABLE partman_test.time_taptest_table
     (col1 int
@@ -33,7 +34,7 @@ CREATE INDEX ON partman_test.time_taptest_table (col3);
 GRANT SELECT,INSERT,UPDATE ON partman_test.time_taptest_table TO partman_basic;
 GRANT ALL ON partman_test.time_taptest_table TO partman_revoke;
 
-SELECT create_parent('partman_test.time_taptest_table', 'col3', '100 years', p_template_table => 'partman_test.time_taptest_table_template', p_default_table => false, p_control_not_null := false);
+SELECT create_partition('partman_test.time_taptest_table', 'col3', '100 years', p_template_table => 'partman_test.time_taptest_table_template', p_default_table => false, p_control_not_null := false);
 UPDATE part_config SET inherit_privileges = TRUE;
 SELECT reapply_privileges('partman_test.time_taptest_table');
 
@@ -379,6 +380,7 @@ SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(date_trunc('c
     'Check time_taptest_table_'||to_char(date_trunc('century', CURRENT_TIMESTAMP)-'400 years'::interval, 'YYYYMMDD')||' does not exist');
 
 UPDATE part_config SET retention = '200 years'::interval WHERE parent_table = 'partman_test.time_taptest_table';
+
 SELECT drop_partition_time('partman_test.time_taptest_table', p_retention_schema := 'partman_retention_test');
 SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(date_trunc('century', CURRENT_TIMESTAMP)-'300 years'::interval, 'YYYYMMDD'),
     'Check time_taptest_table_'||to_char(date_trunc('century', CURRENT_TIMESTAMP)-'300 years'::interval, 'YYYYMMDD')||' does not exist');

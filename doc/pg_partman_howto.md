@@ -44,7 +44,7 @@ Number of partitions: 0
 ```
 Unique indexes (including primary keys) cannot be created on a natively partitioned parent unless they include the partition key. For time-based partitioning that generally doesn't work out since that would limit only a single timestamp value in each child table. pg_partman helps to manage this by using a template table to manage properties that currently are not supported by native partitioning. Note that this does *not* solve the issue of the constraint *not* being enforced across the entire partition set. See the [main documentation](pg_partman.md#child-table-property-inheritance) to see which properties are managed by the template.
 
-For this example, we are going to manually create the template table first so that when we run `create_parent()` the initial child tables that are created will have a primary key. If you do not supply a template table to pg_partman, it will create one for you in the schema that you installed the extension to. However properties you add to that template are only then applied to newly created child tables after that point. You will have to retroactively apply those properties manually to any child tables that already existed.
+For this example, we are going to manually create the template table first so that when we run `create_partition()` the initial child tables that are created will have a primary key. If you do not supply a template table to pg_partman, it will create one for you in the schema that you installed the extension to. However properties you add to that template are only then applied to newly created child tables after that point. You will have to retroactively apply those properties manually to any child tables that already existed.
 ```sql
 CREATE TABLE partman_test.time_taptest_table_template (LIKE partman_test.time_taptest_table);
 
@@ -62,7 +62,7 @@ Indexes:
     "time_taptest_table_template_pkey" PRIMARY KEY, btree (col1)
 ```
 ```sql
-SELECT partman.create_parent(
+SELECT partman.create_partition(
     p_parent_table := 'partman_test.time_taptest_table'
     , p_control := 'col3'
     , p_interval := '1 day'
@@ -112,7 +112,7 @@ Access method: heap
 ```
 
 ### Simple Time Based with UUIDv7 type: 1 Partition Per Day
-This is similar to simple time based paritioning but using UUIDv7 identifiers.
+This is similar to simple time based partitioning but using UUIDv7 identifiers.
 
 ```sql
 CREATE SCHEMA IF NOT EXISTS partman_test;
@@ -127,20 +127,20 @@ PARTITION BY RANGE (col3);
 ```sql
 \d+ partman_test.time_taptest_table
                               Partitioned table "partman_test.time_taptest_table"
- Column |  Type   | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description 
+ Column |  Type   | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description
 --------+---------+-----------+----------+---------------+----------+-------------+--------------+-------------
- col1   | integer |           |          |               | plain    |             |              | 
- col2   | text    |           |          | 'stuff'::text | extended |             |              | 
- col3   | uuid    |           | not null |               | plain    |             |              | 
+ col1   | integer |           |          |               | plain    |             |              |
+ col2   | text    |           |          | 'stuff'::text | extended |             |              |
+ col3   | uuid    |           | not null |               | plain    |             |              |
 Partition key: RANGE (col3)
 Indexes:
     "time_taptest_table_pkey" PRIMARY KEY, btree (col3)
 Number of partitions: 0
 
 ```
-For this example we use col3 as the partition key and builtin uuidv7 encoder/decoder functions to enable time based paritioning on col3. Because col3 is the partition key, the primary key index is automatically inherited by child partitions.
+For this example we use col3 as the partition key and builtin uuidv7 encoder/decoder functions to enable time based partitioning on col3. Because col3 is the partition key, the primary key index is automatically inherited by child partitions.
 ```sql
-SELECT partman.create_parent(
+SELECT partman.create_partition(
     p_parent_table := 'partman_test.time_taptest_table'
     , p_control := 'col3'
     , p_interval := '1 day'
@@ -155,9 +155,9 @@ SELECT partman.create_parent(
 ```sql
 \d+ partman_test.time_taptest_table
 --------+---------+-----------+----------+---------------+----------+-------------+--------------+-------------
- col1   | integer |           |          |               | plain    |             |              | 
- col2   | text    |           |          | 'stuff'::text | extended |             |              | 
- col3   | uuid    |           | not null |               | plain    |             |              | 
+ col1   | integer |           |          |               | plain    |             |              |
+ col2   | text    |           |          | 'stuff'::text | extended |             |              |
+ col3   | uuid    |           | not null |               | plain    |             |              |
 Partition key: RANGE (col3)
 Indexes:
     "time_taptest_table_pkey" PRIMARY KEY, btree (col3)
@@ -174,11 +174,11 @@ Partitions: partman_test.time_taptest_table_p20240813 FOR VALUES FROM ('019147da
 ```
 ```sql
 \d+ partman_test.time_taptest_table_p20240813
- Column |  Type   | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description 
+ Column |  Type   | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description
 --------+---------+-----------+----------+---------------+----------+-------------+--------------+-------------
- col1   | integer |           |          |               | plain    |             |              | 
- col2   | text    |           |          | 'stuff'::text | extended |             |              | 
- col3   | uuid    |           | not null |               | plain    |             |              | 
+ col1   | integer |           |          |               | plain    |             |              |
+ col2   | text    |           |          | 'stuff'::text | extended |             |              |
+ col3   | uuid    |           | not null |               | plain    |             |              |
 Partition of: partman_test.time_taptest_table FOR VALUES FROM ('019147da-b040-0000-0000-000000000000') TO ('01914d01-0c40-0000-0000-000000000000')
 Partition constraint: ((col3 IS NOT NULL) AND (col3 >= '019147da-b040-0000-0000-000000000000'::uuid) AND (col3 < '01914d01-0c40-0000-0000-000000000000'::uuid))
 Indexes:
@@ -188,7 +188,7 @@ Access method: heap
 
 
 ### Simple Time Based with Text Type: 1 Partition Per Day
-This is similar to simple time based paritioning but using text control column. 
+This is similar to simple time based partitioning but using text control column.
 For this example we will assume col3 contains identifiers formatted as `INVYYYYMMDD` where `INV` is a static application defined prefix and the remaining is a timestamp component.
 
 ```sql
@@ -204,11 +204,11 @@ PARTITION BY RANGE (col3);
 ```sql
 \d+ partman_test.time_taptest_table
                               Partitioned table "partman_test.time_taptest_table"
- Column |  Type   | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description 
+ Column |  Type   | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description
 --------+---------+-----------+----------+---------------+----------+-------------+--------------+-------------
- col1   | integer |           |          |               | plain    |             |              | 
- col2   | text    |           |          | 'stuff'::text | extended |             |              | 
- col3   | text    |           | not null |               | extended |             |              | 
+ col1   | integer |           |          |               | plain    |             |              |
+ col2   | text    |           |          | 'stuff'::text | extended |             |              |
+ col3   | text    |           | not null |               | extended |             |              |
 Partition key: RANGE (col3)
 Indexes:
     "time_taptest_table_pkey" PRIMARY KEY, btree (col3)
@@ -236,9 +236,9 @@ BEGIN
 END
 $$;
 ```
- 
+
 ```sql
-SELECT partman.create_parent(
+SELECT partman.create_partition(
     p_parent_table := 'partman_test.time_taptest_table'
     , p_control := 'col3'
     , p_interval := '1 day'
@@ -252,11 +252,11 @@ SELECT partman.create_parent(
 ```
 ```sql
                               Partitioned table "partman_test.time_taptest_table"
- Column |  Type   | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description 
+ Column |  Type   | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description
 --------+---------+-----------+----------+---------------+----------+-------------+--------------+-------------
- col1   | integer |           |          |               | plain    |             |              | 
- col2   | text    |           |          | 'stuff'::text | extended |             |              | 
- col3   | text    |           | not null |               | extended |             |              | 
+ col1   | integer |           |          |               | plain    |             |              |
+ col2   | text    |           |          | 'stuff'::text | extended |             |              |
+ col3   | text    |           | not null |               | extended |             |              |
 Partition key: RANGE (col3)
 Indexes:
     "time_taptest_table_pkey" PRIMARY KEY, btree (col3)
@@ -274,11 +274,11 @@ Partitions: time_taptest_table_p20240815 FOR VALUES FROM ('INV20240815') TO ('IN
 ```sql
 \d+ partman_test.time_taptest_table_p20240815
                                Table "partman_test.time_taptest_table_p20240815"
- Column |  Type   | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description 
+ Column |  Type   | Collation | Nullable |    Default    | Storage  | Compression | Stats target | Description
 --------+---------+-----------+----------+---------------+----------+-------------+--------------+-------------
- col1   | integer |           |          |               | plain    |             |              | 
- col2   | text    |           |          | 'stuff'::text | extended |             |              | 
- col3   | text    |           | not null |               | extended |             |              | 
+ col1   | integer |           |          |               | plain    |             |              |
+ col2   | text    |           |          | 'stuff'::text | extended |             |              |
+ col3   | text    |           | not null |               | extended |             |              |
 Partition of: time_taptest_table FOR VALUES FROM ('INV20240815') TO ('INV20240816')
 Partition constraint: ((col3 IS NOT NULL) AND (col3 >= 'INV20240815'::text) AND (col3 < 'INV20240816'::text))
 Indexes:
@@ -286,7 +286,7 @@ Indexes:
 Access method: heap
 ```
 ### Simple Serial ID: 1 Partition Per 10 ID Values
-For this use-case, the template table is not created manually before calling `create_parent()`. So it shows that if a primary/unique key is added later, it does not apply to the currently existing child tables. That will have to be done manually.
+For this use-case, the template table is not created manually before calling `create_partition()`. So it shows that if a primary/unique key is added later, it does not apply to the currently existing child tables. That will have to be done manually.
 
 ```sql
 CREATE TABLE partman_test.id_taptest_table (
@@ -313,7 +313,7 @@ Indexes:
 Number of partitions: 0
 ```
 ```sql
-SELECT partman.create_parent(
+SELECT partman.create_partition(
     p_parent_table := 'partman_test.id_taptest_table'
     , p_control := 'col1'
     , p_interval := '10'
@@ -466,7 +466,7 @@ First, the original table should be renamed so the partitioned table can be made
 ```sql
 ALTER TABLE public.original_table RENAME to old_nonpartitioned_table;
 ```
-We'll use the serial partitioning example from above. The initial setup is exactly the same, creating a brand new table that will be the parent and then running `create_parent()` on it. We'll make the interval slightly larger this time. Also, make sure you've applied all the same original properties to this new table that the old table had: privileges, constraints, defaults, indexes, etc. Privileges are especially important to make sure they match so that all users of the table will continue to work after the conversion.
+We'll use the serial partitioning example from above. The initial setup is exactly the same, creating a brand new table that will be the parent and then running `create_partition()` on it. We'll make the interval slightly larger this time. Also, make sure you've applied all the same original properties to this new table that the old table had: privileges, constraints, defaults, indexes, etc. Privileges are especially important to make sure they match so that all users of the table will continue to work after the conversion.
 
 Note that primary keys/unique indexes cannot be applied to a partitioned parent unless the partition key is part of it. In this case that would work, however it's likely not the intention since that would mean only one row per value is allowed and that would mean only 10,000 rows could ever exist in each child table. Partitioning is definitely not needed in that case then. The next example of online partitioning will show how to handle when you need a primary key for a column that is not part of the partition key.
 
@@ -480,7 +480,7 @@ PARTITION BY RANGE (col1);
 
 CREATE INDEX ON public.original_table (col1);
 
-SELECT partman.create_parent(
+SELECT partman.create_partition(
     p_parent_table := 'public.original_table'
     , p_control := 'col1'
     , p_interval := '10000'
@@ -506,7 +506,7 @@ Partitions: original_table_p0 FOR VALUES FROM ('0') TO ('10000'),
             original_table_p40000 FOR VALUES FROM ('40000') TO ('50000'),
             original_table_default DEFAULT
 ```
-If you happened to be using IDENTITY columns, or you created a new sequence for the new partitioned table, you'll want to get the value of those old sequences and reset the new sequences to start with those old values. Some tips for doing that are covered in the Online Partitioning section below. If you just re-used the same sequence on the new partitioned table, you should be fine.
+If you happened to be using IDENTITY columns, or you created a new sequence for the new partitioned table, you'll want to get the value of those old sequences and reset the new sequences to start with those old values. Some tips for doing that are covered in the Online Partitioning section below. If you just reused the same sequence on the new partitioned table, you should be fine.
 
 Now we can use the `partition_data_proc()` procedure to migrate our data from the old table to the new table. And we're going to do it in 1,000 row increments vs the 10,000 interval that the partition set has. The batch value is used to tell it how many times to run through the given interval; the default value of 1 only makes a single child table. Since we want to partition all of the data, just give it a number equal to or greater than the expected child table count. This procedure has an option where you can tell it the source of the data, which is how we're going to migrate the data from the old table. Without setting this option, it attempts to clean the data out of the DEFAULT partition (which we'll see an example of next).
 
@@ -634,7 +634,7 @@ CREATE TABLE public.new_partitioned_table (
 ERROR:  unique constraint on partitioned table must include all partitioning columns
 DETAIL:  PRIMARY KEY constraint on table "new_partitioned_table" lacks column "col3" which is part of the partition key.
 ```
-pg_partman does have a mechanism to still apply primary/unique keys that are not part of the partition column. Just be aware that they are NOT enforced across the entire partition set; only for the individual partition. This is done with a template table. And to ensure the keys are applied when the initial child tables are created, that template table must be pre-created and its name supplied to the `create_parent()` call. We're going to use the original table as the basis and give a name similar to that so it makes sense after the name swapping later.
+pg_partman does have a mechanism to still apply primary/unique keys that are not part of the partition column. Just be aware that they are NOT enforced across the entire partition set; only for the individual partition. This is done with a template table. And to ensure the keys are applied when the initial child tables are created, that template table must be pre-created and its name supplied to the `create_partition()` call. We're going to use the original table as the basis and give a name similar to that so it makes sense after the name swapping later.
 
 Another important note is that we changed the IDENTITY column from GENERATED ALWAYS to GENERATED BY DEFAULT. This is because we need to move existing values for that identity column into place. ALWAYS generally prevents manually entered values.
 ```sql
@@ -642,9 +642,9 @@ CREATE TABLE public.original_table_template (LIKE public.original_table);
 
 ALTER TABLE public.original_table_template ADD PRIMARY KEY (col1);
 ```
-If you do not pre-create a template table, pg_partman will always create one for you in the same schema that the extension was installed into. You can see its name by looking at the `template_table` column in the `part_config` table. However, if you add the index onto that template table after the `create_parent()` call, the already existing child tables will not have that index applied and you will have to go back and do that manually. However, any new child tables create after that will have the index.
+If you do not pre-create a template table, pg_partman will always create one for you in the same schema that the extension was installed into. You can see its name by looking at the `template_table` column in the `part_config` table. However, if you add the index onto that template table after the `create_partition()` call, the already existing child tables will not have that index applied and you will have to go back and do that manually. However, any new child tables create after that will have the index.
 
-The tricky part here is that we cannot yet have any child tables in the partition set that match data that currently exists in the original table. This is because we're going to be adding the old table as the DEFAULT table to our new partition table. If the DEFAULT table contains any data that matches a current child table's constraints, PostgreSQL will not allow that table to be added. So, with the below `create_parent()` call, we're going to start the partition set well ahead of the data we inserted and disable the automatic creation of a default table. In your case you will have to look at your current data set and pick a value well ahead of the current working set of data that may get inserted before you are able to run the table name swap process below. We're also setting the premake value to a low value to avoid having to rename too many child tables later. We'll increase premake back up to the default later (or you can set it to whatever you require).
+The tricky part here is that we cannot yet have any child tables in the partition set that match data that currently exists in the original table. This is because we're going to be adding the old table as the DEFAULT table to our new partition table. If the DEFAULT table contains any data that matches a current child table's constraints, PostgreSQL will not allow that table to be added. So, with the below `create_partition()` call, we're going to start the partition set well ahead of the data we inserted and disable the automatic creation of a default table. In your case you will have to look at your current data set and pick a value well ahead of the current working set of data that may get inserted before you are able to run the table name swap process below. We're also setting the premake value to a low value to avoid having to rename too many child tables later. We'll increase premake back up to the default later (or you can set it to whatever you require).
 ```sql
 SELECT min(col3), max(col3) FROM original_table;
 
@@ -653,7 +653,7 @@ SELECT min(col3), max(col3) FROM original_table;
  2023-03-21 11:09:31.980586-07 | 2023-03-28 11:09:31.980586-07
 ```
 ```sql
-SELECT partman.create_parent(
+SELECT partman.create_partition(
     p_parent_table := 'public.new_partitioned_table'
     , p_control := 'col3'
     , p_interval := '1 day'

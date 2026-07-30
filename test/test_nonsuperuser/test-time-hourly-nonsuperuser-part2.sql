@@ -21,7 +21,7 @@ CREATE TABLE partman_test.time_taptest_undo (LIKE partman_test.time_taptest_tabl
 
 SELECT has_table('partman_test', 'time_taptest_table', 'Check that parent was created');
 
-SELECT create_parent('partman_test.time_taptest_table', 'col3', '1 hour');
+SELECT create_partition('partman_test.time_taptest_table', 'col3', '1 hour');
 ALTER TABLE template_partman_test_time_taptest_table ADD PRIMARY KEY (col1);
 
 UPDATE part_config SET inherit_privileges = TRUE;

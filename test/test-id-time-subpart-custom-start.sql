@@ -9,7 +9,7 @@
 BEGIN;
 SELECT set_config('search_path','partman, public',false);
 
-SELECT plan(321);
+SELECT plan(323);
 CREATE SCHEMA partman_test;
 
 CREATE TABLE partman_test.fk_test_reference (col2 text unique not null);
@@ -31,7 +31,12 @@ ALTER TABLE partman_test.template_id_taptest_table ADD PRIMARY KEY (col1);
 CREATE INDEX ON partman_test.id_taptest_table (col3);
 ALTER TABLE partman_test.id_taptest_table ADD FOREIGN KEY (col2) REFERENCES partman_test.fk_test_reference(col2);
 
-SELECT create_parent('partman_test.id_taptest_table', 'col1', '10', p_constraint_cols =>'{"col2"}', p_jobmon => false, p_template_table => 'partman_test.template_id_taptest_table');
+SELECT results_eq('SELECT current_setting(''search_path'')', ARRAY['partman, public'], 'Test search path');
+
+SELECT create_partition('partman_test.id_taptest_table', 'col1', '10', p_constraint_cols =>'{"col2"}', p_jobmon => false, p_template_table => 'partman_test.template_id_taptest_table');
+
+SELECT results_eq('SELECT current_setting(''search_path'')', ARRAY['partman, public'], 'Test search path');
+
 INSERT INTO partman_test.id_taptest_table (col1) VALUES (generate_series(1,9));
 
 SELECT is_partitioned('partman_test', 'id_taptest_table', 'Check that id_taptest_table is natively partitioned');
@@ -61,11 +66,11 @@ SELECT has_index('partman_test', 'id_taptest_table_p40', 'id_taptest_table_p40_c
 
 SELECT is_empty('SELECT * FROM ONLY partman_test.id_taptest_table_default', 'Check that default has no data');
 SELECT results_eq('SELECT count(*)::int FROM partman_test.id_taptest_table_p0', ARRAY[9], 'Check count from id_taptest_table_p0');
-
 -- Create subpartition (start sub partitions 2 days before premake value)
 SELECT create_sub_parent('partman_test.id_taptest_table', p_declarative_check => 'yes', p_control => 'col3', p_interval => '1 day', p_start_partition => (CURRENT_TIMESTAMP - '6 days'::interval)::text );
 --Reinsert data due to child table destruction
 INSERT INTO partman_test.id_taptest_table (col1) VALUES (generate_series(1,9));
+
 
 SELECT is_partitioned('partman_test', 'id_taptest_table_p0', 'Check id_taptest_table_p0 is natively partitioned');
 SELECT is_partitioned('partman_test', 'id_taptest_table_p10', 'Check id_taptest_table_p10 is natively partitioned');

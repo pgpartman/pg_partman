@@ -33,7 +33,11 @@
 #include "utils/memutils.h"
 
 
+#ifdef PG_MODULE_MAGIC_EXT
+PG_MODULE_MAGIC_EXT(.name = "pg_partman", .version = "5.3.0");
+#else
 PG_MODULE_MAGIC;
+#endif
 
 void        _PG_init(void);
 PGDLLEXPORT void pg_partman_bgw_main(Datum);
@@ -46,7 +50,9 @@ static volatile sig_atomic_t got_sigterm = false;
 /* GUC variables */
 static int pg_partman_bgw_interval = 3600; // Default hourly
 static int pg_partman_bgw_maintenance_wait = 0; // Default no wait
-static char *pg_partman_bgw_role = "postgres"; // Default to postgres role
+// Default BGW rolw to arbitrary (hopefully) non-superuser role.
+// Cannot default to NULL otherwise BGW runs as superuser that ran initdb
+static char *pg_partman_bgw_role = "partman_maintainer";
 
 // Do not analyze by default
 static char *pg_partman_bgw_analyze = "off";
@@ -161,7 +167,7 @@ _PG_init(void)
                                "Role to be used by BGW. Must have execute permissions on run_maintenance()",
                                NULL,
                                &pg_partman_bgw_role,
-                               "postgres",
+                               "partman_maintainer",
                                PGC_SIGHUP,
                                0,
                                NULL,
@@ -247,7 +253,7 @@ void pg_partman_bgw_main(Datum main_arg) {
             got_sighup = false;
             ProcessConfigFile(PGC_SIGHUP);
         }
-        elog(DEBUG1, "After sighup check (got_sighup: %d)", got_sighup);
+        elog(DEBUG2, "pgpartman_bgw: After sighup check (got_sighup: %d)", got_sighup);
 
         /* In case of a SIGTERM in middle of loop, stop all further processing and return from BGW function to allow it to exit cleanly. */
         if (got_sigterm) {
@@ -275,7 +281,7 @@ void pg_partman_bgw_main(Datum main_arg) {
 
                 char *dbname = (char *) lfirst(l);
 
-                elog(DEBUG1, "Dynamic bgw launch begun for %s (%d)", dbname, dbcounter);
+                elog(DEBUG2, "pgpartman_bgw: Dynamic bgw launch begun for %s (%d)", dbname, dbcounter);
                 worker.bgw_flags = BGWORKER_SHMEM_ACCESS |
                     BGWORKER_BACKEND_DATABASE_CONNECTION;
                 worker.bgw_start_time = BgWorkerStart_RecoveryFinished;
@@ -296,14 +302,14 @@ void pg_partman_bgw_main(Datum main_arg) {
 
                 dbcounter++;
 
-                elog(DEBUG1, "Registering dynamic background worker...");
+                elog(DEBUG2, "pgpartman_bgw: Registering dynamic background worker...");
                 if (!RegisterDynamicBackgroundWorker(&worker, &handle)) {
                     elog(ERROR, "Unable to register dynamic background worker for pg_partman. Consider increasing max_worker_processes if you see this frequently. Main background worker process will try restarting in 10 minutes.");
                 }
 
-                elog(DEBUG1, "Waiting for BGW startup...");
+                elog(DEBUG2, "pgpartman_bgw: Waiting for BGW startup...");
                 status = WaitForBackgroundWorkerStartup(handle, &pid);
-                elog(DEBUG1, "BGW startup status: %d", status);
+                elog(DEBUG2, "pgpartman_bgw: BGW startup status: %d", status);
 
                 if (status == BGWH_STOPPED) {
                     ereport(ERROR,
@@ -322,20 +328,20 @@ void pg_partman_bgw_main(Datum main_arg) {
 
                 // Shutdown wait function introduced in 9.5. The latch problems this wait fixes are only encountered in
                 // 9.6 and later.
-                elog(DEBUG1, "Waiting for BGW shutdown...");
+                elog(DEBUG2, "pgpartman_bgw: Waiting for BGW shutdown...");
                 status = WaitForBackgroundWorkerShutdown(handle);
-                elog(DEBUG1, "BGW shutdown status: %d", status);
+                elog(DEBUG2, "pgpartman_bgw: BGW shutdown status: %d", status);
                 Assert(status == BGWH_STOPPED);
             }
 
             pfree(rawstring);
             list_free(elemlist);
         } else { // pg_partman_bgw_dbname if null
-            elog(DEBUG1, "pg_partman_bgw.dbname GUC is NULL. Nothing to do in main loop.");
+            elog(DEBUG2, "pgpartman_bgw: pg_partman_bgw.dbname GUC is NULL. Nothing to do in main loop.");
         }
 
 
-        elog(DEBUG1, "Latch status just before waitlatch call: %d", MyProc->procLatch.is_set);
+        elog(DEBUG2, "pgpartman_bgw: Latch status just before waitlatch call: %d", MyProc->procLatch.is_set);
 
         rc = WaitLatch(&MyProc->procLatch,
                        WL_LATCH_SET | WL_TIMEOUT | WL_POSTMASTER_DEATH,
@@ -346,7 +352,7 @@ void pg_partman_bgw_main(Datum main_arg) {
             proc_exit(1);
         }
 
-        elog(DEBUG1, "Latch status after waitlatch call: %d", MyProc->procLatch.is_set);
+        elog(DEBUG2, "pgpartman_bgw: Latch status after waitlatch call: %d", MyProc->procLatch.is_set);
 
     } // end sigterm while
 
@@ -379,9 +385,9 @@ void pg_partman_bgw_run_maint(Datum arg) {
     /* We're now ready to receive signals */
     BackgroundWorkerUnblockSignals();
 
-    elog(DEBUG1, "Before parsing dbname GUC in dynamic main func: %s", pg_partman_bgw_dbname);
+    elog(DEBUG2, "pgpartman_bgw: Before parsing dbname GUC in dynamic main func: %s", pg_partman_bgw_dbname);
     rawstring = pstrdup(pg_partman_bgw_dbname);
-    elog(DEBUG1, "GUC rawstring copy: %s", rawstring);
+    elog(DEBUG2, "pgpartman_bgw: GUC rawstring copy: %s", rawstring);
     // Parse string into list of identifiers
     if (!(*split_function_ptr)(rawstring, ',', &elemlist)) {
         // syntax error in list
@@ -394,17 +400,17 @@ void pg_partman_bgw_run_maint(Datum arg) {
     }
 
     dbname = list_nth(elemlist, db_main_counter);
-    elog(DEBUG1, "Parsing dbname list: %s (%d)", dbname, db_main_counter);
+    elog(DEBUG2, "pgpartman_bgw: Parsing dbname list: %s (%d)", dbname, db_main_counter);
 
     if (strcmp(dbname, "template1") == 0) {
-        elog(DEBUG1, "Default database name found in dbname local variable (\"template1\").");
+        elog(DEBUG2, "pgpartman_bgw: Default database name found in dbname local variable (\"template1\").");
     }
 
-    elog(DEBUG1, "Before run_maint initialize connection for db %s", dbname);
+    elog(DEBUG2, "pgpartman_bgw: Before run_maint initialize connection for db %s", dbname);
 
     BackgroundWorkerInitializeConnection(dbname, pg_partman_bgw_role, 0);
 
-    elog(DEBUG1, "After run_maint initialize connection for db %s", dbname);
+    elog(DEBUG2, "pgpartman_bgw: After run_maint initialize connection for db %s", dbname);
 
     initStringInfo(&buf);
 
@@ -427,13 +433,13 @@ void pg_partman_bgw_run_maint(Datum arg) {
     // First determine if pg_partman is even installed in this database
     appendStringInfo(&buf, "SELECT extname FROM pg_catalog.pg_extension WHERE extname = 'pg_partman'");
     pgstat_report_activity(STATE_RUNNING, buf.data);
-    elog(DEBUG1, "Checking if pg_partman extension is installed in database: %s" , dbname);
+    elog(DEBUG2, "pgpartman_bgw: Checking if pg_partman extension is installed in database: %s" , dbname);
     ret = SPI_execute(buf.data, true, 1);
     if (ret != SPI_OK_SELECT) {
         elog(FATAL, "Cannot determine if pg_partman is installed in database %s: error code %d", dbname, ret);
     }
     if (SPI_processed <= 0) {
-        elog(DEBUG1, "pg_partman not installed in database %s. Nothing to do so dynamic worker exiting gracefully.", dbname);
+        elog(DEBUG2, "pgpartman_bgw: pg_partman not installed in database %s. Nothing to do so dynamic worker exiting gracefully.", dbname);
         // Nothing left to do. Return end the run of BGW function.
         SPI_finish();
         PopActiveSnapshot();
@@ -447,7 +453,7 @@ void pg_partman_bgw_run_maint(Datum arg) {
     }
 
     // If so then actually log that it's started for that database.
-    elog(LOG, "%s dynamic background worker initialized with role %s on database %s"
+    elog(DEBUG1, "%s dynamic background worker initialized with role %s on database %s"
             , MyBgworkerEntry->bgw_name
             , pg_partman_bgw_role
             , dbname);
@@ -469,7 +475,7 @@ void pg_partman_bgw_run_maint(Datum arg) {
                 , 1
                 , &isnull));
 
-        elog(DEBUG1, "pg_partman_bgw: pg_partman schema: %s.", partman_schema);
+        elog(DEBUG2, "pgpartman_bgw: pg_partman schema: %s.", partman_schema);
 
         if (isnull)
             elog(FATAL, "Query to determine pg_partman schema returned NULL.");
@@ -503,7 +509,7 @@ void pg_partman_bgw_run_maint(Datum arg) {
     if (ret != SPI_OK_UTILITY)
         elog(FATAL, "Cannot call pg_partman run_maintenance_proc() procedure: error code %d", ret);
 
-    elog(LOG, "%s: %s called by role %s on database %s"
+    elog(DEBUG1, "%s: %s called by role %s on database %s"
             , MyBgworkerEntry->bgw_name
             , buf.data
             , pg_partman_bgw_role
@@ -524,7 +530,7 @@ void pg_partman_bgw_run_maint(Datum arg) {
     ProcessCompletedNotifies();
     #endif
     pgstat_report_activity(STATE_IDLE, NULL);
-    elog(DEBUG1, "pg_partman dynamic BGW shutting down gracefully for database %s.", dbname);
+    elog(DEBUG2, "pgpartman_bgw: pg_partman dynamic BGW shutting down gracefully for database %s.", dbname);
 
     pfree(rawstring);
     list_free(elemlist);

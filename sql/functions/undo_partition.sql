@@ -12,6 +12,7 @@ CREATE FUNCTION @extschema@.undo_partition(
 )
     RETURNS record
     LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 
@@ -28,8 +29,6 @@ v_child_table                   text;
 v_column_list                   text;
 v_control                       text;
 v_control_type                  text;
-v_time_encoder                  text;
-v_time_decoder                  text;
 v_child_min_id                  bigint;
 v_child_min_time                timestamptz;
 v_epoch                         text;
@@ -57,6 +56,10 @@ v_template_schema               text;
 v_template_siblings             int;
 v_template_table                text;
 v_template_tablename            text;
+v_time_decoder                  text;
+v_time_decoder_safe             text;
+v_time_encoder                  text;
+v_time_encoder_safe             text;
 v_total                         bigint := 0;
 v_trig_name                     text;
 v_undo_count                    int := 0;
@@ -131,19 +134,16 @@ ELSE
     RAISE EXCEPTION 'Data type of control column in given partition set must be either date/time or integer.';
 END IF;
 
-SELECT current_setting('search_path') INTO v_old_search_path;
-IF length(v_old_search_path) > 0 THEN
-   v_new_search_path := '@extschema@,pg_temp,'||v_old_search_path;
-ELSE
-    v_new_search_path := '@extschema@,pg_temp';
-END IF;
 IF v_jobmon THEN
     SELECT nspname INTO v_jobmon_schema FROM pg_catalog.pg_namespace n, pg_catalog.pg_extension e WHERE e.extname = 'pg_jobmon'::name AND e.extnamespace = n.oid;
     IF v_jobmon_schema IS NOT NULL THEN
-        v_new_search_path := format('%s,%s',v_jobmon_schema, v_new_search_path);
+        SELECT current_setting('search_path') INTO v_old_search_path;
+        IF v_jobmon_schema IS NOT NULL THEN
+            v_new_search_path := format('%s,%s',v_jobmon_schema, v_old_search_path);
+            EXECUTE format('SET LOCAL search_path TO %s', v_new_search_path);
+        END IF;
     END IF;
 END IF;
-EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_new_search_path, 'false');
 
 -- Check if any child tables are themselves partitioned or part of an inheritance tree. Prevent undo at this level if so.
 -- Need to lock child tables at all levels before multi-level undo can be performed safely.
@@ -209,6 +209,14 @@ AND a.attnum > 0
 AND a.attisdropped = false
 AND attname <> ALL(COALESCE(p_ignored_columns, ARRAY[]::text[]));
 
+IF v_time_decoder IS NOT NULL THEN
+    v_time_decoder_safe := partman_safe_obj_name(v_time_decoder);
+END IF;
+IF v_time_encoder IS NOT NULL THEN
+    v_time_encoder_safe := partman_safe_obj_name(v_time_encoder);
+END IF;
+RAISE DEBUG 'undo_partition: v_time_decoder: %, v_time_encoder: %', v_time_decoder, v_time_encoder;
+
 <<outer_child_loop>>
 LOOP
     -- Get ordered list of child table in set. Store in variable one at a time per loop until none are left or batch count is reached.
@@ -226,7 +234,7 @@ LOOP
         EXECUTE format('SELECT min(%s) FROM %I.%I', v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_time;
     ELSIF (v_control_type IN ('text', 'uuid')) THEN
         --- This can pass NULL to decoder function
-        EXECUTE format('SELECT %s((SELECT min(%s::text) FROM %I.%I))', v_time_decoder, v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_time;
+        EXECUTE format('SELECT %s((SELECT min(%s::text) FROM %I.%I))', v_time_decoder_safe, v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_time;
     ELSIF v_control_type = 'id' THEN
         EXECUTE format('SELECT min(%s) FROM %I.%I', v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_id;
     END IF;
@@ -305,7 +313,7 @@ LOOP
                                 , v_parent_schema
                                 , v_child_table
                                 , v_control
-                                , v_time_encoder
+                                , v_time_encoder_safe
                                 , v_child_min_time + (v_batch_interval_time * v_inner_loop_count));
                         END IF;
                        v_lock_obtained := TRUE;
@@ -334,7 +342,7 @@ LOOP
                     , v_child_min_time + (v_batch_interval_time * v_inner_loop_count)
                     , v_column_list
                     , v_target_schema
-                    , v_target_tablename);            
+                    , v_target_tablename);
             ELSIF (v_control_type IN ('text', 'uuid')) THEN
                 EXECUTE format('WITH move_data AS (
                                         DELETE FROM %I.%I WHERE %s <= %s(%L) RETURNING %s )
@@ -342,7 +350,7 @@ LOOP
                     , v_parent_schema
                     , v_child_table
                     , v_partition_expression
-                    , v_time_encoder
+                    , v_time_encoder_safe
                     , v_child_min_time + (v_batch_interval_time * v_inner_loop_count)
                     , v_column_list
                     , v_target_schema
@@ -360,11 +368,11 @@ LOOP
             v_batch_loop_count := v_batch_loop_count + 1;
 
             -- Check again if table is empty and go to outer loop again to drop it if so
-            
+
             IF v_control_type = 'time' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
                 EXECUTE format('SELECT min(%s) FROM %I.%I', v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_time;
             ELSIF (v_control_type IN ('text', 'uuid')) THEN
-                EXECUTE format('SELECT %s((SELECT min(%s::text) FROM %I.%I))', v_time_decoder, v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_time;
+                EXECUTE format('SELECT %s((SELECT min(%s::text) FROM %I.%I))', v_time_decoder_safe, v_partition_expression, v_parent_schema, v_child_table) INTO v_child_min_time;
             END IF;
 
             CONTINUE outer_child_loop WHEN v_child_min_time IS NULL;
@@ -464,8 +472,6 @@ IF v_jobmon_schema IS NOT NULL THEN
     PERFORM close_job(v_job_id);
 END IF;
 
-EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_old_search_path, 'false');
-
 partitions_undone := v_undo_count;
 rows_undone := v_total;
 
@@ -477,7 +483,7 @@ EXCEPTION
                                 ex_hint = PG_EXCEPTION_HINT;
         IF v_jobmon_schema IS NOT NULL THEN
             IF v_job_id IS NULL THEN
-                EXECUTE format('SELECT %I.add_job(''PARTMAN UNDO PARTITIONING: %s'')', v_jobmon_schema, p_parent_table) INTO v_job_id;
+                EXECUTE format('SELECT %I.add_job(%L)', v_jobmon_schema, format('PARTMAN UNDO PARTITIONING: %s', p_parent_table)) INTO v_job_id;
                 EXECUTE format('SELECT %I.add_step(%s, ''EXCEPTION before job logging started'')', v_jobmon_schema, v_job_id, p_parent_table) INTO v_step_id;
             ELSIF v_step_id IS NULL THEN
                 EXECUTE format('SELECT %I.add_step(%s, ''EXCEPTION before first step logged'')', v_jobmon_schema, v_job_id) INTO v_step_id;
@@ -491,3 +497,4 @@ DETAIL: %
 HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
+

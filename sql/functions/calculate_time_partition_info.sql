@@ -7,6 +7,7 @@ CREATE FUNCTION @extschema@.calculate_time_partition_info(
 )
     RETURNS record
     LANGUAGE plpgsql STABLE
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 BEGIN
 

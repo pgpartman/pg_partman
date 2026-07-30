@@ -23,7 +23,7 @@ ALTER TABLE partman_test.template_time_taptest_table ADD PRIMARY KEY (col1);
 
 CREATE TABLE partman_test.undo_taptest (LIKE partman_test.time_taptest_table INCLUDING ALL);
 
-SELECT create_parent('partman_test.time_taptest_table'
+SELECT create_partition('partman_test.time_taptest_table'
     , 'col3'
     , '1 week'
     , p_constraint_cols => '{"col1"}'

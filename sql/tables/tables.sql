@@ -27,6 +27,9 @@ CREATE TABLE @extschema@.part_config (
     , maintenance_order int
     , retention_keep_publication boolean NOT NULL DEFAULT false
     , maintenance_last_run timestamptz
+    , detach_before_drop BOOLEAN DEFAULT false
+    , maintenance_role TEXT DEFAULT current_user
+    , async_partitioning_in_progress text
     , CONSTRAINT part_config_parent_table_pkey PRIMARY KEY (parent_table)
     , CONSTRAINT positive_premake_check CHECK (premake > 0)
 );
@@ -63,6 +66,8 @@ CREATE TABLE @extschema@.part_config_sub (
     , sub_maintenance_order int
     , sub_retention_keep_publication boolean NOT NULL DEFAULT false
     , sub_control_not_null boolean DEFAULT true
+    , sub_detach_before_drop BOOLEAN DEFAULT false
+    , sub_maintenance_role TEXT DEFAULT current_user
     , CONSTRAINT part_config_sub_pkey PRIMARY KEY (sub_parent)
     , CONSTRAINT part_config_sub_sub_parent_fkey FOREIGN KEY (sub_parent) REFERENCES @extschema@.part_config (parent_table) ON DELETE CASCADE ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED
     , CONSTRAINT positive_premake_check CHECK (sub_premake > 0)
@@ -80,7 +85,7 @@ ALTER TABLE @extschema@.part_config_sub ADD CONSTRAINT retention_schema_not_empt
  * Custom view to help improve privilege lookups for pg_partman.
  * information_schema is a performance bottleneck since indexes aren't being used properly.
  */
-CREATE VIEW @extschema@.table_privs AS
+CREATE OR REPLACE VIEW @extschema@.table_privs AS
     SELECT u_grantor.rolname AS grantor,
            grantee.rolname AS grantee,
            nc.nspname AS table_schema,
@@ -100,10 +105,11 @@ CREATE VIEW @extschema@.table_privs AS
           AND c.relkind IN ('r', 'v', 'p')
           AND c.grantee = grantee.oid
           AND c.grantor = u_grantor.oid
-          AND c.prtype IN ('INSERT', 'SELECT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER')
+          AND c.prtype IN (SELECT (aclexplode(acldefault('r'::"char", c.relowner))).privilege_type)
           AND (pg_has_role(u_grantor.oid, 'USAGE')
                OR pg_has_role(grantee.oid, 'USAGE')
                OR grantee.rolname = 'PUBLIC' );
+
 
 -- Put constraint functions & definitions here because having them in a separate file makes the ordering of their creation harder to control. Some require the above tables to exist first.
 
@@ -113,6 +119,7 @@ CREATE VIEW @extschema@.table_privs AS
  */
 CREATE FUNCTION @extschema@.check_automatic_maintenance_value (p_automatic_maintenance text) RETURNS boolean
     LANGUAGE plpgsql IMMUTABLE
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 v_result    boolean;
@@ -136,7 +143,7 @@ CHECK (@extschema@.check_automatic_maintenance_value(sub_automatic_maintenance))
  */
 CREATE FUNCTION @extschema@.check_epoch_type (p_type text) RETURNS boolean
     LANGUAGE plpgsql IMMUTABLE
-    SET search_path TO pg_catalog, pg_temp
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 v_result    boolean;
@@ -162,7 +169,7 @@ CHECK (@extschema@.check_epoch_type(sub_epoch));
 -- Allow hash in future update
 CREATE FUNCTION @extschema@.check_partition_type (p_type text) RETURNS boolean
     LANGUAGE plpgsql IMMUTABLE
-    SET search_path TO pg_catalog, pg_temp
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 v_result    boolean;

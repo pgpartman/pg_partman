@@ -1,12 +1,12 @@
 -- ########## ID 10 TESTS ##########
 -- Additional tests:
     -- turn off pg_jobmon logging
-    -- UNLOGGED
+    -- UNLOGGED - Parent table not allowed to be unlogged in PG18+, but the child tables can be
     -- PUBLIC role
     -- start with higher number
     -- native inherit FK
     -- inherit privileges
-    -- pre-created template table and passing to create_parent. Should allow indexes to be made for initial children.
+    -- pre-created template table and passing to create_partition. Should allow indexes to be made for initial children.
     -- Since this is id partitioning, we can use the partition key for primary key, so that should work from parent
 
 \set ON_ERROR_ROLLBACK 1
@@ -15,17 +15,17 @@
 BEGIN;
 SELECT set_config('search_path','partman, public',false);
 
-SELECT plan(135);
-CREATE SCHEMA partman_test;
-CREATE SCHEMA partman_retention_test;
+SELECT plan(134);
 CREATE ROLE partman_basic;
 CREATE ROLE partman_revoke;
 CREATE ROLE partman_owner;
+CREATE SCHEMA partman_test;
+CREATE SCHEMA partman_retention_test AUTHORIZATION partman_owner;
 
 CREATE TABLE partman_test.fk_test_reference (col2 text unique not null);
 INSERT INTO partman_test.fk_test_reference VALUES ('stuff');
 
-CREATE UNLOGGED TABLE partman_test.id_taptest_table
+CREATE TABLE partman_test.id_taptest_table
     (col1 bigint PRIMARY KEY
         , col2 text not null default 'stuff'
         , col3 timestamptz DEFAULT now()
@@ -46,7 +46,7 @@ CREATE INDEX ON partman_test.template_id_taptest_table (col3);
 -- Regular unique indexes do not work on native if the partition key isn't included
 CREATE UNIQUE INDEX ON partman_test.template_id_taptest_table (col4);
 
-SELECT create_parent('partman_test.id_taptest_table', 'col1', '10', p_jobmon := false, p_start_partition := '3000000000', p_template_table := 'partman_test.template_id_taptest_table');
+SELECT create_partition('partman_test.id_taptest_table', 'col1', '10', p_jobmon := false, p_start_partition := '3000000000', p_template_table := 'partman_test.template_id_taptest_table');
 UPDATE part_config SET inherit_privileges = TRUE;
 SELECT reapply_privileges('partman_test.id_taptest_table');
 
@@ -89,7 +89,8 @@ SELECT table_privs_are('partman_test', 'id_taptest_table_p3000000020', 'partman_
 SELECT table_privs_are('partman_test', 'id_taptest_table_p3000000030', 'partman_revoke', ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'], 'Check partman_revoke privileges of id_taptest_table_p3000000030');
 SELECT table_privs_are('partman_test', 'id_taptest_table_p3000000040', 'partman_revoke', ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'], 'Check partman_revoke privileges of id_taptest_table_p3000000040');
 SELECT table_privs_are('partman_test', 'id_taptest_table_default', 'partman_revoke', ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'], 'Check partman_revoke privileges of id_taptest_table_default');
-SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table''::regclass', ARRAY['u'], 'Check that parent table is unlogged');
+-- PG18 does not allow the parent to be unlogged, but child tables can. Just leaving this here with a note so I don't forget why I don't test this anymore
+--SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table''::regclass', ARRAY['u'], 'Check that parent table is unlogged');
 SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p3000000000''::regclass', ARRAY['u'], 'Check that id_taptest_table_p3000000000 is unlogged');
 SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p3000000010''::regclass', ARRAY['u'], 'Check that id_taptest_table_p3000000010 is unlogged');
 SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p3000000020''::regclass', ARRAY['u'], 'Check that id_taptest_table_p3000000020 is unlogged');

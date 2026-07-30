@@ -204,7 +204,7 @@ if __name__ == "__main__":
         sys.exit(2)
 
     if args.interval != None and args.type == None:
-        print("--interval argment requires setting --type argument as well")
+        print("--interval argument requires setting --type argument as well")
         sys.exit(2)
 
     main_conn = create_conn()

@@ -5,6 +5,7 @@ CREATE FUNCTION @extschema@.inherit_template_properties(
 )
     RETURNS boolean
     LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 
@@ -24,6 +25,7 @@ v_template_schemaname   text;
 v_template_table        text;
 v_template_tablename    name;
 v_template_unlogged     char;
+v_toast_table_oid       oid;
 
 BEGIN
 /*
@@ -77,6 +79,11 @@ AND c.relname = v_template_tablename;
     IF v_template_oid IS NULL THEN
         RAISE EXCEPTION 'Unable to find configured template table in system catalogs: %', v_template_table;
     END IF;
+
+    IF NOT pg_has_role(current_user, (SELECT relowner FROM pg_class WHERE oid = v_template_oid), 'USAGE') THEN
+        RAISE EXCEPTION 'inherit_template_properties: caller % does not own template table %', current_user, v_template_table;
+    END IF;
+
 
 -- Index creation (Only for unique, non-partition key indexes)
 FOR v_index_list IN
@@ -142,7 +149,8 @@ LOOP
         v_sql := format('ALTER TABLE %I.%I ADD PRIMARY KEY (%s)'
                         , v_child_schema
                         , v_child_tablename
-                        , '"' || array_to_string(v_index_list.indkey_names, '","') || '"');
+                        , (SELECT string_agg(quote_ident(c), ', ')
+                           FROM unnest(v_index_list.indkey_names) AS c));
         IF v_index_list.tablespace_name IS NOT NULL THEN
             v_sql := v_sql || format(' USING INDEX TABLESPACE %I', v_index_list.tablespace_name);
         END IF;
@@ -168,8 +176,14 @@ LOOP
 END LOOP;
 -- End index creation
 
--- UNLOGGED status. Currently waiting on final stance of how upstream will handle this property being changed for its children.
--- See release notes for v4.2.0
+/*
+UNLOGGED status.
+    As of PG12, the unlogged/logged status of a parent table cannot be changed via an ALTER TABLE in order to affect its children.
+    As of partman v4.2x, the unlogged state will be managed via the template table. See 4.2.0 release notes.
+    As of PG18, the unlogged flag cannot be set on the parent table. But it can be set on the child tables. So it can continue to be supported
+      in pg_partman via the template table for now.
+*/
+
 SELECT relpersistence INTO v_template_unlogged
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
@@ -205,7 +219,28 @@ LOOP
     RAISE DEBUG 'inherit_template_properties: Set relopts: %', v_sql;
     EXECUTE v_sql;
 END LOOP;
+
+-- Get toast table options
+SELECT reltoastrelid INTO v_toast_table_oid
+FROM pg_catalog.pg_class c
+JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+WHERE c.oid = v_template_oid;
+
+FOR v_relopt IN
+    SELECT unnest(reloptions) as value
+    FROM pg_catalog.pg_class
+    WHERE oid = v_toast_table_oid
+LOOP
+    v_sql := format('ALTER TABLE %I.%I SET (toast.%s)'
+                    , v_child_schema
+                    , v_child_tablename
+                    , v_relopt.value);
+    RAISE DEBUG 'inherit_template_properties: Set toast relopts: %', v_sql;
+    EXECUTE v_sql;
+END LOOP;
+
 RETURN true;
 
 END
 $$;
+

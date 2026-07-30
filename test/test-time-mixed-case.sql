@@ -11,11 +11,11 @@ SELECT set_config('search_path','partman, public',false);
 
 SELECT plan(222);
 
-CREATE SCHEMA "Partman_Test";
-CREATE SCHEMA "Partman_Retention_Test";
 CREATE ROLE "Partman_Basic";
 CREATE ROLE "Partman_Revoke";
 CREATE ROLE "Partman_Owner";
+CREATE SCHEMA "Partman_Test";
+CREATE SCHEMA "Partman_Retention_Test" AUTHORIZATION "Partman_Owner";
 
 CREATE TABLE "Partman_Test"."FK_Test_Reference" ("Col2" text unique not null);
 INSERT INTO "Partman_Test"."FK_Test_Reference" VALUES ('stuff');
@@ -26,7 +26,7 @@ GRANT SELECT,INSERT,UPDATE ON "Partman_Test"."Time_Taptest_Table" TO "Partman_Ba
 GRANT ALL ON "Partman_Test"."Time_Taptest_Table" TO "Partman_Revoke";
 ALTER TABLE "Partman_Test"."Time_Taptest_Table" OWNER TO "Partman_Owner";
 
-SELECT create_parent('Partman_Test.Time_Taptest_Table', 'Col3', '1 day');
+SELECT create_partition('Partman_Test.Time_Taptest_Table', 'Col3', '1 day');
 UPDATE part_config SET inherit_privileges = TRUE;
 SELECT reapply_privileges('Partman_Test.Time_Taptest_Table');
 

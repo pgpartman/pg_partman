@@ -43,7 +43,10 @@ SELECT bag_eq(
     'date_trunc_interval',
     'maintenance_order',
     'retention_keep_publication',
-    'maintenance_last_run'
+    'maintenance_last_run',
+    'async_partitioning_in_progress',
+    'detach_before_drop',
+    'maintenance_role'
   ]::TEXT[],
   'When adding a new column to part_config please ensure it is also added to the dump_partitioned_table_definition function and the tests in this file'
 );
@@ -55,7 +58,7 @@ CREATE TABLE partman_test.declarative_objects(
   t TEXT,
   created_at TIMESTAMP NOT NULL
 ) PARTITION BY RANGE (created_at);
-SELECT create_parent('partman_test.declarative_objects', 'created_at', '1 week', p_premake := 2, p_start_partition := (NOW() - '4 weeks'::INTERVAL)::TEXT);
+SELECT create_partition('partman_test.declarative_objects', 'created_at', '1 week', p_premake := 2, p_start_partition := (NOW() - '4 weeks'::INTERVAL)::TEXT);
 -- Update config options you can't set at initial creation.
 UPDATE part_config
 SET retention='5 weeks', retention_keep_table = 'f', infinite_time_partitions = 't', constraint_valid = 'f', inherit_privileges = 't'
@@ -69,7 +72,7 @@ SELECT dump_partitioned_table_definition('partman_test.declarative_objects', p_i
 -- -- Note that spaces before each line are literal tabs (\t), not spaces
 SELECT is(
   (SELECT dump_partitioned_table_definition('partman_test.declarative_objects')),
-E'SELECT partman.create_parent(
+E'SELECT partman.create_partition(
 	p_parent_table := ''partman_test.declarative_objects'',
 	p_control := ''created_at'',
 	p_interval := ''7 days'',
@@ -97,7 +100,9 @@ UPDATE partman.part_config SET
 	constraint_valid = ''f'',
 	ignore_default_data = ''t'',
 	maintenance_order = NULL,
-	retention_keep_publication = ''f''
+	retention_keep_publication = ''f'',
+	detach_before_drop = ''f'',
+	maintenance_role = '''|| current_user ||'''
 WHERE parent_table = ''partman_test.declarative_objects'';'
 );
 

@@ -13,11 +13,11 @@ BEGIN;
 SELECT set_config('search_path','partman, public',false);
 
 SELECT plan(151);
-CREATE SCHEMA partman_test;
-CREATE SCHEMA partman_retention_test;
 CREATE ROLE partman_basic;
 CREATE ROLE partman_revoke;
 CREATE ROLE partman_owner;
+CREATE SCHEMA partman_test;
+CREATE SCHEMA partman_retention_test AUTHORIZATION partman_owner;
 
 CREATE TABLE partman_test.time_taptest_table (
     col1 int
@@ -33,7 +33,7 @@ CREATE INDEX ON partman_test.time_taptest_table (col3);
 GRANT SELECT,INSERT,UPDATE ON partman_test.time_taptest_table TO partman_basic;
 GRANT ALL ON partman_test.time_taptest_table TO partman_revoke;
 
-SELECT create_parent('partman_test.time_taptest_table', 'col3', '30 seconds', p_template_table := 'partman_test.time_taptest_table_template');
+SELECT create_partition('partman_test.time_taptest_table', 'col3', '30 seconds', p_template_table := 'partman_test.time_taptest_table_template');
 -- Must run_maintenance because when interval time is between 1 hour and 1 minute since the first partition name done by above is always the nearest hour rounded down
 SELECT run_maintenance();
 UPDATE part_config SET inherit_privileges = TRUE;

@@ -302,15 +302,15 @@ Setup pg_partman to manage your partition set.
 
 I mentioned at the beginning that if you had ongoing writes, pretty much everything from Step 2 and on had to be done in a single transaction. Even if you don't have to worry about writes, I'd still highly recommend doing step 4 in the same transaction.
 
-Note that we're doing weekly partitioning, but pg_partman only knows that interval as a period of 7 days. So say we're migrating this parent table on March 31, 2023 with the child tables that we have already. If we tried to just call the create_parent() function without telling it when to start the partition set, it would assume our week is starting on a Friday, throwing off both the names of the child tables as well as the interval boundaries. We want to be sure our partition set is being configured to start the weekly partitions on a Sunday, so we use the `p_start_partition` parameter to tell it that (March 26th is the Sunday for the week of March 31st).
+Note that we're doing weekly partitioning, but pg_partman only knows that interval as a period of 7 days. So say we're migrating this parent table on March 31, 2023 with the child tables that we have already. If we tried to just call the create_partition() function without telling it when to start the partition set, it would assume our week is starting on a Friday, throwing off both the names of the child tables as well as the interval boundaries. We want to be sure our partition set is being configured to start the weekly partitions on a Sunday, so we use the `p_start_partition` parameter to tell it that (March 26th is the Sunday for the week of March 31st).
 
 You may or may not need to set the starting partition parameter. It all depends on the interval you are using, so please test things to see if they work as expected before running on production.
 
 ```sql
-SELECT partman.create_parent('tracking.hits_time', 'start', '1 week', p_start_partition := '2023-03-26 00:00:00');
+SELECT partman.create_partition('tracking.hits_time', 'start', '1 week', p_start_partition := '2023-03-26 00:00:00');
 COMMIT;
 ```
-This single function call will add your old partition set into pg_partman's configuration and possibly create some new child tables as well. pg_partman always keeps a minimum number of future partitions premade (based on the *premake* value in the config table or as a parameter to the create_parent() function), so if you don't have those yet, this step will take care of that as well. Adjust the parameters as needed and see the documentation for additional options that are available. This call matches the time partition used in the example so far.
+This single function call will add your old partition set into pg_partman's configuration and possibly create some new child tables as well. pg_partman always keeps a minimum number of future partitions premade (based on the *premake* value in the config table or as a parameter to the create_partition() function), so if you don't have those yet, this step will take care of that as well. Adjust the parameters as needed and see the documentation for additional options that are available. This call matches the time partition used in the example so far.
 
 ```sql
  \d+ tracking.hits_time

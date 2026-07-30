@@ -1,6 +1,6 @@
 -- ########## ID LIST TESTS (increment 1) ##########
 -- Additional tests:
-    -- pre-created template table and passing to create_parent. Should allow indexes to be made for initial children.
+    -- pre-created template table and passing to create_partition. Should allow indexes to be made for initial children.
     -- bigint (to account for difference in int vs bigint in partition expression)
 
 \set ON_ERROR_ROLLBACK 1
@@ -25,7 +25,7 @@ CREATE TABLE partman_test.template_id_taptest_table (LIKE partman_test.id_taptes
 ALTER TABLE partman_test.template_id_taptest_table ADD PRIMARY KEY (col1);
 CREATE INDEX ON partman_test.id_taptest_table (col2);
 
-SELECT create_parent('partman_test.id_taptest_table', 'col2', '1', 'list', p_template_table := 'partman_test.template_id_taptest_table');
+SELECT create_partition('partman_test.id_taptest_table', 'col2', '1', 'list', p_template_table := 'partman_test.template_id_taptest_table');
 UPDATE part_config SET inherit_privileges = TRUE;
 SELECT reapply_privileges('partman_test.id_taptest_table');
 

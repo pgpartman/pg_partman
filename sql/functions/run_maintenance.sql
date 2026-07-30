@@ -6,6 +6,7 @@ CREATE FUNCTION @extschema@.run_maintenance(
 )
     RETURNS void
     LANGUAGE plpgsql
+    SET search_path = @extschema@, pg_catalog, pg_temp
     AS $$
 DECLARE
 
@@ -18,14 +19,14 @@ v_analyze                       boolean := FALSE;
 v_check_subpart                 int;
 v_child_timestamp               timestamptz;
 v_control_type                  text;
-v_time_encoder                  text;
-v_time_decoder                  text;
 v_create_count                  int := 0;
 v_current_partition_id          bigint;
 v_current_partition_timestamp   timestamptz;
 v_default_tablename             text;
+v_default_version               text;
 v_drop_count                    int := 0;
 v_exact_control_type            text;
+v_installed_version             text;
 v_is_default                    text;
 v_job_id                        bigint;
 v_jobmon_schema                 text;
@@ -33,6 +34,7 @@ v_last_partition                text;
 v_last_partition_created        boolean;
 v_last_partition_id             bigint;
 v_last_partition_timestamp      timestamptz;
+v_library_version               text;
 v_max_id                        bigint;
 v_max_id_default                bigint;
 v_max_time_default              timestamptz;
@@ -61,6 +63,8 @@ v_sub_timestamp_max             timestamptz;
 v_sub_timestamp_max_suffix      timestamptz;
 v_sub_timestamp_min             timestamptz;
 v_tables_list_sql               text;
+v_time_decoder                  text;
+v_time_decoder_safe             text;
 
 BEGIN
 /*
@@ -82,19 +86,31 @@ IF pg_is_in_recovery() THEN
     RETURN;
 END IF;
 
-SELECT current_setting('search_path') INTO v_old_search_path;
-IF length(v_old_search_path) > 0 THEN
-   v_new_search_path := '@extschema@,pg_temp,'||v_old_search_path;
-ELSE
-    v_new_search_path := '@extschema@,pg_temp';
-END IF;
 IF p_jobmon THEN
     SELECT nspname INTO v_jobmon_schema FROM pg_catalog.pg_namespace n, pg_catalog.pg_extension e WHERE e.extname = 'pg_jobmon'::name AND e.extnamespace = n.oid;
     IF v_jobmon_schema IS NOT NULL THEN
-        v_new_search_path := format('%s,%s',v_jobmon_schema, v_new_search_path);
+        SELECT current_setting('search_path') INTO v_old_search_path;
+        IF v_jobmon_schema IS NOT NULL THEN
+            v_new_search_path := format('%s,%s',v_jobmon_schema, v_old_search_path);
+            EXECUTE format('SET LOCAL search_path TO %s', v_new_search_path);
+        END IF;
     END IF;
 END IF;
-EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_new_search_path, 'false');
+
+IF current_setting('server_version_num')::int >= 180000 THEN
+    SELECT extversion INTO v_installed_version FROM pg_catalog.pg_extension WHERE extname = 'pg_partman';
+    SELECT version INTO v_library_version FROM pg_catalog.pg_get_loaded_modules() WHERE module_name = 'pg_partman';
+
+    IF replace(v_installed_version, '.', '')::int < replace(v_library_version, '.', '')::int THEN
+        RAISE EXCEPTION 'The installed version of pg_partman (%) is less than the shared library version file that has been loaded (%). Please ensure the expected version of pg_partman is installed to the system, update the extension if needed and restart the PostgreSQL instance.', v_installed_version, v_library_version;
+    END IF;
+END IF;
+
+-- Try and catch the same situation of a new library file existing on disk but the extension version not being updated properly in the database. Not as reliable as new feature in PG18, but better than nothing. Only do a warning since this is less definitely a problem than a known library mismatch.
+SELECT default_version, installed_version INTO v_default_version, v_installed_version FROM pg_available_extensions WHERE name = 'pg_partman' AND default_version != installed_version;
+IF v_installed_version IS NOT NULL THEN
+    RAISE WARNING 'pg_partman version % is installed in the database but version % is the default available. Please ensure the expected version of pg_partman is installed to the system, update the extension in all relevant databases and restart the PostgreSQL instance if a new shared library module is available. See release notes for further details.', v_installed_version, v_default_version;
+END IF;
 
 IF v_jobmon_schema IS NOT NULL THEN
     v_job_id := add_job('PARTMAN RUN MAINTENANCE');
@@ -115,6 +131,7 @@ v_tables_list_sql := 'SELECT parent_table
                 , datetime_string
                 , maintenance_order
                 , date_trunc_interval
+                , async_partitioning_in_progress
             FROM @extschema@.part_config
             WHERE undo_in_progress = false';
 
@@ -131,12 +148,22 @@ RAISE DEBUG 'run_maint: v_tables_list_sql: %', v_tables_list_sql;
 FOR v_row IN EXECUTE v_tables_list_sql
 LOOP
 
+    BEGIN
     CONTINUE WHEN v_row.undo_in_progress;
+
+    IF v_row.async_partitioning_in_progress IS NOT NULL THEN
+        RAISE WARNING 'Async partitioning in progress for partition set: %. Maintenance is being skipped for this partition set while this is in progress and will resume when it is complete during the next maintenance run. If this is not expected, please check the value of "async_partitioning_in_progress" in the "part_config" table and investigate for any incomplete asynchronous partitioning job attempts for this partition set.', v_row.parent_table;
+        CONTINUE;
+    END IF;
 
     -- When sub-partitioning, retention may drop tables that were already put into the query loop values.
     -- Check if they still exist in part_config before continuing
     v_parent_exists := NULL;
-    SELECT parent_table, time_encoder, time_decoder INTO v_parent_exists, v_time_encoder, v_time_decoder FROM @extschema@.part_config WHERE parent_table = v_row.parent_table;
+    SELECT parent_table, time_decoder
+    INTO v_parent_exists, v_time_decoder
+    FROM @extschema@.part_config
+    WHERE parent_table = v_row.parent_table;
+
     IF v_parent_exists IS NULL THEN
         RAISE DEBUG 'run_maint: Parent table possibly removed from part_config by retenion';
     END IF;
@@ -204,7 +231,8 @@ LOOP
     RAISE DEBUG 'run_maint: v_partition_expression: %', v_partition_expression;
 
     SELECT partition_tablename INTO v_last_partition FROM @extschema@.show_partitions(v_row.parent_table, 'DESC') LIMIT 1;
-    RAISE DEBUG 'run_maint: parent_table: %, v_last_partition: %', v_row.parent_table, v_last_partition;
+
+    RAISE DEBUG 'run_maint: parent_table: %, v_last_partition: %, v_control_type: %', v_row.parent_table, v_last_partition, v_control_type;
 
     IF v_control_type = 'time' OR (v_control_type = 'id' AND v_row.epoch <> 'none') OR (v_control_type IN ('text', 'uuid')) THEN
 
@@ -228,13 +256,15 @@ LOOP
 
         -- Must be reset to null otherwise if the next partition set in the loop is empty, the previous partition set's value could be used
         v_current_partition_timestamp := NULL;
+        IF v_time_decoder IS NOT NULL THEN
+            v_time_decoder_safe := partman_safe_obj_name(v_time_decoder);
+        END IF;
 
         -- Loop through child tables starting from highest to get a timestamp from the highest non-empty partition in the set
         -- Avoids doing a scan on entire partition set and/or getting any values accidentally in default.
         FOR v_row_max_time IN
             SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(v_row.parent_table, 'DESC', false)
         LOOP
-
             IF v_control_type = 'time' OR (v_control_type = 'id' AND v_row.epoch <> 'none') THEN
                 EXECUTE format('SELECT %s::text FROM %I.%I LIMIT 1'
                                     , v_partition_expression
@@ -243,7 +273,7 @@ LOOP
                                 ) INTO v_child_timestamp;
             ELSIF v_control_type IN ('text', 'uuid') THEN
                 EXECUTE format('SELECT %s(%s::text) FROM %I.%I LIMIT 1'
-                                    , v_time_decoder
+                                    , v_time_decoder_safe
                                     , v_partition_expression
                                     , v_row_max_time.partition_schemaname
                                     , v_row_max_time.partition_tablename
@@ -266,7 +296,6 @@ LOOP
             -- Has to be separate check outside above loop since "future" tables are likely going to be empty, hence ignored in that loop
             v_current_partition_timestamp = CURRENT_TIMESTAMP;
         END IF;
-
 
         -- If not ignoring the default table, check for max values there. If they are there and greater than all child values, use that instead
         -- Note the default is NOT to care about data in the default, so maintenance will fail if new child table boundaries overlap with
@@ -337,6 +366,7 @@ LOOP
 
             v_last_partition_created := @extschema@.create_partition_time(v_row.parent_table
                                                         , ARRAY[v_next_partition_timestamp]);
+
             IF v_last_partition_created THEN
                 v_analyze := true;
                 v_create_count := v_create_count + 1;
@@ -455,6 +485,20 @@ LOOP
 
     UPDATE @extschema@.part_config SET maintenance_last_run = clock_timestamp() WHERE parent_table = v_row.parent_table;
 
+    EXCEPTION WHEN OTHERS THEN
+        GET STACKED DIAGNOSTICS ex_message = MESSAGE_TEXT,
+                                ex_context = PG_EXCEPTION_CONTEXT,
+                                ex_detail = PG_EXCEPTION_DETAIL,
+                                ex_hint = PG_EXCEPTION_HINT;
+        UPDATE @extschema@.part_config
+            SET maintenance_last_run = NULL   -- mark as not maintained this tick
+            WHERE parent_table = v_row.parent_table;
+        RAISE WARNING 'pg_partman maintenance skipped partition set for parent table %: %
+CONTEXT: %
+DETAIL: %
+HINT: %', v_row.parent_table, ex_message, ex_context, ex_detail, ex_hint;
+        CONTINUE;
+    END;
 END LOOP; -- end of main loop through part_config
 
 IF v_jobmon_schema IS NOT NULL THEN
@@ -466,8 +510,6 @@ IF v_jobmon_schema IS NOT NULL THEN
         PERFORM close_job(v_job_id);
     END IF;
 END IF;
-
-EXECUTE format('SELECT set_config(%L, %L, %L)', 'search_path', v_old_search_path, 'false');
 
 EXCEPTION
     WHEN OTHERS THEN
@@ -491,3 +533,4 @@ DETAIL: %
 HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
+

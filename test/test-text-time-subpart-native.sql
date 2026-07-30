@@ -47,7 +47,7 @@ CREATE TABLE partman_test.undo_taptest (LIKE partman_test.time_taptest_table INC
 CREATE TABLE partman_test.template_time_taptest_table (LIKE partman_test.time_taptest_table);
 ALTER TABLE partman_test.template_time_taptest_table ADD PRIMARY KEY (col1);
 
-SELECT create_parent('partman_test.time_taptest_table', 'col3', '1 day', p_time_encoder := 'partman_test.encode_timestamp', p_time_decoder := 'partman_test.decode_timestamp', p_template_table := 'partman_test.template_time_taptest_table' );
+SELECT create_partition('partman_test.time_taptest_table', 'col3', '1 day', p_time_encoder := 'partman_test.encode_timestamp', p_time_decoder := 'partman_test.decode_timestamp', p_template_table := 'partman_test.template_time_taptest_table' );
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(1,10), concat('INV', to_char(CURRENT_TIMESTAMP, 'YYYYMMDD')));
 
 SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'), 'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD')||' exists');

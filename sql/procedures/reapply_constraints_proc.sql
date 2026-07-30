@@ -1,4 +1,11 @@
-CREATE PROCEDURE @extschema@.reapply_constraints_proc(p_parent_table text, p_drop_constraints boolean DEFAULT false, p_apply_constraints boolean DEFAULT false, p_wait int DEFAULT 0, p_dryrun boolean DEFAULT false)
+CREATE PROCEDURE @extschema@.reapply_constraints_proc(
+    p_parent_table text
+    , p_drop_constraints boolean DEFAULT false
+    , p_apply_constraints boolean DEFAULT false
+    , p_analyze boolean DEFAULT true
+    , p_wait int DEFAULT 0
+    , p_dryrun boolean DEFAULT false
+)
     LANGUAGE plpgsql
     AS $$
 DECLARE
@@ -33,12 +40,11 @@ BEGIN
  * Typical usage would be to run the drop mode, edit the data, then run apply mode to re-create all constraints on a partition set."
  */
 
-v_adv_lock := pg_try_advisory_lock(hashtext('pg_partman reapply_constraints'));
+v_adv_lock := pg_catalog.pg_try_advisory_lock(hashtext('pg_partman reapply_constraints'));
 IF v_adv_lock = false THEN
     RAISE NOTICE 'Partman reapply_constraints_proc already running or another session has not released its advisory lock.';
     RETURN;
 END IF;
-
 
 SELECT control, premake, optimize_constraint, datetime_string, epoch, partition_interval
 INTO v_control, v_premake, v_optimize_constraint, v_datetime_string, v_epoch, v_partition_interval
@@ -51,8 +57,8 @@ END IF;
 SELECT n.nspname, c.relname INTO v_parent_schema, v_parent_tablename
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
-WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
-AND c.relname = split_part(p_parent_table, '.', 2)::name;
+WHERE n.nspname = pg_catalog.split_part(p_parent_table, '.', 1)::name
+AND c.relname = pg_catalog.split_part(p_parent_table, '.', 2)::name;
     IF v_parent_tablename IS NULL THEN
         RAISE EXCEPTION 'Unable to find given parent table in system catalogs. Ensure it is schema qualified: %', p_parent_table;
     END IF;
@@ -72,7 +78,6 @@ LOOP
                             , v_row_max_value.partition_schemaname
                             , v_row_max_value.partition_tablename
                         ) INTO v_child_value;
-
     ELSE
         v_optimize_counter := v_optimize_counter + 1;
         IF v_optimize_counter = v_optimize_constraint THEN
@@ -88,7 +93,7 @@ IF v_optimize_counter < v_optimize_constraint THEN
     RETURN;
 END IF;
 
-v_sql := format('SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(%L, %L)', p_parent_table, 'ASC');
+v_sql := pg_catalog.format('SELECT partition_schemaname, partition_tablename FROM @extschema@.show_partitions(%L, %L)', p_parent_table, 'ASC');
 
 RAISE DEBUG 'reapply_constraint: v_parent_tablename: % , v_partition_suffix: %, v_child_stop: %,  v_sql: %', v_parent_tablename, v_partition_suffix, v_child_stop, v_sql;
 
@@ -112,17 +117,23 @@ FOR v_row IN EXECUTE v_sql LOOP
             PERFORM @extschema@.apply_constraints(p_parent_table, format('%s.%s', v_row.partition_schemaname, v_row.partition_tablename)::text);
         END IF;
     END IF; -- end apply
+    COMMIT;
 
     IF v_row.partition_tablename = v_child_stop THEN
         RAISE DEBUG 'reapply_constraint: Reached stop at %.%', v_row.partition_schemaname, v_row.partition_tablename;
         EXIT; -- stop creating constraints after optimize target is reached
     END IF;
-    COMMIT;
-    PERFORM pg_sleep(p_wait);
+    PERFORM pg_catalog.pg_sleep(p_wait);
 END LOOP;
 
-EXECUTE format('ANALYZE %I.%I', v_parent_schema, v_parent_tablename);
+IF p_analyze THEN
+    IF p_dryrun THEN
+        RAISE NOTICE 'ANALYZE %.%', v_parent_schema, v_parent_tablename;
+    ELSE
+        EXECUTE pg_catalog.format('ANALYZE %I.%I', v_parent_schema, v_parent_tablename);
+    END IF;
+END IF;
 
-PERFORM pg_advisory_unlock(hashtext('pg_partman reapply_constraints'));
+PERFORM pg_catalog.pg_advisory_unlock(hashtext('pg_partman reapply_constraints'));
 END
 $$;

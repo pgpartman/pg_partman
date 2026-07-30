@@ -5,6 +5,7 @@
     -- retention
     -- fk reference
 -- Set the pg_partman_bgw.interval setting in postgresql.conf to 10 seconds (or less) in order for this test suite to pass successfully.
+-- Test create_parent() alias
 
 -- ########### WARNING WARNING WARNING ##############
 -- Cannot run this test inside a transaction since then the BGW would not see this partition set exists
@@ -16,17 +17,17 @@
 --BEGIN;
 SELECT set_config('search_path','partman, public',false);
 
-SELECT plan(122);
-CREATE SCHEMA partman_test;
-CREATE SCHEMA partman_retention_test;
+SELECT plan(121);
 CREATE ROLE partman_basic;
 CREATE ROLE partman_revoke;
 CREATE ROLE partman_owner;
+CREATE SCHEMA partman_test AUTHORIZATION partman_owner;
+CREATE SCHEMA partman_retention_test AUTHORIZATION partman_owner;
 
 CREATE TABLE partman_test.fk_test_reference (col2 text unique not null);
 INSERT INTO partman_test.fk_test_reference VALUES ('stuff');
 
-CREATE UNLOGGED TABLE partman_test.id_taptest_table (
+CREATE TABLE partman_test.id_taptest_table (
     col1 int primary key
     , col2 text not null default 'stuff' references partman_test.fk_test_reference (col2)
     , col3 timestamptz DEFAULT now() )
@@ -72,7 +73,7 @@ SELECT table_privs_are('partman_test', 'id_taptest_table_p10', 'partman_revoke',
 SELECT table_privs_are('partman_test', 'id_taptest_table_p20', 'partman_revoke', ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'], 'Check partman_revoke privileges of id_taptest_table_p20');
 SELECT table_privs_are('partman_test', 'id_taptest_table_p30', 'partman_revoke', ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'], 'Check partman_revoke privileges of id_taptest_table_p30');
 SELECT table_privs_are('partman_test', 'id_taptest_table_p40', 'partman_revoke', ARRAY['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'], 'Check partman_revoke privileges of id_taptest_table_p40');
-SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table''::regclass', ARRAY['u'], 'Check that parent table is unlogged');
+--SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table''::regclass', ARRAY['u'], 'Check that parent table is unlogged');
 SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p0''::regclass', ARRAY['u'], 'Check that id_taptest_table_p0 is unlogged');
 SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p10''::regclass', ARRAY['u'], 'Check that id_taptest_table_p10 is unlogged');
 SELECT results_eq('SELECT relpersistence::text FROM pg_catalog.pg_class WHERE oid::regclass = ''partman_test.id_taptest_table_p20''::regclass', ARRAY['u'], 'Check that id_taptest_table_p20 is unlogged');
@@ -183,9 +184,11 @@ SELECT hasnt_table('partman_test', 'id_taptest_table_p0', 'Check id_taptest_tabl
 UPDATE part_config SET retention = '10', retention_schema = 'partman_retention_test' WHERE parent_table = 'partman_test.id_taptest_table';
 
 SELECT pass('Waiting 20 seconds for background worker to run...');
+
 SELECT pg_sleep(20);
 
 SELECT hasnt_table('partman_test', 'id_taptest_table_p10', 'Check id_taptest_table_p10 doesn''t exists anymore');
+
 SELECT has_table('partman_retention_test', 'id_taptest_table_p10', 'Check id_taptest_table_p10 got moved to new schema');
 
 -- Has to run twice because second time around is when it sees the partition is empty & drops it

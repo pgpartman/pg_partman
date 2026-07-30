@@ -1,3 +1,113 @@
+5.5.0
+=====
+BREAKING CHANGES
+----------------
+ - In order to help mitigate the vulnerabilities around running the background worker (BGW) as a superuser, the default value for the `pg_partman_bgw.role` GUC has been set to an arbitrary value of `partman_maintainer`. If this parameter had not been explicitly set before, this will cause the BGW to no longer run successfully and throw errors if this role doesn't exist with the proper privileges. If you had previously set this to any superuser role value (Ex `postgres`), it is HIGHLY recommended that you change this value to a non-superuser role and follow the setup instructions in the README.md.
+ - When using a target retention schema, the schema must now be owned by the same role that owns the child table. This is to help prevent table ownership takover in multi-tenant environments where multiple roles are allowed to use pg_partman for their own partition sets. (CVE-2026-61821)
+
+DOCUMENTATION
+-------------
+ - [IMPORTANT DOCUMENTATION UPDATES](https://github.com/pgpartman/pg_partman/blob/development/README.md#setup) - The CVE fixes in this update pointed out vulnerabilities around running the background worker as a superuser. Additional instructions have been added for how to run pg_partman without any superuser at all, with and/or without the background worker. Additional instructions have also been added for using Row Level Security (RLS) to limit user interaction with the partman configuration tables.
+    - Note that changing to using a non-superuser can be done before upgrading to version 5.5 if these security mitigations need to be done before updating the extension is possible. RLS policy enforcement does require 5.5 since the column to allow it is added in that version.
+
+NEW FEATURES
+------------
+ - Allow retention system to properly handle dropping child tables when the partition table is referenced by another table via a foreign key. Child tables must be detached first before dropping, so a new flag in the `part_config` table has been added: `detach_before_drop`. Set this value to true when using retention on a partition set referenced by another table. Note that all data in the referencing table must still be removed from that table first before the child table can be detached or dropped.
+ - Added a new column for allowing Row Level Security (RLS) management on the `part_config` and `part_config_sub` tables: maintenance_role. See documentation for examples of how to set row level security policies on the configuration tables to restrict access to performing maintenance operations on partition sets owned by other roles.
+ - Inherit per column statistic target from the parent table
+ - Instead of calculating the child table upper boundary limit, look up the value using the system catalogs when possible to provide more flexibility.
+ - When running maintenance, an error in a single partition set's run will no longer stop maintenance from continuing on to run on other partition sets. A warning is now issued in the PostgreSQL logs when this occurs and the last_run column in the configuration table is set to NULL. (CVE-2026-61822)
+
+BUGFIXES
+--------
+ - Fix sql injection/privilege escalation vulnerability when using time encoder/decoder functions (CVE-2026-61781, CVE-2026-61817, CVE-2026-61818)
+ - Fix sql injection/privilege escalation vulnerability when using the pg_jobmon extension (CVE-2026-61819)
+ - Fix sql injection/privilege escalation vulnerability when inheriting properties from the template table (CVE-2026-61820)
+
+
+5.4.3
+=====
+NEW FEATURES
+------------
+ - Inherit the toast table relation options from the template table
+
+BUGFIXES
+--------
+ - Version 5.4.2 did not include the proper pg_partman version in the extension control file. If you already had version 5.4.1 installed, then it would not update properly to version 5.4.2. The changes for version 5.4.2 have also been included in the update file for 5.4.3 to ensure they are properly applied in this case. If you installed version 5.4.2 from scratch, PostgreSQL would report that version 5.4.1 was installed even though the extension code for 5.4.2 was properly installed. Installing version 5.4.3 should resolve all issues around this bug.
+
+
+5.4.2
+=====
+BUGFIXES
+--------
+ - Fixed `partition_data_*` functions and procedures not working if pg_partman was not installed in the `partman` schema. (Github #842)
+
+
+5.4.1
+=====
+BUGFIXES
+--------
+ - Ensure all functions have a search path set to avoid security issues around user object overrides. Ensure all procedures have all object calls schema qualified since a default search path cannot be set in them. (Github Issue #836)
+ - Fix timestamp WITHOUT timezone not working properly with the partition_data_time() function and partition_data_proc() procedure. (Github Issue #838)
+
+
+5.4.0
+=====
+
+NEW FEATURES
+------------
+ - Created a new functions `create_partition()` to replace `create_parent()` and `create_sub_partition()` to replace `create_sub_parent()`. This is to bring more consistent naming to the functions since the opposite of this function is `undo_partition()`. `create_parent()` and `create_sub_parent()` will still exist for backward compatibility until at least the next major release. (Github Issue #706)
+ - Added a boolean parameter to `reapply_constraints_proc()` to control the ANALYZE run. (Github Issue #814)
+ - Added new function `config_cleanup()` to leave the partition table intact, but remove all configuration options in pg_partman (config table entries and template table). This allows future maintenance to be handled outside of pg_partman or not be managed at all.
+ - Allow ignoring infinity values in the default table. Note leaving a large number of rows in the default table can greatly affect partition maintenance performance. See the `p_ignore_infinity` parameter for partition_data_time(), partition_data_proc(), and check_default(). (Github Issue #519)
+ - If inheriting privileges from the parent table, properly inherit all possible table privileges that could be set including the new MAINTAIN privilege introduced in PG17. Should also account for any future table-level privileges added. Thank you to fgit-hubber on Github for the fix. (Github Issue #831)
+
+BUGFIXES
+--------
+ - Stopped analyze from running when calling the `reapply_constraints_proc()` in dryrun mode. (Github Issue #814)
+ - Have partition_data_proc() take a session level advisory lock instead of a transactional one to better prevent concurrent runs. (Github Issue #819)
+ - Fix variable assignment operators in partiton_data_time() and partition_data_id() to correct error when choosing DESC order for partitioning action.
+
+
+5.3.1
+=====
+
+BUGFIXES
+--------
+ - In PostgreSQL 18, handle the case where the shared library used by the background worker may be a greater version than the installed version of pg_partman (Ex. new package installed, but the extension wasn't updated). This will cause an exception to avoid any unpredictable behavior. Note this can still happen with versions lower than 18, but the ability to give the shared library a trackable version was not added until 18.
+ - For all versions of PostgreSQL, throw a warning if the version of the extension that has been installed to the host system (default version) is different than the version that is installed in the database. Note this can cause the same issue as the above mismatched shared library, but it also accounts for other scenarios that are not as serious to warrant an error exception. (Github PR #799)
+
+
+5.3.0
+=====
+
+NEW FEATURES
+------------
+ - Added new function partition_data_async() to allow smaller batching of data per transaction when moving data out of the default partition. (Github Issue #353)
+    - Note this function currently only works with time-based partitioning. ID/integer partitioning is in development.
+    - WARNING: While data is in transition between the default and the destination child table using this procedure, it is NOT visible to users of the partition table. See documentation for this function for additional details.
+ - Better support filtering out any columns with `p_ignored_columns` while partitioning data using the `partition_data_time()`, `partition_data_id()`, or `partition_data_proc()` utilities. (Github PR #723)
+    - Allows for filtering out GENERATED columns while moving data so that newly generated values will be entered for moved rows.
+    - Non-GENERATED columns that are filtered out will either have NULL values or use the default value when rows are moved.
+ - Added support for uuid-based partition sets to partition_data_time()/partition_data_proc() functions (Github Issue #789)
+ - Allow a starting offset to id/integer based partitioning. Added a new parameter to create_parent: p_offset_id. Note that the offset will carry through to all subsequent child tables. Ex: offset of 5 with interval 10 will make lower boundaries 5, 15, 25, etc. (Github Issue #339)
+ - Reduce the logging of the dynamic background working runs to be DEBUG1. Changed existing DEBUG1 logging messages in the BGW to DEBUG2.
+ - Unlogged tables are still supported in pg_partman as of PostgreSQL 18 and newer, but the parent table can no longer be flagged unlogged. This only works through the template table system in pg_partman. (Github Issue #774)
+
+BUGFIXES
+--------
+ - Allow `partition_data_*()` utilities to properly work when a PK/Unique key is set to GENERATE ALWAYS. (Github PR#723)
+ - Handle if the given default table already exists when calling `create_parent()`. Helps to better handle migrating an existing partition set to pg_partman.
+ - When disabling the template table in create_parent(), do not error out trying to inherit things from it. (Github #761)
+ - Added check to ensure that the default table cannot be manually set as the value of p_source_table in partitioning functions and procedures. This would previously cause an unhandled edge case endless loop since the data moved out of the default was getting moved right back into the default again instead of a new child partition. (Github Issue #353)
+ - Always ensure transaction is committed at proper time when using reapply_constraints_proc(). (Github PR#780)
+ - Added plpgsql as a required dependency in the extension control file. (Github PR# 808)
+
+DOCUMENTATION
+-------------
+ - Updated documentation for the time decoder function to note that it must take a TEXT value as its parameter at this time.
+
+
 5.2.4
 =====
 BUG FIXES

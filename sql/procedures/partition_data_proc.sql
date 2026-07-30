@@ -9,6 +9,7 @@ CREATE PROCEDURE @extschema@.partition_data_proc (
     , p_source_table text DEFAULT NULL
     , p_ignored_columns text[] DEFAULT NULL
     , p_quiet boolean DEFAULT false
+    , p_ignore_infinity boolean DEFAULT false
 )
     LANGUAGE plpgsql
     AS $$
@@ -21,19 +22,19 @@ v_epoch             text;
 v_is_autovac_off    boolean := false;
 v_lockwait_count    int := 0;
 v_loop_count        int := 0;
-v_parent_schema     text;
+v_parent_schemaname     text;
 v_parent_tablename  text;
 v_rows_moved        bigint;
-v_source_schema     text;
+v_source_schemaname     text;
 v_source_tablename  text;
 v_sql               text;
 v_total             bigint := 0;
 
 BEGIN
 
-v_adv_lock := pg_try_advisory_xact_lock(hashtext('pg_partman partition_data_proc'), hashtext(p_parent_table));
+v_adv_lock := pg_catalog.pg_try_advisory_lock(hashtext('pg_partman partition_data_proc'), hashtext(p_parent_table));
 IF v_adv_lock = 'false' THEN
-    RAISE NOTICE 'Partman partition_data_proc already running for given parent table: %.', p_parent_table;
+    RAISE NOTICE 'Advisory lock notice (pg_partman partition_data_proc): This procedure is already running for given parent table (%) or another session has not released its advisory lock.', p_parent_table;
     RETURN;
 END IF;
 
@@ -45,7 +46,7 @@ IF NOT FOUND THEN
     RAISE EXCEPTION 'ERROR: No entry in part_config found for given table: %', p_parent_table;
 END IF;
 
-SELECT n.nspname, c.relname INTO v_parent_schema, v_parent_tablename
+SELECT n.nspname, c.relname INTO v_parent_schemaname, v_parent_tablename
 FROM pg_catalog.pg_class c
 JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
 WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
@@ -55,17 +56,17 @@ AND c.relname = split_part(p_parent_table, '.', 2)::name;
     END IF;
 
 IF p_source_table IS NOT NULL THEN
-    SELECT n.nspname, c.relname INTO v_source_schema, v_source_tablename
+    SELECT n.nspname, c.relname INTO v_source_schemaname, v_source_tablename
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
     WHERE n.nspname = split_part(p_source_table, '.', 1)::name
-    AND c.relname = split_part(p_source_table, '.', 2)::name;
+    AND c.relname = pg_catalog.split_part(p_source_table, '.', 2)::name;
         IF v_source_tablename IS NULL THEN
             RAISE EXCEPTION 'Unable to find given source table in system catalogs. Ensure it is schema qualified: %', p_source_table;
         END IF;
 END IF;
 
-SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schema, v_parent_tablename, v_control);
+SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schemaname, v_parent_tablename, v_control);
 
 IF v_control_type = 'id' AND v_epoch <> 'none' THEN
         v_control_type := 'time';
@@ -76,21 +77,27 @@ END IF;
 -- Leaving the functions to turn off/reset in to let people do that manually if desired
 IF p_autovacuum_on = false THEN         -- Add this parameter back to definition when this is working
     -- Turn off autovac for parent, source table if set, and all child tables
-    v_is_autovac_off := @extschema@.autovacuum_off(v_parent_schema, v_parent_tablename, v_source_schema, v_source_tablename);
+    v_is_autovac_off := @extschema@.autovacuum_off(v_parent_schemaname, v_parent_tablename, v_source_schema, v_source_tablename);
     COMMIT;
 END IF;
 */
 
-v_sql := format('SELECT %s.partition_data_%s (p_parent_table := %L, p_lock_wait := %L, p_order := %L, p_analyze := false'
-        , '@extschema@', v_control_type, p_parent_table, p_lock_wait, p_order);
+v_sql := pg_catalog.format('SELECT %s.partition_data_%s (p_parent_table := %L
+                                                , p_lock_wait := %L
+                                                , p_order := %L
+                                                , p_analyze := false'
+        , '@extschema@', v_control_type, p_parent_table, p_lock_wait, p_order, p_ignore_infinity);
 IF p_interval IS NOT NULL THEN
-    v_sql := v_sql || format(', p_batch_interval := %L', p_interval);
+    v_sql := v_sql || pg_catalog.format(', p_batch_interval := %L', p_interval);
 END IF;
 IF p_source_table IS NOT NULL THEN
-    v_sql := v_sql || format(', p_source_table := %L', p_source_table);
+    v_sql := v_sql || pg_catalog.format(', p_source_table := %L', p_source_table);
 END IF;
 IF p_ignored_columns IS NOT NULL THEN
-    v_sql := v_sql || format(', p_ignored_columns := %L', p_ignored_columns);
+    v_sql := v_sql || pg_catalog.format(', p_ignored_columns := %L', p_ignored_columns);
+END IF;
+IF v_control_type = 'time' THEN
+    v_sql := v_sql || pg_catalog.format(', p_ignore_infinity := %L', p_ignore_infinity);
 END IF;
 v_sql := v_sql || ')';
 RAISE DEBUG 'partition_data sql: %', v_sql;
@@ -120,14 +127,14 @@ LOOP
         EXIT;
     END IF;
     COMMIT;
-    PERFORM pg_sleep(p_wait);
+    PERFORM pg_catalog.pg_sleep(p_wait);
     RAISE DEBUG 'v_rows_moved: %, v_loop_count: %, v_total: %, v_lockwait_count: %, p_wait: %', p_wait, v_rows_moved, v_loop_count, v_total, v_lockwait_count;
 END LOOP;
 
 /*
 IF v_is_autovac_off = true THEN
     -- Reset autovac back to default if it was turned off by this procedure
-    PERFORM @extschema@.autovacuum_reset(v_parent_schema, v_parent_tablename, v_source_schema, v_source_tablename);
+    PERFORM @extschema@.autovacuum_reset(v_parent_schemaname, v_parent_tablename, v_source_schema, v_source_tablename);
     COMMIT;
 END IF;
 */
@@ -137,22 +144,32 @@ IF p_quiet = false THEN
 END IF;
 RAISE NOTICE 'Ensure to VACUUM ANALYZE the parent (and source table if used) after partitioning data';
 
+PERFORM pg_catalog.pg_advisory_unlock(hashtext('pg_partman partition_data_proc'), hashtext(p_parent_table));
+
 /* Leaving here until I can figure out what's wrong with procedures and exception handling
 EXCEPTION
     WHEN QUERY_CANCELED THEN
-        ROLLBACK;
         -- Reset autovac back to default if it was turned off by this procedure
         IF v_is_autovac_off = true THEN
             PERFORM @extschema@.autovacuum_reset(v_parent_schema, v_parent_tablename, v_source_schema, v_source_tablename);
         END IF;
+
+        PERFORM pg_catalog.pg_advisory_unlock(
+                    hashtext('pg_partman partition_data_proc'),
+                    hashtext(p_parent_table));
         RAISE EXCEPTION '%', SQLERRM;
     WHEN OTHERS THEN
-        ROLLBACK;
         -- Reset autovac back to default if it was turned off by this procedure
         IF v_is_autovac_off = true THEN
             PERFORM @extschema@.autovacuum_reset(v_parent_schema, v_parent_tablename, v_source_schema, v_source_tablename);
         END IF;
+        PERFORM pg_catalog.pg_advisory_unlock(
+                    hashtext('pg_partman partition_data_proc'),
+                    hashtext(p_parent_table));
         RAISE EXCEPTION '%', SQLERRM;
 */
+
+
 END;
 $$;
+

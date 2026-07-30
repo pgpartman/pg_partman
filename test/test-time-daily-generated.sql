@@ -1,6 +1,8 @@
 -- ########## TIME DAILY TESTS ##########
 -- Other tests:
     -- Test generated always columns
+    -- Test partition_data_time function
+    -- Test create_parent() alias
 
 \set ON_ERROR_ROLLBACK 1
 \set ON_ERROR_STOP true
@@ -123,9 +125,11 @@ UPDATE part_config SET premake = 5 WHERE parent_table = 'partman_test.time_tapte
 
 -- Run to create proper future partitions
 SELECT run_maintenance();
+
 -- Insert after maintenance since native fails with no child
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(101,112), CURRENT_TIMESTAMP + '5 days'::interval);
 -- Run again to create +5 partition now that data exists
+
 SELECT run_maintenance();
 
 -- Data exists for +5 days, with 5 premake so +10 day table should exist
@@ -232,7 +236,6 @@ SELECT hasnt_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMES
     'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP-'2 days'::interval, 'YYYYMMDD')||' does not exist');
 
 SELECT hasnt_table('partman', 'template_partman_test_time_taptest_table', 'Check that template table was dropped');
-
 
 SELECT * FROM finish();
 ROLLBACK;

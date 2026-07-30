@@ -31,7 +31,7 @@ v_total                     bigint := 0;
 
 BEGIN
 
-v_adv_lock := pg_try_advisory_xact_lock(hashtext('pg_partman undo_partition_proc'), hashtext(p_parent_table));
+v_adv_lock := pg_catalog.pg_try_advisory_xact_lock(hashtext('pg_partman undo_partition_proc'), hashtext(p_parent_table));
 IF v_adv_lock = 'false' THEN
     RAISE NOTICE 'Partman undo_partition_proc already running for given parent table: %.', p_parent_table;
     RETURN;
@@ -79,22 +79,22 @@ IF p_autovacuum_on = false THEN         -- Add this parameter back to definition
 END IF;
 */
 
-v_sql := format('SELECT partitions_undone, rows_undone FROM %s.undo_partition (%L, p_keep_table := %L, p_lock_wait := %L'
+v_sql := pg_catalog.format('SELECT partitions_undone, rows_undone FROM %s.undo_partition (%L, p_keep_table := %L, p_lock_wait := %L'
         , '@extschema@'
         , p_parent_table
         , p_keep_table
         , p_lock_wait);
 IF p_interval IS NOT NULL THEN
-    v_sql := v_sql || format(', p_batch_interval := %L', p_interval);
+    v_sql := v_sql || pg_catalog.format(', p_batch_interval := %L', p_interval);
 END IF;
 IF p_target_table IS NOT NULL THEN
-    v_sql := v_sql || format(', p_target_table := %L', p_target_table);
+    v_sql := v_sql || pg_catalog.format(', p_target_table := %L', p_target_table);
 END IF;
 IF p_ignored_columns IS NOT NULL THEN
-    v_sql := v_sql || format(', p_ignored_columns := %L', p_ignored_columns);
+    v_sql := v_sql || pg_catalog.format(', p_ignored_columns := %L', p_ignored_columns);
 END IF;
 IF p_drop_cascade IS NOT NULL THEN
-    v_sql := v_sql || format(', p_drop_cascade := %L', p_drop_cascade);
+    v_sql := v_sql || pg_catalog.format(', p_drop_cascade := %L', p_drop_cascade);
 END IF;
 v_sql := v_sql || ')';
 RAISE DEBUG 'partition_data sql: %', v_sql;
@@ -137,7 +137,7 @@ LOOP
         EXIT;
     END IF;
 
-    PERFORM pg_sleep(p_wait);
+    PERFORM pg_catalog.pg_sleep(p_wait);
 
     RAISE DEBUG 'v_partitions_undone: %, v_rows_undone: %, v_loop_count: %, v_total: %, v_lockwait_count: %, p_wait: %', v_partitions_undone, p_wait, v_rows_undone, v_loop_count, v_total, v_lockwait_count;
 END LOOP;

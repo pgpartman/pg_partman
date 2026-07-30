@@ -24,7 +24,7 @@ ALTER TABLE partman_test.time_taptest_table REPLICA IDENTITY FULL;
 -- Create publication before child tables to check it was inherited
 CREATE PUBLICATION partman_test_publication FOR TABLE partman_test.time_taptest_table;
 
-SELECT create_parent('partman_test.time_taptest_table', 'col3', '1 day');
+SELECT create_partition('partman_test.time_taptest_table', 'col3', '1 day');
 
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(1,10), CURRENT_TIMESTAMP);
 
