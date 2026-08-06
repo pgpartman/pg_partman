@@ -58,7 +58,7 @@ Table of Contents
     - [stop_sub_partition](#stop_sub_partition)
  - [Destruction Objects](#destruction-objects)
     - [undo_partition](#undo_partition)
-    - [config_cleanup](config_cleanup)
+    - [config_cleanup](#config_cleanup())
     - [drop_partition_time](#drop_partition_time)
     - [drop_partition_id](#drop_partition_id)
  - [Configuration Tables](#configuration-tables)
