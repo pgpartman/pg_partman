@@ -46,6 +46,7 @@ v_parent_exists                 text;
 v_parent_oid                    oid;
 v_parent_schema                 text;
 v_parent_tablename              text;
+v_parent_owner                  text;
 v_partition_expression          text;
 v_premade_count                 int;
 v_row                           record;
@@ -189,12 +190,17 @@ LOOP
         END IF;
     END IF;
 
-    SELECT n.nspname, c.relname, c.oid
-    INTO v_parent_schema, v_parent_tablename, v_parent_oid
+    SELECT n.nspname, c.relname, c.oid, c.relowner::regrole
+    INTO v_parent_schema, v_parent_tablename, v_parent_oid, v_parent_owner
     FROM pg_catalog.pg_class c
     JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
     WHERE n.nspname = split_part(v_row.parent_table, '.', 1)::name
     AND c.relname = split_part(v_row.parent_table, '.', 2)::name;
+
+    IF v_parent_owner != current_role THEN
+        RAISE WARNING 'Child partition creation skipped for parent table % owner is % but current role is %', v_row.parent_table, v_parent_owner, current_role;
+        CONTINUE;
+    END IF;
 
     -- Always returns the default partition first if it exists
     SELECT partition_tablename INTO v_default_tablename

@@ -32,6 +32,7 @@ v_min_partition_id          bigint;
 v_override_statement        text;
 v_parent_schemaname         text;
 v_parent_tablename          text;
+v_parent_owner              text;
 v_partition_interval        bigint;
 v_partition_id              bigint[];
 v_rowcount                  bigint;
@@ -67,6 +68,17 @@ SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_pa
 
 IF v_control_type <> 'id' OR (v_control_type = 'id' AND v_epoch <> 'none') THEN
     RAISE EXCEPTION 'Control column for given partition set is not id/serial based or epoch flag is set for time-based partitioning.';
+END IF;
+
+SELECT c.relowner::regrole
+INTO v_parent_owner
+FROM pg_catalog.pg_class c
+JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+WHERE n.nspname = v_parent_schema
+AND c.relname = v_parent_tablename;
+
+IF v_parent_owner != current_role THEN
+    RAISE EXCEPTION 'parent table % owner is % but current role is %', p_parent_table, v_parent_owner, current_role;
 END IF;
 
 SELECT n.nspname::text, c.relname::text
