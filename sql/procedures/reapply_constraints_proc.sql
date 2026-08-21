@@ -5,6 +5,7 @@ CREATE PROCEDURE @extschema@.reapply_constraints_proc(
     , p_analyze boolean DEFAULT true
     , p_wait int DEFAULT 0
     , p_dryrun boolean DEFAULT false
+    , p_low_lock boolean DEFAULT false
 )
     LANGUAGE plpgsql
     AS $$
@@ -112,6 +113,12 @@ FOR v_row IN EXECUTE v_sql LOOP
     IF p_apply_constraints THEN
         IF p_dryrun THEN
             RAISE NOTICE 'DRYRUN NOTICE: Applying constraints on child table: %.%', v_row.partition_schemaname, v_row.partition_tablename;
+        ELSIF p_low_lock THEN
+            RAISE DEBUG 'reapply_constraint low_lock apply (NOT VALID): %.%', v_row.partition_schemaname, v_row.partition_tablename;
+            PERFORM @extschema@.apply_constraints(p_parent_table, format('%s.%s', v_row.partition_schemaname, v_row.partition_tablename)::text, p_force_not_valid := true);
+            COMMIT;
+            RAISE DEBUG 'reapply_constraint low_lock validate: %.%', v_row.partition_schemaname, v_row.partition_tablename;
+            PERFORM @extschema@.apply_constraints(p_parent_table, format('%s.%s', v_row.partition_schemaname, v_row.partition_tablename)::text);
         ELSE
             RAISE DEBUG 'reapply_constraint apply: %.%', v_row.partition_schemaname, v_row.partition_tablename;
             PERFORM @extschema@.apply_constraints(p_parent_table, format('%s.%s', v_row.partition_schemaname, v_row.partition_tablename)::text);
