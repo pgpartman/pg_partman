@@ -58,7 +58,7 @@ Table of Contents
     - [stop_sub_partition](#stop_sub_partition)
  - [Destruction Objects](#destruction-objects)
     - [undo_partition](#undo_partition)
-    - [config_cleanup](config_cleanup)
+    - [config_cleanup](#config_cleanup)
     - [drop_partition_time](#drop_partition_time)
     - [drop_partition_id](#drop_partition_id)
  - [Configuration Tables](#configuration-tables)
@@ -746,7 +746,7 @@ undo_partition_proc(
  * `p_drop_cascade` - Allow undoing subpartition sets from parent tables higher in the inheritance tree. Only applies when `p_keep_tables` is set to false. Note this causes all child tables below a subpartition parent to be dropped when that parent is dropped.
  * `p_quiet` - Procedures cannot return values, so by default it emits NOTICE's to show progress. Set this option to silence these notices.
 
-<a id="config_cleanup()"></a>
+<a id="config_cleanup"></a>
 ```sql
 config_cleanup(
     p_parent_table text
