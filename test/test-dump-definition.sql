@@ -46,7 +46,8 @@ SELECT bag_eq(
     'maintenance_last_run',
     'async_partitioning_in_progress',
     'detach_before_drop',
-    'maintenance_role'
+    'maintenance_role',
+    'child_table_prefix'
   ]::TEXT[],
   'When adding a new column to part_config please ensure it is also added to the dump_partitioned_table_definition function and the tests in this file'
 );
@@ -102,7 +103,8 @@ UPDATE partman.part_config SET
 	maintenance_order = NULL,
 	retention_keep_publication = ''f'',
 	detach_before_drop = ''f'',
-	maintenance_role = '''|| current_user ||'''
+	maintenance_role = '''|| current_user ||''',
+	child_table_prefix = ''_p''
 WHERE parent_table = ''partman_test.declarative_objects'';'
 );
 

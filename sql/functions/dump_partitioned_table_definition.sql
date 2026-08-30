@@ -9,6 +9,7 @@ CREATE FUNCTION @extschema@.dump_partitioned_table_definition(
 DECLARE
     v_automatic_maintenance text;
     v_create_partition_definition text;
+    v_child_table_prefix text;
     v_constraint_cols TEXT[];
     v_constraint_valid boolean;
     v_control text;
@@ -69,6 +70,7 @@ BEGIN
         , pc.retention_keep_publication
         , pc.detach_before_drop
         , pc.maintenance_role
+        , pc.child_table_prefix
     INTO
         v_parent_table
         , v_control
@@ -96,6 +98,7 @@ BEGIN
         , v_retention_keep_publication
         , v_detach_before_drop
         , v_maintenance_role
+        , v_child_table_prefix
     FROM @extschema@.part_config pc
     WHERE pc.parent_table = p_parent_table;
 
@@ -185,7 +188,8 @@ E'UPDATE @extschema@.part_config SET
 \tmaintenance_order = %L,
 \tretention_keep_publication = %L,
 \tdetach_before_drop = %L,
-\tmaintenance_role = %L
+\tmaintenance_role = %L,
+\tchild_table_prefix = %L
 WHERE parent_table = %L;',
         v_optimize_constraint
         , v_retention
@@ -202,6 +206,7 @@ WHERE parent_table = %L;',
         , v_retention_keep_publication
         , v_detach_before_drop
         , v_maintenance_role
+        , v_child_table_prefix
         , v_parent_table
     );
 

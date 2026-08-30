@@ -16,6 +16,7 @@ CREATE FUNCTION @extschema@.partition_data_id(
 DECLARE
 
 v_analyze                   boolean := FALSE;
+v_child_table_prefix        text;
 v_column_list_filtered      text;
 v_column_list_full          text;
 v_control                   text;
@@ -49,9 +50,11 @@ BEGIN
     SELECT partition_interval::bigint
     , control
     , epoch
+    , child_table_prefix
     INTO v_partition_interval
     , v_control
     , v_epoch
+    , v_child_table_prefix
     FROM @extschema@.part_config
     WHERE parent_table = p_parent_table;
     IF NOT FOUND THEN
@@ -199,7 +202,7 @@ FOR i IN 1..p_batch_count LOOP
         END IF;
     END IF;
 
-    v_current_partition_name := @extschema@.check_name_length(COALESCE(v_parent_tablename), v_min_partition_id::text, TRUE);
+    v_current_partition_name := @extschema@.check_name_length(COALESCE(v_parent_tablename), v_min_partition_id::text, TRUE, v_child_table_prefix);
 
     IF p_override_system_value THEN
         v_override_statement = ' OVERRIDING SYSTEM VALUE ';

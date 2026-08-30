@@ -13,6 +13,7 @@ ex_context                      text;
 ex_detail                       text;
 ex_hint                         text;
 ex_message                      text;
+v_child_table_prefix            text;
 v_control                       text;
 v_control_type                  text;
 v_exists                        text;
@@ -51,12 +52,14 @@ SELECT control
     , jobmon
     , template_table
     , inherit_privileges
+    , child_table_prefix
 INTO v_control
     , v_partition_interval
     , v_partition_type
     , v_jobmon
     , v_template_table
     , v_inherit_privileges
+    , v_child_table_prefix
 FROM @extschema@.part_config
 WHERE parent_table = p_parent_table;
 
@@ -109,7 +112,7 @@ FOREACH v_id IN ARRAY p_partition_ids LOOP
         END IF;
     END IF;
 
-    v_partition_name := @extschema@.check_name_length(v_parent_tablename, v_id::text, TRUE);
+    v_partition_name := @extschema@.check_name_length(v_parent_tablename, v_id::text, TRUE, v_child_table_prefix);
     -- If child table already exists, skip creation
     -- Have to check pg_class because if subpartitioned, table will not be in pg_tables
     SELECT c.relname INTO v_exists
