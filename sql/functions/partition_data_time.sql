@@ -18,6 +18,7 @@ DECLARE
 
 v_analyze                   boolean := FALSE;
 v_async_rowcount            int;
+v_child_table_prefix        text;
 v_column_list_filtered      text;
 v_column_list_full          text;
 v_control                   text;
@@ -65,12 +66,14 @@ SELECT partition_interval::interval
     , time_decoder
     , datetime_string
     , epoch
+    , child_table_prefix
 INTO v_partition_interval
     , v_control
     , v_time_encoder
     , v_time_decoder
     , v_datetime_string
     , v_epoch
+    , v_child_table_prefix
 FROM @extschema@.part_config
 WHERE parent_table = p_parent_table;
 IF NOT FOUND THEN
@@ -305,7 +308,7 @@ FOR i IN 1..p_batch_count LOOP
 
     -- This suffix generation code is in create_partition_time() as well
     v_partition_suffix := to_char(v_min_partition_timestamp, v_datetime_string);
-    v_current_partition_name := @extschema@.check_name_length(v_parent_tablename, v_partition_suffix, TRUE);
+    v_current_partition_name := @extschema@.check_name_length(v_parent_tablename, v_partition_suffix, TRUE, v_child_table_prefix);
 
     IF p_override_system_value THEN
         v_override_statement = ' OVERRIDING SYSTEM VALUE ';

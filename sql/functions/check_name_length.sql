@@ -2,7 +2,7 @@ CREATE FUNCTION @extschema@.check_name_length (
     p_object_name text
     , p_suffix text DEFAULT NULL
     , p_table_partition boolean DEFAULT FALSE
-    , p_simple_naming boolean DEFAULT FALSE
+    , p_partition_prefix text DEFAULT '_p'
 )
     RETURNS text
     LANGUAGE plpgsql IMMUTABLE
@@ -16,6 +16,7 @@ BEGIN
  * Truncate the name of the given object if it is greater than the postgres default max (63 bytes).
  * Also appends given suffix and schema if given and truncates the name so that the entire suffix will fit.
  * Returns original name (with suffix if given) if it doesn't require truncation
+ * p_partition_prefix allows callers to override the default '_p' prefix placed between the object name and suffix (Ex: part_config.child_table_prefix)
  */
 
 IF p_table_partition IS TRUE AND (NULLIF(p_suffix, '') IS NULL) THEN
@@ -23,14 +24,7 @@ IF p_table_partition IS TRUE AND (NULLIF(p_suffix, '') IS NULL) THEN
 END IF;
 
 
-v_suffix := format('%s%s',
-    CASE
-        WHEN p_table_partition AND p_simple_naming THEN '_'
-        WHEN p_table_partition THEN '_p'
-    END,
-    p_suffix
-);
-
+v_suffix := format('%s%s', CASE WHEN p_table_partition THEN p_partition_prefix END, p_suffix);
 -- Use optimistic behavior: in almost all cases `v_new_name` will be less than allowed maximum.
 -- Do "heavy" work only in rare cases.
 v_new_name := p_object_name || v_suffix;
