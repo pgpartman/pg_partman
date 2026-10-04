@@ -4,6 +4,7 @@ BUG FIXES
 ---------
  - Fix variable assignment misalignment in partition_data_time() when using the p_lock_wait parameter. (Github PR #871)
  - Fix inherit_template_properties() adding a template table's INCLUDE index columns as real key columns on child tables instead of ignoring them. (Github Issue #674)
+ - Mark uuid7_time_encoder() and uuid7_time_decoder() IMMUTABLE and PARALLEL SAFE. As VOLATILE functions they blocked partition pruning, so queries on a UUIDv7 partition set filtered with uuid7_time_encoder() scanned every child table. (Github Issue #873)
 
 
 5.5.0
