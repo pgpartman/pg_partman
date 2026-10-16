@@ -817,6 +817,8 @@ Stores all configuration data for partition sets managed by the extension.
 
     parent_table text NOT NULL
     , control text NOT NULL
+    , time_encoder text
+    , time_decoder text
     , partition_interval text NOT NULL
     , partition_type text NOT NULL
     , premake int NOT NULL DEFAULT 4
@@ -845,7 +847,11 @@ Stores all configuration data for partition sets managed by the extension.
  - `parent_table`
     - Parent table of the partition set
  - `control`
-    - Column used as the control for partition constraints. Must be a time or integer based column.
+    - Column used as the control for partition constraints. Must be a time, integer, text or uuid based column. When control is of type text/uuid, `time_encoder` and `time_decoder` must be set.
+ - `time_encoder`
+    - Name of the function that encodes a timestamp into a control column value. See `p_time_encoder` in `create_partition()` for when it is required.
+ - `time_decoder`
+    - Name of the function that decodes a control column value into a timestamp. See `p_time_decoder` in `create_partition()` for when it is required.
  - `partition_interval`
     - Text type value that determines the interval for each partition.
     - Must be a value that can either be cast to the interval or bigint data types.
