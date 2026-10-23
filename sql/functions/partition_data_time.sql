@@ -404,4 +404,3 @@ RETURN v_total_rows;
 
 END
 $$;
-

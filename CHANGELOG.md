@@ -2,7 +2,7 @@
 =====
 BUG FIXES
 ---------
- - Fix variable assignment misalignment in partition_data_time() when using the p_lock_wait parameter. (Github PR #871)
+ - Fix variable assignment misalignment in partition_data_time() when using the p_lock_wait parameter. (Github PR #871 & #878)
  - Fix inherit_template_properties() adding a template table's INCLUDE index columns as real key columns on child tables instead of ignoring them. (Github Issue #674)
 
 

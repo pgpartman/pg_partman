@@ -4,6 +4,9 @@ ALTER TABLE @extschema@.part_config_sub ADD COLUMN sub_detach_before_drop BOOLEA
 ALTER TABLE @extschema@.part_config ADD COLUMN maintenance_role TEXT DEFAULT current_user;
 ALTER TABLE @extschema@.part_config_sub ADD COLUMN sub_maintenance_role TEXT DEFAULT current_user;
 
+UPDATE @extschema@.part_config SET maintenance_role = COALESCE(current_setting('pg_partman_bgw.role', 'partman_maintainer');
+UPDATE @extschema@.part_config_sub SET sub_maintenance_role = COALESCE(current_setting('pg_partman_bgw.role', 'partman_maintainer');
+
 CREATE TEMP TABLE partman_preserve_privs_temp (statement text);
 
 INSERT INTO partman_preserve_privs_temp
