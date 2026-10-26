@@ -1752,3 +1752,8 @@ RETURN true;
 
 END
 $$;
+
+
+-- uuid7 helpers were VOLATILE by default, which blocked partition pruning (Github Issue #873)
+ALTER FUNCTION @extschema@.uuid7_time_encoder(timestamptz) IMMUTABLE PARALLEL SAFE;
+ALTER FUNCTION @extschema@.uuid7_time_decoder(text) IMMUTABLE PARALLEL SAFE;
