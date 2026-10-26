@@ -359,6 +359,17 @@ void pg_partman_bgw_main(Datum main_arg) {
 } // end main
 
 /*
+ * Clean up a portal spawned by a maintenance worker in
+ * pg_partman_bgw_run_maint().
+ */
+static void pg_partman_bgw_release_portal(Portal portal) {
+    MarkPortalDone(portal);
+    PortalDrop(portal, false);
+    ActivePortal = NULL;
+    PortalContext = NULL;
+}
+
+/*
  * Unable to pass the database name as a string argument (not sure why yet)
  * Instead, the GUC is parsed both in the main function and below and a counter integer
  *  is passed to determine which database the BGW will run in.
@@ -422,9 +433,15 @@ void pg_partman_bgw_run_maint(Datum arg) {
         portal = CreateNewPortal();
         portal->visible = false;
         portal->resowner = CurrentResourceOwner;
+        StartTransactionCommand();
+
+        // This portal does not run any query.  Start it and mark it as
+        // active
+        PortalDefineQuery(portal, NULL, "", CMDTAG_UNKNOWN, NIL, NULL);
+        PortalStart(portal, NULL, 0, InvalidSnapshot);
+        MarkPortalActive(portal);
         ActivePortal = portal;
         PortalContext = portal->portalContext;
-        StartTransactionCommand();
         EnsurePortalSnapshotExists();
     }
 
@@ -444,8 +461,9 @@ void pg_partman_bgw_run_maint(Datum arg) {
         SPI_finish();
         PopActiveSnapshot();
         CommitTransactionCommand();
+        if (portal_created)
+            pg_partman_bgw_release_portal(portal);
         pgstat_report_activity(STATE_IDLE, NULL);
-
         pfree(rawstring);
         list_free(elemlist);
 
@@ -521,9 +539,8 @@ void pg_partman_bgw_run_maint(Datum arg) {
         if (ActiveSnapshotSet())
             PopActiveSnapshot();
         CommitTransactionCommand();
-        PortalDrop(portal, false);
-        ActivePortal = NULL;
-        PortalContext = NULL;
+
+        pg_partman_bgw_release_portal(portal);
     }
 
     #if (PG_VERSION_NUM < 150000)

@@ -23,7 +23,6 @@ v_async_rowcount            int;
 v_column_list_filtered      text;
 v_column_list_full          text;
 v_control                   text;
-v_control_exact_type        text;
 v_control_type              text;
 v_datetime_string           text;
 v_current_partition_name    text;
@@ -93,7 +92,7 @@ FROM pg_catalog.pg_tables
 WHERE schemaname = split_part(p_parent_table, '.', 1)::name
 AND tablename = split_part(p_parent_table, '.', 2)::name;
 
-SELECT general_type, exact_type INTO v_control_type, v_control_exact_type FROM @extschema@.check_control_type(v_parent_schemaname, v_parent_tablename, v_control);
+SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schemaname, v_parent_tablename, v_control);
 IF v_control_type <> 'time' THEN
     IF (v_control_type = 'id' AND v_epoch = 'none') OR v_control_type NOT IN ('text', 'id', 'uuid') OR (v_control_type IN ('text', 'uuid') AND v_time_encoder IS NULL) THEN
         RAISE EXCEPTION 'Cannot run on partition set without time based control column, an epoch flag set with an id column or time_encoder set with text column. Found control: %, epoch: %, time_encoder: %s', v_control_type, v_epoch, v_time_encoder;
@@ -318,13 +317,10 @@ FOR i IN 1..p_batch_count LOOP
     -- Create a variable to use in all scenarios below for handling encoded columns
 
     IF v_time_decoder IS NULL THEN
-        IF v_control_exact_type = 'timestamp' THEN
-            -- Conversion to text of timestamp without timezone cannot be directly compared to timestamptz
-            -- that is returned by other functions and used below (See Github Issue #838)
-            v_decoded_col := format('%s::timestamptz::text', v_partition_expression);
-        ELSE
-            v_decoded_col := format('%s::text', v_partition_expression);
-        END IF;
+        -- Compare in the control column's own type, which is how the child table's bounds are read.
+        -- Compared as text, a date sorts before the timestamptz bound it is equal to ('2026-10-01' < '2026-10-01 00:00:00+00'),
+        -- so the first day of a child table's range was left behind and the first day of the next one taken (Github Issues #838, #856)
+        v_decoded_col := v_partition_expression;
     ELSE
         v_decoded_col := format('%s(%s::text)', v_time_decoder_safe, v_partition_expression);
     END IF;
