@@ -4,9 +4,12 @@ BUG FIXES
 ---------
  - Fix variable assignment misalignment in partition_data_time() when using the p_lock_wait parameter. (Github PR #871 & #878)
  - Fix inherit_template_properties() adding a template table's INCLUDE index columns as real key columns on child tables instead of ignoring them. (Github Issue #674)
- - Mark uuid7_time_encoder() and uuid7_time_decoder() IMMUTABLE and PARALLEL SAFE. As VOLATILE functions they blocked partition pruning, so queries on a UUIDv7 partition set filtered with uuid7_time_encoder() scanned every child table. (Github Issue #873)
+ - Mark uuid7_time_encoder() and uuid7_time_decoder() IMMUTABLE and PARALLEL SAFE. As VOLATILE functions they blocked partition pruning, so queries on a UUIDv7 partition set filtered with uuid7_time_encoder() scanned every child table. (Github Issue #873 / PR #880)
  - Fix partition_data_time() and partition_data_proc() leaving rows on the first day of a child table's range in the default, and taking rows on the first day of the next range, when the control column is a date. The rows are compared in the control column's own type again instead of as text. (Github Issue #856)
 
+DOCUMENTATION
+-------------
+ - Clarify that the role running `create_partition()` must have ownership level permissions on the target table (Github Issue #858).
 
 
 5.5.0
