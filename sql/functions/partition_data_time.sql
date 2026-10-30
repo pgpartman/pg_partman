@@ -39,6 +39,7 @@ v_min_partition_timestamp   timestamptz;
 v_override_statement        text;
 v_parent_schemaname         text;
 v_parent_tablename          text;
+v_parent_owner              text;
 v_partition_expression      text;
 v_partition_interval        interval;
 v_partition_suffix          text;
@@ -98,6 +99,18 @@ IF v_control_type <> 'time' THEN
     END IF;
 END IF;
 
+SELECT c.relowner::regrole
+INTO v_parent_owner
+FROM pg_catalog.pg_class c
+JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+WHERE n.nspname = v_parent_schema
+AND c.relname = v_parent_tablename;
+
+IF v_parent_owner != current_role THEN
+    RAISE EXCEPTION 'parent table % owner is % but current role is %', p_parent_table, v_parent_owner, current_role;
+END IF;
+
+-- Replace the parent variables with the source variables if using source table for child table data
 SELECT n.nspname::text, c.relname::text
 INTO v_default_schemaname, v_default_tablename
 FROM pg_catalog.pg_inherits h
