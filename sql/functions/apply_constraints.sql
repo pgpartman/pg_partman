@@ -3,6 +3,7 @@ CREATE FUNCTION @extschema@.apply_constraints(
     , p_child_table text DEFAULT NULL
     , p_analyze boolean DEFAULT FALSE
     , p_job_id bigint DEFAULT NULL
+    , p_force_not_valid boolean DEFAULT false
 )
     RETURNS void
     LANGUAGE plpgsql
@@ -28,6 +29,8 @@ v_datetime_string               text;
 v_epoch                         text;
 v_existing_constraint_name      text;
 v_job_id                        bigint;
+v_needs_validation              boolean;
+v_pending_sqls                  text[] := '{}';
 v_jobmon                        boolean;
 v_jobmon_schema                 text;
 v_last_partition                text;
@@ -75,6 +78,10 @@ INTO v_parent_table
 FROM @extschema@.part_config
 WHERE parent_table = p_parent_table
 AND constraint_cols IS NOT NULL;
+
+IF p_force_not_valid THEN
+    v_constraint_valid := false;
+END IF;
 
 IF v_constraint_cols IS NULL THEN
     RAISE DEBUG 'apply_constraints: Given parent table (%) not set up for constraint management (constraint_cols is NULL)', p_parent_table;
@@ -185,6 +192,28 @@ LOOP
     END IF;
 
     IF v_existing_constraint_name IS NOT NULL THEN
+        IF v_constraint_valid THEN
+            SELECT NOT con.convalidated
+            INTO v_needs_validation
+            FROM pg_catalog.pg_constraint con
+            JOIN pg_catalog.pg_class c ON c.oid = con.conrelid
+            JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+            WHERE con.conname = v_existing_constraint_name::name
+            AND c.relname = v_child_tablename::name
+            AND n.nspname = v_parent_schema::name;
+
+            IF v_needs_validation THEN
+                v_sql := format('ALTER TABLE %I.%I VALIDATE CONSTRAINT %I',
+                    v_parent_schema, v_child_tablename, v_existing_constraint_name);
+                RAISE DEBUG 'Constraint validation query: %', v_sql;
+                EXECUTE v_sql;
+                IF v_jobmon_schema IS NOT NULL THEN
+                    PERFORM update_step(v_step_id, 'OK', format('Validated existing constraint: %s', v_existing_constraint_name));
+                END IF;
+                CONTINUE;
+            END IF;
+        END IF;
+
         IF v_jobmon_schema IS NOT NULL THEN
             PERFORM update_step(v_step_id, 'NOTICE', format('Partman managed constraint already exists on this table (%s) and column (%s). Skipping creation.', v_child_tablename, v_col));
         END IF;
@@ -211,11 +240,10 @@ LOOP
             v_sql := format('%s NOT VALID', v_sql);
         END IF;
 
-        RAISE DEBUG 'Constraint creation query: %', v_sql;
-        EXECUTE v_sql;
+        v_pending_sqls := array_append(v_pending_sqls, v_sql);
 
         IF v_jobmon_schema IS NOT NULL THEN
-            PERFORM update_step(v_step_id, 'OK', format('New constraint created: %s', v_sql));
+            PERFORM update_step(v_step_id, 'OK', format('Constraint prepared: %s', v_sql));
         END IF;
     ELSE
         RAISE DEBUG 'Given column (%) contains all NULLs. No constraint created', v_col;
@@ -224,6 +252,12 @@ LOOP
         END IF;
     END IF;
 
+END LOOP;
+
+FOREACH v_sql IN ARRAY v_pending_sqls
+LOOP
+    RAISE DEBUG 'Constraint creation query: %', v_sql;
+    EXECUTE v_sql;
 END LOOP;
 
 IF p_analyze THEN

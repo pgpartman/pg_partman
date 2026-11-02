@@ -1,0 +1,19 @@
+services:
+  pg:
+    build:
+      context: ..
+      dockerfile: test/Dockerfile
+      network: host
+    environment:
+      POSTGRES_USER: partman_test
+      POSTGRES_PASSWORD: partman_test
+      POSTGRES_DB: partman_test
+    ports:
+      - "15432:5432"
+    volumes:
+      - ..:/pg_partman:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U partman_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 10

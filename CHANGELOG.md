@@ -30,6 +30,9 @@ BUGFIXES
 NEW FEATURES
 ------------
  - Inherit the toast table relation options from the template table
+ - Low-lock constraint reapplication: added `p_low_lock` parameter to `reapply_constraints_proc` that applies constraints in two phases (NOT VALID + VALIDATE) to avoid holding AccessExclusiveLock during constraint validation scans on active partitions. (Github PR #xxx)
+ - `apply_constraints` now validates existing NOT VALID constraints when `constraint_valid` is true, using `SHARE UPDATE EXCLUSIVE` lock (compatible with concurrent DML).
+ - `apply_constraints` now gathers all min/max values before executing constraint DDL when multiple constraint columns are configured, minimizing AccessExclusiveLock duration.
 
 BUGFIXES
 --------
