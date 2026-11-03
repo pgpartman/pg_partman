@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Git
+
+Never commit or push automatically in this repo, even if global instructions say to. Only commit or push when explicitly asked. This overrides the global "push immediately after every commit" rule.
+
 ## What this is
 
 pg_partman is a PostgreSQL extension (PL/pgSQL functions/procedures + a C background worker) that manages
