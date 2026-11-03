@@ -262,8 +262,8 @@ FOR v_row IN
         , a.sub_template_table
         , a.sub_retention
         , a.sub_retention_schema
-        , a.sub_retention_keep_index
         , a.sub_retention_keep_table
+        , a.sub_retention_keep_index
         , a.sub_epoch
         , a.sub_constraint_cols
         , a.sub_optimize_constraint
@@ -671,4 +671,3 @@ DETAIL: %
 HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
-

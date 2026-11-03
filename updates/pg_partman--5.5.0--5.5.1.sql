@@ -1505,6 +1505,7 @@ HINT: %', ex_message, ex_context, ex_detail, ex_hint;
 END
 $$;
 
+
 CREATE OR REPLACE FUNCTION @extschema@.inherit_template_properties(
     p_parent_table text
     , p_child_schema text
