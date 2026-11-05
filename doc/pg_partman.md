@@ -864,12 +864,12 @@ Stores all configuration data for partition sets managed by the extension.
     - Must be a value that can either be cast to the interval (for time-based partitioning) or bigint (for number partitioning) data types.
     - Leave this column NULL (the default) to always keep all child partitions. See **About** section for more info.
  - `retention_schema`
-    - Schema to move tables to as part of the retentions system instead of dropping them. Overrides retention_keep_table option.
+    - Schema to move tables to as part of the retention system instead of dropping them. Overrides `retention_keep_table` option.
  - `retention_keep_index`
     - Boolean value to determine whether indexes are dropped for child tables that are detached.
     - Default is TRUE. Set to FALSE to have the child table's indexes dropped when it is detached.
  - `retention_keep_table`
-    - Boolean value to determine whether dropped child tables only detached or actually dropped.
+    - Boolean value to determine whether dropped child tables only detached or actually dropped. Ignored if `retention_schema` is not NULL.
     - Default is TRUE to keep the table and only uninherit it. Set to FALSE to have the child tables removed from the database completely.
  - `retention_keep_publication`
     - If `retention_keep_table` is set to true, determines whether to drop the table from any publications that it may be a member of.

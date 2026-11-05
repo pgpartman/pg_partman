@@ -151,4 +151,3 @@ RETURN QUERY EXECUTE v_sql;
 
 END
 $$;
-

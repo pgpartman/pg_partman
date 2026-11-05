@@ -8,7 +8,7 @@
 -- Test create_parent() alias
 -- Test that BGW can run as a non-superuser. Requires creation of partman_maintainer role and that the BGW be running as that role
     -- Run in psql: CREATE ROLE partman_maintainer WITH LOGIN;
-    -- Set in postgresql.conf: pg_partman_bgw.role = 'partman_maintainer'    
+    -- Set in postgresql.conf: pg_partman_bgw.role = 'partman_maintainer'
     -- Part1 must be run as a superuser
     -- Part2 can be run as partman_maintainer or partman_owner, but ideal as partman_owner for true testing that maintainer role can affect other role's partition sets
         -- Example call: pg_prove -U partman_maintainer -d keith -ovf test/test_bgw/test-id-nonsuperuser-bgw-part2.sql
@@ -43,7 +43,7 @@ GRANT ALL ON ALL TABLES IN SCHEMA partman TO partman_maintainer;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA partman TO partman_maintainer;
 GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA partman TO partman_maintainer;
 
-GRANT USAGE ON SCHEMA partman TO partman_owner;
+GRANT USAGE,CREATE ON SCHEMA partman TO partman_owner;
 GRANT ALL ON ALL TABLES IN SCHEMA partman TO partman_owner;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA partman TO partman_owner;
 GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA partman TO partman_owner;

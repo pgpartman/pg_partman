@@ -211,4 +211,3 @@ WHERE parent_table = %L;',
     );
 END
 $$;
-
