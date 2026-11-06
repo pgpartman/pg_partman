@@ -30,7 +30,7 @@ v_toast_table_oid       oid;
 BEGIN
 /*
  * Function to inherit the properties of the template table to newly created child tables.
- * For PG14+, used to inherit non-partition-key unique indexes & primary keys, unlogged status, and relation options
+ * Inherit indexes, primary keys, unlogged status, and relation options.
  */
 
 SELECT parent_table, template_table
@@ -85,7 +85,7 @@ AND c.relname = v_template_tablename;
     END IF;
 
 
--- Index creation (Only for unique, non-partition key indexes)
+-- Copy template indexes that are not supplied by the parent.
 FOR v_index_list IN
     SELECT
     array_to_string(regexp_matches(pg_get_indexdef(indexrelid), ' USING .*'),',') AS statement
@@ -104,7 +104,7 @@ FOR v_index_list IN
     LEFT OUTER JOIN pg_catalog.pg_tablespace ts ON c.reltablespace = ts.oid
     WHERE i.indrelid = v_template_oid
     AND i.indisvalid
-    AND (i.indisprimary OR i.indisunique)
+    AND NOT i.indisexclusion
     ORDER BY 1
 LOOP
     v_dupe_found := false;
@@ -113,6 +113,7 @@ LOOP
         SELECT
         array_to_string(regexp_matches(pg_get_indexdef(indexrelid), ' USING .*'),',') AS statement
         , i.indisprimary
+        , i.indisunique
         , ( SELECT array_agg( a.attname ORDER by x.r )
             FROM pg_catalog.pg_attribute a
             JOIN ( SELECT k, row_number() over () as r
@@ -133,8 +134,9 @@ LOOP
             END IF;
         END IF;
 
-        IF v_parent_index_list.statement = v_index_list.statement THEN
-            RAISE DEBUG 'inherit_template_properties: Ignoring duplicate unique index on template table: %', v_index_list.statement;
+        IF v_parent_index_list.statement = v_index_list.statement
+            AND v_parent_index_list.indisunique = v_index_list.indisunique THEN
+            RAISE DEBUG 'inherit_template_properties: Ignoring duplicate index on template table: %', v_index_list.statement;
             v_dupe_found := true;
             CONTINUE; -- only continue within this nested loop
         END IF;
@@ -156,9 +158,13 @@ LOOP
         END IF;
         RAISE DEBUG 'inherit_template_properties: Create pk: %', v_sql;
         EXECUTE v_sql;
-    ELSIF v_index_list.indisunique THEN
+    ELSE
         -- statement column should be just the portion of the index definition that defines what it actually is
-        v_sql := format('CREATE UNIQUE INDEX ON %I.%I %s', v_child_schema, v_child_tablename, v_index_list.statement);
+        v_sql := format('CREATE %sINDEX ON %I.%I %s'
+                        , CASE WHEN v_index_list.indisunique THEN 'UNIQUE ' ELSE '' END
+                        , v_child_schema
+                        , v_child_tablename
+                        , v_index_list.statement);
         IF v_index_list.tablespace_name IS NOT NULL THEN
             IF (ARRAY_length(regexp_matches(v_sql, ' WHERE ', 'i'), 1) > 0) THEN
                 v_sql := regexp_replace(v_sql, ' WHERE ', format(' TABLESPACE %I WHERE ', v_index_list.tablespace_name), 'i');
@@ -169,8 +175,6 @@ LOOP
 
         RAISE DEBUG 'inherit_template_properties: Create index: %', v_sql;
         EXECUTE v_sql;
-    ELSE
-        RAISE EXCEPTION 'inherit_template_properties: Unexpected code path in unique index creation. Please report the steps that lead to this error to extension maintainers.';
     END IF;
 
 END LOOP;

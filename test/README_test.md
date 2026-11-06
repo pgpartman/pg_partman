@@ -38,4 +38,10 @@ Tests for the Background Worker can be found in the test/test_bgw folder. Please
 
 Tests for procedures are in their own folders. These must be run in stages with manual commands between them since pgTap cannot handle distinct commits within a single test run.
 
+The template-index concurrent-drop test runs in autocommit mode because `DROP INDEX CONCURRENTLY` cannot run inside a transaction block. CI runs it separately after the pgTAP suite. To run it locally:
+
+```sh
+psql -v ON_ERROR_STOP=1 -f test/test_manual/test-template-indexes-concurrently.sql
+```
+
 Tests for the reindexing script are in development and will return once the reindexing feature has been updated. They can be found in the test/test_reindex folder. These tests cannot just be run all at once and are not run within rolled back transactions. They must be run in order, one at a time, and there are explicit instructions at the end of each test for what to do next.
