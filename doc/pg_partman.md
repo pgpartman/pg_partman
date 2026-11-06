@@ -82,11 +82,17 @@ For this extension, most of the attributes of the child partitions are all obtai
 | non-partition column unique index tablespace      |                       |  14+                  |
 | relation-specific options (autovac, etc)          |                       |  14+
 | unlogged table state*                             |                       |  14+                  |
-| non-unique indexes                                | 14+                   |                       |
+| non-unique indexes                                | 14+                   | 14+                   |
 | privileges/ownership                              | 14+                   |                       |
 | GENERATED ALWAYS AS IDENTITY column               | 17+                   |                       |
 
 If a property is managed via the template table, it likely will not be retroactively applied to all existing child tables if that property is changed. It will apply to any newly created children, but will have to be manually applied to any existing children.
+
+To keep non-unique indexes independent of the parent's partitioned indexes, create them on the configured template table and leave matching indexes off the parent. pg_partman copies valid template indexes to new child tables, including the default partition. It skips indexes already supplied by the parent. Exclusion constraints are not copied from the template.
+
+New non-default partitions receive their template indexes before attachment. These builds use ordinary `CREATE INDEX` on the empty tables. PostgreSQL does not allow `CREATE INDEX CONCURRENTLY` inside pg_partman's partition-creation functions. For existing populated partitions, run `CREATE INDEX CONCURRENTLY` separately on each child, outside a transaction block.
+
+An independent child index can be removed with `DROP INDEX CONCURRENTLY`, outside a transaction block, provided it does not support a constraint. PostgreSQL attaches matching child indexes when a parent index exists, even if the child index came from the template. Those attached indexes cannot be dropped independently. This feature does not detach existing indexes. Remove an index from the template to stop copying it to future partitions; existing children keep their indexes.
 
 Privileges & ownership are NOT inherited by default. If enabled by pg_partman, note that this inheritance is only at child table creation and isn't automatically retroactive when changed (see `reapply_privileges()`). Unless you need direct access to the child tables, this should not be needed. You can set the `inherit_privileges` option if this is needed (see config table information below).  
 

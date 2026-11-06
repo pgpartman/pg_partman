@@ -19,3 +19,4 @@ jobs:
       - run: make install
       - run: psql -U postgres -c 'CREATE SCHEMA partman; CREATE EXTENSION pg_partman SCHEMA partman; CREATE EXTENSION pgtap'
       - run: pg_prove --username postgres --ext .sql --comments --verbose --failures test
+      - run: psql -U postgres -v ON_ERROR_STOP=1 -f test/test_manual/test-template-indexes-concurrently.sql

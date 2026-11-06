@@ -12,6 +12,7 @@ DOCUMENTATION
 
 NEW FEATURES
 ------------
+ - Copy non-unique indexes from the template table to new child tables. When no matching parent index exists, these child indexes remain independent and can be dropped concurrently.
  - Allow retention system to properly handle dropping child tables when the partition table is referenced by another table via a foreign key. Child tables must be detached first before dropping, so a new flag in the `part_config` table has been added: `detach_before_drop`. Set this value to true when using retention on a partition set referenced by another table. Note that all data in the referencing table must still be removed from that table first before the child table can be detached or dropped.
  - Added a new column for allowing Row Level Security (RLS) management on the `part_config` and `part_config_sub` tables: maintenance_role. See documentation for examples of how to set row level security policies on the configuration tables to restrict access to performing maintenance operations on partition sets owned by other roles.
  - Inherit per column statistic target from the parent table
