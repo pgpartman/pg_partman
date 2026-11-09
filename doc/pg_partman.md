@@ -80,6 +80,7 @@ For this extension, most of the attributes of the child partitions are all obtai
 | non-partition column primary key                  |                       |  14+                  |
 | non-partition column unique index                 |                       |  14+                  |
 | non-partition column unique index tablespace      |                       |  14+                  |
+| exclusion constraint                              |                       |  14+                  |
 | relation-specific options (autovac, etc)          |                       |  14+
 | unlogged table state*                             |                       |  14+                  |
 | non-unique indexes                                | 14+                   |                       |
