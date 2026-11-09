@@ -14,6 +14,7 @@ v_child_schema          text;
 v_child_tablename       text;
 v_child_unlogged        char;
 v_dupe_found            boolean := false;
+v_excl_list             record;
 v_index_list            record;
 v_parent_index_list     record;
 v_parent_oid            oid;
@@ -30,7 +31,7 @@ v_toast_table_oid       oid;
 BEGIN
 /*
  * Function to inherit the properties of the template table to newly created child tables.
- * For PG14+, used to inherit non-partition-key unique indexes & primary keys, unlogged status, and relation options
+ * For PG14+, used to inherit non-partition-key unique indexes & primary keys, exclusion constraints, unlogged status, and relation options
  */
 
 SELECT parent_table, template_table
@@ -175,6 +176,46 @@ LOOP
 
 END LOOP;
 -- End index creation
+
+-- Exclusion constraint creation
+FOR v_excl_list IN
+    SELECT pg_get_constraintdef(con.oid) AS statement
+    , ts.spcname AS tablespace_name
+    FROM pg_catalog.pg_constraint con
+    JOIN pg_catalog.pg_class c ON con.conindid = c.oid
+    LEFT OUTER JOIN pg_catalog.pg_tablespace ts ON c.reltablespace = ts.oid
+    WHERE con.conrelid = v_template_oid
+    AND con.contype = 'x'
+    ORDER BY 1
+LOOP
+    -- Skip if the child already has it, for example when it was inherited from the parent
+    IF EXISTS (
+        SELECT 1
+        FROM pg_catalog.pg_constraint child_con
+        JOIN pg_catalog.pg_class c ON child_con.conrelid = c.oid
+        JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
+        WHERE n.nspname = v_child_schema
+        AND c.relname = v_child_tablename
+        AND child_con.contype = 'x'
+        AND pg_get_constraintdef(child_con.oid) = v_excl_list.statement
+    ) THEN
+        RAISE DEBUG 'inherit_template_properties: Ignoring duplicate exclusion constraint on template table: %', v_excl_list.statement;
+        CONTINUE;
+    END IF;
+
+    v_sql := format('ALTER TABLE %I.%I ADD %s', v_child_schema, v_child_tablename, v_excl_list.statement);
+    IF v_excl_list.tablespace_name IS NOT NULL THEN
+        IF (ARRAY_length(regexp_matches(v_sql, ' WHERE ', 'i'), 1) > 0) THEN
+            v_sql := regexp_replace(v_sql, ' WHERE ', format(' USING INDEX TABLESPACE %I WHERE ', v_excl_list.tablespace_name), 'i');
+        ELSE
+            v_sql := v_sql || format(' USING INDEX TABLESPACE %I', v_excl_list.tablespace_name);
+        END IF;
+    END IF;
+
+    RAISE DEBUG 'inherit_template_properties: Create exclusion constraint: %', v_sql;
+    EXECUTE v_sql;
+END LOOP;
+-- End exclusion constraint creation
 
 /*
 UNLOGGED status.
