@@ -21,7 +21,6 @@ v_async_rowcount            int;
 v_column_list_filtered      text;
 v_column_list_full          text;
 v_control                   text;
-v_control_exact_type        text;
 v_control_type              text;
 v_datetime_string           text;
 v_current_partition_name    text;
@@ -91,7 +90,7 @@ FROM pg_catalog.pg_tables
 WHERE schemaname = split_part(p_parent_table, '.', 1)::name
 AND tablename = split_part(p_parent_table, '.', 2)::name;
 
-SELECT general_type, exact_type INTO v_control_type, v_control_exact_type FROM @extschema@.check_control_type(v_parent_schemaname, v_parent_tablename, v_control);
+SELECT general_type INTO v_control_type FROM @extschema@.check_control_type(v_parent_schemaname, v_parent_tablename, v_control);
 IF v_control_type <> 'time' THEN
     IF (v_control_type = 'id' AND v_epoch = 'none') OR v_control_type NOT IN ('text', 'id', 'uuid') OR (v_control_type IN ('text', 'uuid') AND v_time_encoder IS NULL) THEN
         RAISE EXCEPTION 'Cannot run on partition set without time based control column, an epoch flag set with an id column or time_encoder set with text column. Found control: %, epoch: %, time_encoder: %s', v_control_type, v_epoch, v_time_encoder;
@@ -315,14 +314,11 @@ FOR i IN 1..p_batch_count LOOP
 
     -- Create a variable to use in all scenarios below for handling encoded columns
 
+    -- The boundary values below are always compared as timestamptz, never as text. Text comparison
+    -- puts rows in the wrong child table when the text format of the column differs from timestamptz,
+    -- for example date values (See Github Issues #838 and #868)
     IF v_time_decoder IS NULL THEN
-        IF v_control_exact_type = 'timestamp' THEN
-            -- Conversion to text of timestamp without timezone cannot be directly compared to timestamptz
-            -- that is returned by other functions and used below (See Github Issue #838)
-            v_decoded_col := format('%s::timestamptz::text', v_partition_expression);
-        ELSE
-            v_decoded_col := format('%s::text', v_partition_expression);
-        END IF;
+        v_decoded_col := v_partition_expression;
     ELSE
         v_decoded_col := format('%s(%s::text)', v_time_decoder_safe, v_partition_expression);
     END IF;
@@ -338,7 +334,7 @@ FOR i IN 1..p_batch_count LOOP
 
         -- Infinity only needs to be of concern when being removed from the default
 
-            v_sql := format('DELETE FROM %1$I.%2$I WHERE %3$s >= %4$L AND %3$s < %5$L RETURNING *'
+            v_sql := format('DELETE FROM %1$I.%2$I WHERE %3$s >= %4$L::timestamptz AND %3$s < %5$L::timestamptz RETURNING *'
                 , v_source_schemaname
                 , v_source_tablename
                 , v_decoded_col
@@ -369,7 +365,7 @@ FOR i IN 1..p_batch_count LOOP
         v_analyze := @extschema@.create_partition_time(p_parent_table, v_partition_timestamp);
 
             v_sql := format('WITH partition_data AS (
-                                DELETE FROM ONLY %I.%I WHERE %3$s >= %L AND %3$s < %5$L RETURNING *)
+                                DELETE FROM ONLY %I.%I WHERE %3$s >= %L::timestamptz AND %3$s < %5$L::timestamptz RETURNING *)
                              INSERT INTO %6$I.%7$I (%8$s) %9$s SELECT %8$s FROM partition_data'
                                 , v_source_schemaname
                                 , v_source_tablename
