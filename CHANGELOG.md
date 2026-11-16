@@ -1,3 +1,10 @@
+5.6.0
+=====
+NEW FEATURES
+------------
+ - Allow a custom prefix to be used between the parent table name and the partition suffix when naming child tables, instead of the hardcoded `_p`. A new `part_config` column, `child_table_prefix`, controls this and defaults to `_p` to preserve existing behavior for all current partition sets. Set it with `UPDATE part_config SET child_table_prefix = '...' WHERE parent_table = ...` after the partition set is created (like other options not exposed directly on `create_parent()`/`create_partition()`). Takes effect on all subsequently created child tables (`run_maintenance()`, `create_partition_time()`/`create_partition_id()`, `partition_data_time()`/`partition_data_id()`, and `show_partition_name()`); existing child tables are not renamed.
+
+
 5.5.0
 =====
 BREAKING CHANGES

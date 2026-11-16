@@ -30,8 +30,10 @@ CREATE TABLE @extschema@.part_config (
     , detach_before_drop BOOLEAN DEFAULT false
     , maintenance_role TEXT DEFAULT current_user
     , async_partitioning_in_progress text
+    , child_table_prefix text NOT NULL DEFAULT '_p'
     , CONSTRAINT part_config_parent_table_pkey PRIMARY KEY (parent_table)
     , CONSTRAINT positive_premake_check CHECK (premake > 0)
+    , CONSTRAINT child_table_prefix_not_empty_chk CHECK (child_table_prefix <> '')
 );
 
 CREATE INDEX part_config_type_idx ON @extschema@.part_config (partition_type);

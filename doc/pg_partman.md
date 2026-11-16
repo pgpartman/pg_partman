@@ -841,6 +841,7 @@ Stores all configuration data for partition sets managed by the extension.
     , retention_keep_publication boolean NOT NULL DEFAULT false
     , maintenance_last_run timestamptz
     , async_partitioning_in_progress text
+    , child_table_prefix text NOT NULL DEFAULT '_p'
 
  - `parent_table`
     - Parent table of the partition set
@@ -909,6 +910,10 @@ Stores all configuration data for partition sets managed by the extension.
     - Timestamp of the last successful run of maintenance for this partition set. Can be useful as a monitoring metric to ensure partition maintenance is running properly.
  - async_partitioning_in_progress
     - This column is used to track if an asynchronous partitioning process has been started. It is a text field that contains the value related to the last block of data that was processed. If NOT NULL, all regular maintenance for this table will be stopped until the async partitioning process has been completed successfully. See `partition_data_async()` for more information.
+ - `child_table_prefix`
+    - Text value placed between the parent table name and the partition suffix when naming child tables. Defaults to `_p` to preserve existing naming for all current partition sets.
+    - Can be set to any non-empty string (Ex: `_` for a shorter naming convention, or any other custom value). Empty string is not allowed.
+    - Cannot be set at `create_parent()`/`create_partition()` time. Set it afterwards with `UPDATE part_config SET child_table_prefix = '...' WHERE parent_table = ...`. Takes effect for all child tables created after the update (via `run_maintenance()`, direct calls to `create_partition_time()`/`create_partition_id()`, or `partition_data_time()`/`partition_data_id()`); existing child tables are not renamed.
 
 
 <a id="part_config_sub"></a>

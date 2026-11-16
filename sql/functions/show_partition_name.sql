@@ -17,6 +17,7 @@ v_child_exists                  text;
 v_child_larger                  boolean := false;
 v_child_smaller                 boolean := false;
 v_child_start_time              timestamptz;
+v_child_table_prefix            text;
 v_control                       text;
 v_time_encoder                  text;
 v_control_type                  text;
@@ -42,12 +43,14 @@ SELECT partition_type
     , partition_interval
     , datetime_string
     , epoch
+    , child_table_prefix
 INTO v_type
     , v_control
     , v_time_encoder
     , v_partition_interval
     , v_datetime_string
     , v_epoch
+    , v_child_table_prefix
 FROM @extschema@.part_config
 WHERE parent_table = p_parent_table;
 
@@ -126,11 +129,11 @@ IF (v_control_type IN ('time', 'text', 'uuid') OR (v_control_type = 'id' AND v_e
         END LOOP;
     END IF;
 
-    partition_table := @extschema@.check_name_length(v_parent_tablename, to_char(suffix_timestamp, v_datetime_string), TRUE);
+    partition_table := @extschema@.check_name_length(v_parent_tablename, to_char(suffix_timestamp, v_datetime_string), TRUE, v_child_table_prefix);
 
 ELSIF v_control_type = 'id' THEN
     suffix_id := (p_value::bigint - (p_value::bigint % v_partition_interval::bigint));
-    partition_table := @extschema@.check_name_length(v_parent_tablename, suffix_id::text, TRUE);
+    partition_table := @extschema@.check_name_length(v_parent_tablename, suffix_id::text, TRUE, v_child_table_prefix);
 
 ELSE
     RAISE EXCEPTION 'Unexpected code path encountered in show_partition_name(). No valid control type found. Please report this issue to author with relevant partition config info.';

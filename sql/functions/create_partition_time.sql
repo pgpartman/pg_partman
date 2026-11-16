@@ -13,6 +13,7 @@ ex_context                      text;
 ex_detail                       text;
 ex_hint                         text;
 ex_message                      text;
+v_child_table_prefix            text;
 v_control                       text;
 v_control_type                  text;
 v_datetime_string               text;
@@ -63,6 +64,7 @@ SELECT control
     , datetime_string
     , template_table
     , inherit_privileges
+    , child_table_prefix
 INTO v_control
     , v_time_encoder
     , v_partition_interval
@@ -71,6 +73,7 @@ INTO v_control
     , v_datetime_string
     , v_template_table
     , v_inherit_privileges
+    , v_child_table_prefix
 FROM @extschema@.part_config
 WHERE parent_table = p_parent_table;
 
@@ -152,7 +155,7 @@ FOREACH v_time IN ARRAY p_partition_times LOOP
 
     -- This suffix generation code is in partition_data_time() as well
     v_partition_suffix := to_char(v_time, v_datetime_string);
-    v_partition_name := @extschema@.check_name_length(v_parent_tablename, v_partition_suffix, TRUE);
+    v_partition_name := @extschema@.check_name_length(v_parent_tablename, v_partition_suffix, TRUE, v_child_table_prefix);
     -- Check if child exists.
     SELECT count(*) INTO v_exists
     FROM pg_catalog.pg_class c
