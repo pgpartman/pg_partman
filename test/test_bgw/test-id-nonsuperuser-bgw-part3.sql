@@ -11,7 +11,7 @@ SELECT set_config('search_path','partman, public',false);
 
 SELECT plan(5);
 
-REVOKE USAGE ON SCHEMA partman FROM partman_owner;
+REVOKE ALL ON SCHEMA partman FROM partman_owner;
 REVOKE ALL ON ALL TABLES IN SCHEMA partman FROM partman_owner;
 REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA partman FROM partman_owner;
 REVOKE EXECUTE ON ALL PROCEDURES IN SCHEMA partman FROM partman_owner;

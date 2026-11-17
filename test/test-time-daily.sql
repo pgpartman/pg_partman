@@ -12,7 +12,7 @@
 BEGIN;
 SELECT set_config('search_path','partman, public',false);
 
-SELECT plan(221);
+SELECT plan(223);
 
 CREATE ROLE partman_basic;
 CREATE ROLE partman_revoke;
@@ -48,6 +48,22 @@ SELECT table_owner_is ('partman', 'template_partman_test_time_taptest_table', 'p
 
 -- Add inheritable stuff to template table
 ALTER TABLE template_partman_test_time_taptest_table ADD PRIMARY KEY (col1);
+
+-- Regression test: a template table's primary key built from a unique index with an INCLUDE clause should only inherit its real key column(s) onto child tables, not the INCLUDE column(s).
+CREATE TABLE partman_test.time_taptest_include_table (col1 int, col2 text, col3 timestamptz NOT NULL DEFAULT now())
+    PARTITION BY RANGE (col3);
+SELECT create_partition('partman_test.time_taptest_include_table', 'col3', '1 day');
+CREATE UNIQUE INDEX time_taptest_include_template_idx ON template_partman_test_time_taptest_include_table (col1) INCLUDE (col2);
+ALTER TABLE template_partman_test_time_taptest_include_table
+    ADD CONSTRAINT time_taptest_include_template_pkey PRIMARY KEY USING INDEX time_taptest_include_template_idx;
+SELECT create_partition_time('partman_test.time_taptest_include_table', ARRAY[(CURRENT_TIMESTAMP+'100 days'::interval)]);
+SELECT col_is_pk('partman_test', 'time_taptest_include_table_p'||to_char(CURRENT_TIMESTAMP+'100 days'::interval, 'YYYYMMDD'), ARRAY['col1'],
+    'Check primary key inherited from template with INCLUDE index contains only the real key column col1');
+SELECT col_isnt_pk('partman_test', 'time_taptest_include_table_p'||to_char(CURRENT_TIMESTAMP+'100 days'::interval, 'YYYYMMDD'), ARRAY['col2'],
+    'Check primary key inherited from template with INCLUDE index does not contain the INCLUDE column col2');
+DROP TABLE partman_test.time_taptest_include_table CASCADE;
+DELETE FROM part_config WHERE parent_table = 'partman_test.time_taptest_include_table';
+-- End Regresstion test
 
 INSERT INTO partman_test.time_taptest_table (col1, col3) VALUES (generate_series(1,10), CURRENT_TIMESTAMP);
 SELECT has_table('partman_test', 'time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD'), 'Check time_taptest_table_p'||to_char(CURRENT_TIMESTAMP, 'YYYYMMDD')||' exists');

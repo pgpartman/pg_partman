@@ -102,6 +102,7 @@ GRANT EXECUTE ON ALL PROCEDURES IN SCHEMA partman TO partman_maintainer;
 GRANT ALL ON SCHEMA my_partition_schema TO partman_maintainer;
 GRANT TEMPORARY ON DATABASE mydb to partman_maintainer; -- allow creation of temp tables to move data out of default
 ```
+Note that in order to create a partition set, the role running `create_partition()` will need ownership level permissions on that table, not just GRANTs.
 
 If you need the role to also be able to create schemas, you will need to grant create on the database as well. In general this shouldn't be required as long as you give the above role CREATE privileges on any pre-existing schemas that will contain partition sets.
 
@@ -124,28 +125,28 @@ ALTER TABLE part_config_sub ENABLE ROW LEVEL SECURITY;
 Now create the policies that will allow the roles set in the `maintenance_role` column to be able to fully access their own rows for reads and writes. Once this is in place, those roles should no longer be able to even see any other rows in the table.
 
 ```sql
-CREATE POLICY part_config_user_access_policy ON part_config 
-    FOR ALL 
-    TO PUBLIC 
+CREATE POLICY part_config_user_access_policy ON part_config
+    FOR ALL
+    TO PUBLIC
     USING (maintenance_role = current_user)
-    WITH CHECK (maintenance_role = current_user); 
+    WITH CHECK (maintenance_role = current_user);
 
 CREATE POLICY part_config_sub_user_access_policy ON part_config_sub
-    FOR ALL 
-    TO PUBLIC 
+    FOR ALL
+    TO PUBLIC
     USING (sub_maintenance_role = current_user)
-    WITH CHECK (sub_maintenance_role = current_user); 
+    WITH CHECK (sub_maintenance_role = current_user);
 ```
-If you are using the background worker and/or have a dedicated maintence role for pg_partman, you will have to create another policy to allow them to see all rows in the partman configuration tables.
+If you are using the background worker and/or have a dedicated maintenance role for pg_partman, you will have to create another policy to allow them to see all rows in the partman configuration tables.
 
 ```sql
-CREATE POLICY part_config_maintenance_access_policy ON part_config 
-    FOR ALL 
+CREATE POLICY part_config_maintenance_access_policy ON part_config
+    FOR ALL
     TO partman_maintainer
     USING (true);
 
 CREATE POLICY part_config_sub_maintenance_access_policy ON part_config_sub
-    FOR ALL 
+    FOR ALL
     TO partman_maintainer
     USING (true);
 ```

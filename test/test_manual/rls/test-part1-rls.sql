@@ -18,7 +18,13 @@ SELECT plan(6);
 CREATE SCHEMA partman_test;
 CREATE ROLE partman_alpha WITH LOGIN;
 CREATE ROLE partman_beta WITH LOGIN;
-CREATE ROLE partman_maintenance WITH LOGIN;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'partman_maintenance') THEN
+        CREATE ROLE partman_maintenance WITH LOGIN;
+    END IF;
+END
+$$;
 GRANT partman_alpha, partman_beta TO partman_maintenance;
 DO $$
 BEGIN
@@ -35,14 +41,14 @@ GRANT ALL ON SCHEMA partman_test TO partman_alpha, partman_beta, partman_mainten
 
 ALTER TABLE part_config ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY part_config_test_user_access_policy ON part_config 
-    FOR ALL 
-    TO PUBLIC 
+CREATE POLICY part_config_test_user_access_policy ON part_config
+    FOR ALL
+    TO PUBLIC
     USING (maintenance_role = current_user)
-    WITH CHECK (maintenance_role = current_user); 
+    WITH CHECK (maintenance_role = current_user);
 
-CREATE POLICY part_config_test_maintenance_access_policy ON part_config 
-    FOR ALL 
+CREATE POLICY part_config_test_maintenance_access_policy ON part_config
+    FOR ALL
     TO partman_maintenance
     USING (true);
 

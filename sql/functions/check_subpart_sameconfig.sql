@@ -83,4 +83,3 @@ AS $$
     FROM @extschema@.part_config_sub a
     JOIN child_tables b on a.sub_parent = b.tablename;
 $$;
-

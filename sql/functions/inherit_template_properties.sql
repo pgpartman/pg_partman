@@ -96,6 +96,7 @@ FOR v_index_list IN
         JOIN ( SELECT k, row_number() over () as r
                 FROM unnest(i.indkey) k ) as x
         ON a.attnum = x.k AND a.attrelid = i.indrelid
+        WHERE x.r <= i.indnkeyatts
     ) AS indkey_names
     , c.relname AS index_name
     , ts.spcname AS tablespace_name
@@ -118,6 +119,7 @@ LOOP
             JOIN ( SELECT k, row_number() over () as r
                     FROM unnest(i.indkey) k ) as x
             ON a.attnum = x.k AND a.attrelid = i.indrelid
+            WHERE x.r <= i.indnkeyatts
         ) AS indkey_names
         FROM pg_catalog.pg_index i
         WHERE i.indrelid = v_parent_oid
@@ -243,4 +245,3 @@ RETURN true;
 
 END
 $$;
-

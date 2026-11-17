@@ -2,10 +2,14 @@
  * Convenience helper functions to support time based partitioning for UUIDv7 columns.
  * Set the following functions as p_time_encoder, p_time_decoder params for time based
  * partitioning of UUIDv7 columns
+ *
+ * Both are IMMUTABLE so calls with constant arguments get folded at plan time, which
+ * partition pruning needs. Neither depends on session settings (timestamptz is an
+ * absolute instant).
  */
 
 CREATE FUNCTION @extschema@.uuid7_time_encoder(ts TIMESTAMPTZ) RETURNS UUID
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
     SET search_path = @extschema@, pg_catalog, pg_temp
 AS $$
 DECLARE
@@ -24,7 +28,7 @@ $$;
 
 -- Currently time decoder function must take a text parameter. See if this can be more flexible in the future
 CREATE FUNCTION @extschema@.uuid7_time_decoder(uuidv7 TEXT) RETURNS TIMESTAMPTZ
-    LANGUAGE plpgsql
+    LANGUAGE plpgsql IMMUTABLE PARALLEL SAFE
     SET search_path = @extschema@, pg_catalog, pg_temp
 AS $$
 DECLARE
