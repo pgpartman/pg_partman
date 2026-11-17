@@ -7,6 +7,7 @@ BUG FIXES
  - Mark uuid7_time_encoder() and uuid7_time_decoder() IMMUTABLE and PARALLEL SAFE. As VOLATILE functions they blocked partition pruning, so queries on a UUIDv7 partition set filtered with uuid7_time_encoder() scanned every child table. (Github Issue #873 / PR #880)
  - Fix partition_data_time() and partition_data_proc() leaving rows on the first day of a child table's range in the default, and taking rows on the first day of the next range, when the control column is a `date` data type. The rows are compared in the control column's own type again instead of as text. (Github Issue #856)
  - Fix portal lifecycle management in background worker. Thank you to Michael Paquier and the PG Team for helping to keep this extension up to date with upstream changes!  
+ - Fix incorrect variable assignment for interval end string value in `show_partition_info()`. Was causing end of interval value to match starting interval value. (Github Issue #885)
 
 DOCUMENTATION
 -------------

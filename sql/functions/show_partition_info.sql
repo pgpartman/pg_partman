@@ -157,7 +157,7 @@ IF v_control_type IN ('time', 'text', 'uuid') OR (v_control_type = 'id' AND v_ep
     ELSIF (v_control_type = 'id' AND v_epoch <> 'none') THEN
         -- bigint data type is stored as a single-quoted string in the partition expression. Must strip quotes for valid type-cast.
         v_start_string := trim(BOTH '''' FROM v_start_string);
-        v_end_string := trim(BOTH '''' FROM v_start_string);
+        v_end_string := trim(BOTH '''' FROM v_end_string);
         IF v_epoch = 'seconds' THEN
             child_start_time := to_timestamp(v_start_string::double precision);
             child_end_time := to_timestamp(v_end_string::double precision);
